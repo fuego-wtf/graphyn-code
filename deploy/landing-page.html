@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graphyn Code - Free AI Development Tool for Claude Code Users</title>
+    <meta name="description" content="Graphyn Code brings specialized AI agents (Backend, Frontend, Architect) to your terminal. Free forever for Claude Code users.">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Graphyn Code - Free AI Development Tool">
+    <meta property="og:description" content="3 specialized AI agents in your terminal. Free forever for Claude Code users.">
+    <meta property="og:image" content="https://graphyn.xyz/assets/graphyn-code-og.png">
+    <meta property="og:url" content="https://graphyn.xyz/code">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Graphyn Code - Free AI Development Tool">
+    <meta name="twitter:description" content="3 specialized AI agents in your terminal. Free forever for Claude Code users.">
+    
+    <style>
+        :root {
+            --bright-blue: #3267F5;
+            --light-purple: #C0B7FD;
+            --tan-brown: #A67763;
+            --dark-brown: #2D160B;
+            --white: #FFFFFF;
+            --gray: #666666;
+            --light-gray: #F8F9FA;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: var(--dark-brown);
+            background: var(--white);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .hero {
+            background: linear-gradient(135deg, var(--bright-blue) 0%, var(--light-purple) 100%);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .hero .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .install-section {
+            background: var(--dark-brown);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin: 2rem auto;
+            max-width: 800px;
+        }
+        
+        .install-command {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            margin: 1rem 0;
+            position: relative;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            background: var(--bright-blue);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .features {
+            padding: 80px 0;
+            background: var(--light-gray);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        
+        .feature {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .feature h3 {
+            color: var(--bright-blue);
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .agents {
+            padding: 80px 0;
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        
+        .agent {
+            text-align: center;
+            padding: 2rem;
+            border: 2px solid var(--light-purple);
+            border-radius: 12px;
+            transition: transform 0.3s ease;
+        }
+        
+        .agent:hover {
+            transform: translateY(-5px);
+        }
+        
+        .agent-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .cta {
+            background: var(--bright-blue);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: var(--tan-brown);
+            color: white;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid white;
+        }
+        
+        footer {
+            background: var(--dark-brown);
+            color: white;
+            padding: 2rem 0;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .install-command {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <div class="container">
+            <h1>🚀 Graphyn Code</h1>
+            <p class="subtitle">Free AI Development Tool for Claude Code Users</p>
+            <p>3 specialized AI agents in your terminal. Zero cost, unlimited usage.</p>
+        </div>
+    </section>
+
+    <section class="container">
+        <div class="install-section">
+            <h2>🎯 Install in 30 Seconds</h2>
+            <div class="install-command">
+                <span id="install-cmd">curl -sSL https://graphyn.xyz/code | bash</span>
+                <button class="copy-btn" onclick="copyInstall()">Copy</button>
+            </div>
+            <p><strong>Then:</strong> Get your FREE API key below → Authenticate → Start coding with AI!</p>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 1rem;">Why Graphyn Code?</h2>
+            <p style="text-align: center; font-size: 1.2rem; color: var(--gray);">Perfect companion to Claude Code</p>
+            
+            <div class="features-grid">
+                <div class="feature">
+                    <h3>🆓 Free Forever</h3>
+                    <p>Completely free for Claude Code users. No credit card, no limits, no catches. Early adopters get unlimited usage for life.</p>
+                </div>
+                
+                <div class="feature">
+                    <h3>🤖 Specialized Agents</h3>
+                    <p>Not just generic AI - get Backend, Frontend, and Architect agents with deep knowledge of modern tech stacks.</p>
+                </div>
+                
+                <div class="feature">
+                    <h3>🎯 Context Aware</h3>
+                    <p>Automatically detects your project context and chooses the right agent based on directory, files, and git branches.</p>
+                </div>
+                
+                <div class="feature">
+                    <h3>⚡ CLI First</h3>
+                    <p>Works in your terminal with any editor. No IDE lock-in, no browser switching. Pure command-line productivity.</p>
+                </div>
+                
+                <div class="feature">
+                    <h3>🔄 Agent Collaboration</h3>
+                    <p>Chain multiple agents together for complex tasks. Frontend → Backend → Architect reviews, all automated.</p>
+                </div>
+                
+                <div class="feature">
+                    <h3>🔒 Privacy First</h3>
+                    <p>Your code stays yours. Secure API key storage, no data collection, no logging. Built for developers, by developers.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="agents">
+        <div class="container">
+            <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 1rem;">Meet Your AI Team</h2>
+            
+            <div class="agents-grid">
+                <div class="agent">
+                    <div class="agent-icon">🔧</div>
+                    <h3>Backend Agent</h3>
+                    <p>Encore.ts, APIs, databases, real-time features, security, and scalability. Your backend specialist.</p>
+                </div>
+                
+                <div class="agent">
+                    <div class="agent-icon">🎨</div>
+                    <h3>Frontend Agent</h3>
+                    <p>React, Next.js, UI/UX, real-time integration. Creates beautiful, functional user experiences.</p>
+                </div>
+                
+                <div class="agent">
+                    <div class="agent-icon">🏗️</div>
+                    <h3>Architect Agent</h3>
+                    <p>System design, code reviews, best practices. Ensures your architecture scales and maintainable.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Ready to Code Faster?</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 2rem;">Join 1,000+ developers already building with Graphyn Code</p>
+            
+            <a href="#api-key" class="btn">Get Free API Key</a>
+            <a href="https://github.com/graphyn-xyz/graphyn-code" class="btn btn-secondary">View on GitHub</a>
+        </div>
+    </section>
+
+    <section id="api-key" style="padding: 80px 0; background: var(--light-gray);">
+        <div class="container" style="text-align: center;">
+            <h2 style="font-size: 2.5rem; margin-bottom: 2rem;">Get Your Free API Key</h2>
+            
+            <div style="background: white; padding: 3rem; border-radius: 12px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                <h3 style="margin-bottom: 1rem;">🎁 Early Adopter Special</h3>
+                <p style="margin-bottom: 2rem;">First 1,000 Claude Code users get unlimited usage forever!</p>
+                
+                <form id="api-key-form" style="margin-bottom: 2rem;">
+                    <input type="email" id="email" placeholder="your.email@domain.com" required 
+                           style="width: 100%; padding: 1rem; margin-bottom: 1rem; border: 2px solid var(--light-purple); border-radius: 8px; font-size: 1rem;">
+                    <label style="display: flex; align-items: center; margin-bottom: 1rem; text-align: left;">
+                        <input type="checkbox" id="claude-code" required style="margin-right: 0.5rem;">
+                        I use Claude Code for development
+                    </label>
+                    <button type="submit" class="btn" style="width: 100%; margin: 0;">
+                        Generate Free API Key
+                    </button>
+                </form>
+                
+                <div id="api-key-result" style="display: none;">
+                    <div style="background: var(--light-gray); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong>Your API Key:</strong>
+                        <div style="font-family: monospace; font-size: 1.1rem; margin-top: 0.5rem;" id="generated-key"></div>
+                    </div>
+                    <p style="color: var(--gray); font-size: 0.9rem;">Save this key securely. Use it with: <code>graphyn auth &lt;your-key&gt;</code></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Graphyn. Built with 💙 for developers.</p>
+            <p style="margin-top: 0.5rem;">
+                <a href="https://github.com/graphyn-xyz/graphyn-code" style="color: var(--light-purple);">GitHub</a> • 
+                <a href="mailto:support@graphyn.xyz" style="color: var(--light-purple);">Support</a> • 
+                <a href="/privacy" style="color: var(--light-purple);">Privacy</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        function copyInstall() {
+            const cmd = document.getElementById('install-cmd').textContent;
+            navigator.clipboard.writeText(cmd);
+            
+            const btn = document.querySelector('.copy-btn');
+            const originalText = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.style.background = '#28a745';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = 'var(--bright-blue)';
+            }, 2000);
+        }
+
+        document.getElementById('api-key-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const isClaudeUser = document.getElementById('claude-code').checked;
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            
+            if (!isClaudeUser) {
+                alert('This free tier is currently only available for Claude Code users.');
+                return;
+            }
+            
+            submitBtn.textContent = 'Generating...';
+            submitBtn.disabled = true;
+            
+            try {
+                // Generate a temporary API key (in production, this would hit your backend)
+                const apiKey = 'gph_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                
+                document.getElementById('generated-key').textContent = apiKey;
+                document.getElementById('api-key-form').style.display = 'none';
+                document.getElementById('api-key-result').style.display = 'block';
+                
+                // In production, send to your backend
+                // await fetch('https://api.graphyn.xyz/api-keys/generate', {
+                //     method: 'POST',
+                //     headers: { 'Content-Type': 'application/json' },
+                //     body: JSON.stringify({ email, claudeCodeUser: true })
+                // });
+                
+            } catch (error) {
+                alert('Error generating API key. Please try again.');
+            } finally {
+                submitBtn.textContent = 'Generate Free API Key';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

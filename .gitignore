@@ -1,0 +1,66 @@
+# User data
+.fuego/
+history/
+sessions/
+cache/
+*.backup
+
+# Authentication
+auth.json
+context.json
+
+# Logs
+*.log
+*.log.*
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Backups
+*.bak
+*.orig
+*.old
+
+# Archives
+*.tar.gz
+*.zip
+*.7z
+
+# Local config overrides
+config/local.json
+config/*.local.json

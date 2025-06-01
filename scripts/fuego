@@ -1,0 +1,737 @@
+#!/usr/bin/env bash
+#
+# Fuego CLI - AI Agent Prompt Manager for Graphyn
+# Version: 2.0.0
+# 
+# Build space for stateful agents 🔷
+
+set -euo pipefail
+
+# Constants
+readonly SCRIPT_NAME=$(basename "$0")
+# Resolve symlinks to get the actual script location
+readonly SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+readonly SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly PROMPTS_DIR="${ROOT_DIR}/prompts"
+readonly CONFIG_DIR="${ROOT_DIR}/config"
+readonly TEMPLATES_DIR="${ROOT_DIR}/templates"
+
+# User directories
+readonly USER_HOME="${FUEGO_HOME:-$HOME/.fuego}"
+readonly AUTH_FILE="${USER_HOME}/auth.json"
+readonly CONTEXT_FILE="${USER_HOME}/context.json"
+readonly HISTORY_DIR="${USER_HOME}/history"
+readonly SESSIONS_DIR="${USER_HOME}/sessions"
+readonly CACHE_DIR="${USER_HOME}/cache"
+
+# Graphyn API Configuration
+readonly DEFAULT_API_URL="https://api.graphyn.ai/v1"
+readonly TERMINAL_DEMO_URL="http://localhost:4000"
+readonly GRAPHYN_API_TIMEOUT="${GRAPHYN_API_TIMEOUT:-30}"
+
+# Graphyn Brand Colors
+if [[ -t 1 ]]; then
+    readonly DARK_BROWN='\033[38;2;45;22;11m'      # #2D160B
+    readonly BRIGHT_BLUE='\033[38;2;50;103;245m'   # #3267F5
+    readonly LIGHT_PURPLE='\033[38;2;192;183;253m' # #C0B7FD
+    readonly TAN_BROWN='\033[38;2;166;119;99m'     # #A67763
+    readonly WHITE='\033[97m'
+    readonly BLACK='\033[30m'
+    readonly GRAY='\033[90m'
+    readonly BOLD='\033[1m'
+    readonly DIM='\033[2m'
+    readonly ITALIC='\033[3m'
+    readonly UNDERLINE='\033[4m'
+    readonly NC='\033[0m'
+else
+    readonly DARK_BROWN=''
+    readonly BRIGHT_BLUE=''
+    readonly LIGHT_PURPLE=''
+    readonly TAN_BROWN=''
+    readonly WHITE=''
+    readonly BLACK=''
+    readonly GRAY=''
+    readonly BOLD=''
+    readonly DIM=''
+    readonly ITALIC=''
+    readonly UNDERLINE=''
+    readonly NC=''
+fi
+
+# Logging functions
+log() { echo -e "${LIGHT_PURPLE}◆${NC} $*"; }
+info() { echo -e "${BRIGHT_BLUE}ℹ${NC} $*"; }
+success() { echo -e "${BRIGHT_BLUE}✓${NC} $*"; }
+error() { echo -e "${DARK_BROWN}✗${NC} $*" >&2; }
+warn() { echo -e "${TAN_BROWN}⚠${NC} $*" >&2; }
+
+# Initialize user directories
+init_user_dirs() {
+    mkdir -p "$USER_HOME" "$HISTORY_DIR" "$SESSIONS_DIR" "$CACHE_DIR"
+}
+
+# Graphyn banner
+show_banner() {
+    echo -e "${BRIGHT_BLUE}"
+    cat << 'EOF'
+    ┌─────────────────────────────────────────────┐
+    │                                             │
+    │  ███████╗██╗   ██╗███████╗ ██████╗  ██████╗│
+    │  ██╔════╝██║   ██║██╔════╝██╔════╝ ██╔═══██╗
+    │  █████╗  ██║   ██║█████╗  ██║  ███╗██║   ██║
+    │  ██╔══╝  ██║   ██║██╔══╝  ██║   ██║██║   ██║
+    │  ██║     ╚██████╔╝███████╗╚██████╔╝╚██████╔╝
+    │  ╚═╝      ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝ 
+    │                                             │
+EOF
+    echo -e "${LIGHT_PURPLE}    │        Build space for stateful agents      │${NC}"
+    echo -e "${BRIGHT_BLUE}    └─────────────────────────────────────────────┘${NC}"
+    echo
+}
+
+# Authentication check
+check_auth() {
+    if [[ ! -f "$AUTH_FILE" ]]; then
+        error "Not authenticated. Please run: fuego auth <api-key>"
+        echo -e "${GRAY}Get your API key from: https://graphyn.ai/settings/api${NC}"
+        return 1
+    fi
+    
+    local api_key=$(jq -r '.api_key // empty' "$AUTH_FILE" 2>/dev/null)
+    if [[ -z "$api_key" ]]; then
+        error "Invalid auth file. Please re-authenticate."
+        return 1
+    fi
+    
+    # Validate API key format (gph_xxxxxxxxxxxxx)
+    if [[ ! "$api_key" =~ ^gph_[a-zA-Z0-9]{12,}$ ]]; then
+        warn "API key format seems invalid"
+    fi
+    
+    return 0
+}
+
+# Authenticate with Graphyn API
+authenticate() {
+    local api_key=$1
+    local api_url=""
+    
+    # Parse additional flags
+    shift
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --api-url)
+                api_url="$2"
+                shift 2
+                ;;
+            --terminal-demo)
+                api_url="$TERMINAL_DEMO_URL"
+                shift
+                ;;
+            *)
+                error "Unknown option: $1"
+                return 1
+                ;;
+        esac
+    done
+    
+    if [[ -z "$api_key" ]]; then
+        error "Please provide an API key"
+        echo -e "${GRAY}Usage: fuego auth <api-key> [--api-url <url>|--terminal-demo]${NC}"
+        echo -e "${GRAY}Examples:${NC}"
+        echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx${NC}                    # Use default Graphyn API"
+        echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx --terminal-demo${NC}    # Use local terminal-demo"
+        echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx --api-url https://api.example.com${NC}"
+        return 1
+    fi
+    
+    # Default to Graphyn API if no URL specified
+    if [[ -z "$api_url" ]]; then
+        api_url="$DEFAULT_API_URL"
+    fi
+    
+    # Validate key format
+    if [[ ! "$api_key" =~ ^gph_[a-zA-Z0-9_-]+$ ]]; then
+        warn "API key format seems invalid (expected: gph_xxxxxxxxxxxx)"
+        read -p "Continue anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            return 1
+        fi
+    fi
+    
+    # Create auth directory
+    mkdir -p "$(dirname "$AUTH_FILE")"
+    
+    # Save authentication
+    cat > "$AUTH_FILE" <<EOF
+{
+  "api_key": "$api_key",
+  "api_url": "$api_url",
+  "authenticated_at": "$(date -Iseconds)",
+  "version": "2.0.0"
+}
+EOF
+    
+    # Secure the file
+    chmod 600 "$AUTH_FILE"
+    
+    success "Authentication successful!"
+    info "API key stored securely in $AUTH_FILE"
+    info "API URL: $api_url"
+}
+
+# Context detection
+detect_context() {
+    local current_dir=$(pwd)
+    local context=""
+    
+    # Check if we're in a specific directory
+    if [[ "$current_dir" == *"/backend"* ]] || [[ -f "encore.app" ]]; then
+        context="backend"
+    elif [[ "$current_dir" == *"/frontend"* ]] || [[ -f "next.config.js" ]] || [[ -f "package.json" && -d "app" ]]; then
+        context="frontend"
+    elif [[ "$current_dir" == *"/misc"* ]] || [[ -f "misc/adr/README.md" ]]; then
+        context="architect"
+    fi
+    
+    # Check for specific files
+    if [[ -z "$context" ]]; then
+        if [[ -f "backend/docs/todo.md" ]]; then
+            context="backend"
+        elif [[ -f "frontend/docs/todo.md" ]]; then
+            context="frontend"  
+        elif [[ -f "misc/docs/todo.md" ]]; then
+            context="architect"
+        fi
+    fi
+    
+    # Check git branch name
+    if [[ -z "$context" ]] && command -v git &> /dev/null; then
+        local branch=$(git branch --show-current 2>/dev/null)
+        case "$branch" in
+            *backend*|*api*|*encore*)
+                context="backend"
+                ;;
+            *frontend*|*ui*|*react*)
+                context="frontend"
+                ;;
+            *arch*|*infra*|*devops*)
+                context="architect"
+                ;;
+        esac
+    fi
+    
+    echo "$context"
+}
+
+# Save context preference
+save_context() {
+    local context=$1
+    mkdir -p "$(dirname "$CONTEXT_FILE")"
+    
+    cat > "$CONTEXT_FILE" <<EOF
+{
+  "default_context": "$context",
+  "saved_at": "$(date -Iseconds)",
+  "directory": "$(pwd)"
+}
+EOF
+    
+    success "Default context set to: $context"
+}
+
+# Get saved context
+get_saved_context() {
+    if [[ -f "$CONTEXT_FILE" ]]; then
+        jq -r '.default_context // empty' "$CONTEXT_FILE" 2>/dev/null
+    fi
+}
+
+# Load agent prompt
+load_prompt() {
+    local role=$1
+    local prompt_file="${PROMPTS_DIR}/${role}.md"
+    
+    if [[ ! -f "$prompt_file" ]]; then
+        error "Prompt file not found for role '${role}'"
+        return 1
+    fi
+    
+    cat "$prompt_file"
+}
+
+# Make API call to Graphyn
+call_graphyn_api() {
+    local endpoint=$1
+    local method=${2:-GET}
+    local data=${3:-}
+    local api_key=$(jq -r '.api_key' "$AUTH_FILE")
+    local api_url=$(jq -r '.api_url // "'$DEFAULT_API_URL'"' "$AUTH_FILE")
+    
+    local curl_opts=(
+        -s
+        -H "Authorization: Bearer ${api_key}"
+        -H "Content-Type: application/json"
+        -H "X-Agent-Version: 2.0.0"
+        --max-time "$GRAPHYN_API_TIMEOUT"
+    )
+    
+    if [[ "$method" != "GET" ]] && [[ -n "$data" ]]; then
+        curl_opts+=(-X "$method" -d "$data")
+    fi
+    
+    curl "${curl_opts[@]}" "${api_url}${endpoint}"
+}
+
+# Run agent with Graphyn API
+run_agent() {
+    local role=$1
+    shift
+    local message="$*"
+    
+    # Check authentication
+    if ! check_auth; then
+        return 1
+    fi
+    
+    # Get API key
+    local api_key=$(jq -r '.api_key' "$AUTH_FILE")
+    
+    # Load prompt
+    local prompt
+    if ! prompt=$(load_prompt "$role"); then
+        return 1
+    fi
+    
+    # Show agent header
+    echo
+    echo -e "${BRIGHT_BLUE}╭─────────────────────────────────────────╮${NC}"
+    case "$role" in
+        backend)
+            echo -e "${BRIGHT_BLUE}│${NC}  ${BOLD}${WHITE}Backend Developer Agent${NC}  🔧          ${BRIGHT_BLUE}│${NC}"
+            ;;
+        frontend)
+            echo -e "${BRIGHT_BLUE}│${NC}  ${BOLD}${WHITE}Frontend Developer Agent${NC} 🎨          ${BRIGHT_BLUE}│${NC}"
+            ;;
+        architect)
+            echo -e "${BRIGHT_BLUE}│${NC}  ${BOLD}${WHITE}Software Architect Agent${NC} 🏗️          ${BRIGHT_BLUE}│${NC}"
+            ;;
+    esac
+    echo -e "${BRIGHT_BLUE}╰─────────────────────────────────────────╯${NC}"
+    echo
+    
+    # Create session
+    local session_id=$(uuidgen 2>/dev/null || echo "$(date +%s)")
+    local session_file="${SESSIONS_DIR}/${role}_${session_id}.json"
+    
+    # Initialize session
+    cat > "$session_file" <<EOF
+{
+  "session_id": "$session_id",
+  "role": "$role",
+  "started_at": "$(date -Iseconds)",
+  "api_key_prefix": "${api_key:0:8}",
+  "messages": []
+}
+EOF
+    
+    # Prepare context with query
+    local timestamp=$(date -Iseconds)
+    local context_content="${prompt}
+
+## Session Info
+- API Key: ${api_key:0:8}...
+- Session ID: ${session_id}
+- Timestamp: ${timestamp}
+
+Your task is: ${message}"
+
+    # Save context to temporary file
+    local context_file="${USER_HOME}/.fuego_context_${role}.md"
+    echo "$context_content" > "$context_file"
+    
+    # Run in interactive or query mode
+    if [[ -n "$message" ]]; then
+        # Single query mode
+        echo -e "${LIGHT_PURPLE}◆ Query:${NC} $message"
+        echo
+        
+        # Launch Claude Code with the actual content
+        if command -v claude &> /dev/null; then
+            echo -e "${DIM}Launching Claude Code with context...${NC}"
+            claude "$context_content"
+        elif [[ -d "/Applications/Claude.app" ]]; then
+            echo -e "${DIM}Launching Claude Code...${NC}"
+            open "/Applications/Claude.app"
+            sleep 1
+        else
+            warn "Claude Code not found. Please launch it manually."
+        fi
+        
+        # Save to session
+        jq ".messages += [{\"timestamp\": \"$timestamp\", \"type\": \"query\", \"content\": \"$message\"}]" "$session_file" > "${session_file}.tmp" && mv "${session_file}.tmp" "$session_file"
+    else
+        # Interactive mode - just launch with context
+        # Update context without query
+        echo "${prompt}
+
+## Session Info
+- API Key: ${api_key:0:8}...
+- Session ID: ${session_id}
+- Timestamp: ${timestamp}" > "$context_file"
+        
+        # Read the context file content
+        local full_context=$(cat "$context_file")
+        
+        # Launch Claude Code with the actual content
+        if command -v claude &> /dev/null; then
+            echo -e "${DIM}Launching Claude Code with context...${NC}"
+            claude "$full_context"
+        elif [[ -d "/Applications/Claude.app" ]]; then
+            echo -e "${DIM}Launching Claude Code...${NC}"
+            open "/Applications/Claude.app"
+            sleep 1
+        else
+            warn "Claude Code not found. Please launch it manually."
+        fi
+    fi
+}
+
+# Chain multiple agents
+chain_agents() {
+    local query=$1
+    
+    show_banner
+    echo -e "${BOLD}${DARK_BROWN}Agent Chain Execution${NC}"
+    echo -e "${LIGHT_PURPLE}Query:${NC} $query"
+    echo -e "${GRAY}────────────────────────────────────────────────────${NC}"
+    echo
+    
+    # Create chain session
+    local chain_id=$(uuidgen 2>/dev/null || echo "chain_$(date +%s)")
+    local chain_file="${SESSIONS_DIR}/chain_${chain_id}.json"
+    
+    cat > "$chain_file" <<EOF
+{
+  "chain_id": "$chain_id",
+  "query": "$query",
+  "started_at": "$(date -Iseconds)",
+  "agents": []
+}
+EOF
+    
+    # Frontend Agent
+    echo -e "${BRIGHT_BLUE}┌─ 1. Frontend Agent ─────────────────┐${NC}"
+    echo -e "${BRIGHT_BLUE}│${NC} ${GRAY}Analyzing UI requirements...${NC}        ${BRIGHT_BLUE}│${NC}"
+    echo -e "${BRIGHT_BLUE}└─────────────────────────────────────┘${NC}"
+    
+    local frontend_query="I need to $query - what API endpoints and data structures do I need?"
+    local frontend_response=$(run_agent frontend "$frontend_query" | tail -n +10)
+    echo -e "${WHITE}$frontend_response${NC}"
+    echo
+    
+    # Save frontend response
+    jq ".agents += [{\"role\": \"frontend\", \"query\": \"$frontend_query\", \"response\": \"$frontend_response\"}]" "$chain_file" > "${chain_file}.tmp" && mv "${chain_file}.tmp" "$chain_file"
+    
+    # Backend Agent
+    echo -e "${BRIGHT_BLUE}┌─ 2. Backend Agent ──────────────────┐${NC}"
+    echo -e "${BRIGHT_BLUE}│${NC} ${GRAY}Implementing API endpoints...${NC}       ${BRIGHT_BLUE}│${NC}"
+    echo -e "${BRIGHT_BLUE}└─────────────────────────────────────┘${NC}"
+    
+    local backend_query="The frontend needs: $frontend_response. Please implement the necessary endpoints."
+    local backend_response=$(run_agent backend "$backend_query" | tail -n +10)
+    echo -e "${WHITE}$backend_response${NC}"
+    echo
+    
+    # Save backend response
+    jq ".agents += [{\"role\": \"backend\", \"query\": \"$backend_query\", \"response\": \"$backend_response\"}]" "$chain_file" > "${chain_file}.tmp" && mv "${chain_file}.tmp" "$chain_file"
+    
+    # Architect Agent
+    echo -e "${BRIGHT_BLUE}┌─ 3. Architect Agent ────────────────┐${NC}"
+    echo -e "${BRIGHT_BLUE}│${NC} ${GRAY}Reviewing architecture...${NC}           ${BRIGHT_BLUE}│${NC}"
+    echo -e "${BRIGHT_BLUE}└─────────────────────────────────────┘${NC}"
+    
+    local architect_query="Review this implementation plan:
+    
+Frontend requirements: $frontend_response
+
+Backend implementation: $backend_response
+
+Please validate the architecture, identify potential issues, and suggest improvements."
+    
+    run_agent architect "$architect_query"
+    
+    # Save final state
+    jq ".completed_at = \"$(date -Iseconds)\"" "$chain_file" > "${chain_file}.tmp" && mv "${chain_file}.tmp" "$chain_file"
+    
+    echo
+    success "Agent chain completed. Session saved: $chain_file"
+}
+
+# Show context information
+show_context() {
+    local detected=$(detect_context)
+    local saved=$(get_saved_context)
+    
+    echo -e "${BOLD}Context Information${NC}"
+    echo -e "${GRAY}────────────────────────────────────────${NC}"
+    echo -e "  ${WHITE}Current directory:${NC} $(pwd)"
+    echo -e "  ${WHITE}Detected context:${NC} ${detected:-none}"
+    echo -e "  ${WHITE}Default context:${NC} ${saved:-none}"
+    echo
+    
+    if [[ -n "$detected" ]]; then
+        info "Will use: $detected (detected)"
+    elif [[ -n "$saved" ]]; then
+        info "Will use: $saved (default)"
+    else
+        warn "No context detected. Please specify --backend, --frontend, or --architect"
+    fi
+}
+
+# Show authentication status
+show_auth_status() {
+    if [[ -f "$AUTH_FILE" ]]; then
+        local api_key=$(jq -r '.api_key' "$AUTH_FILE")
+        local auth_date=$(jq -r '.authenticated_at' "$AUTH_FILE")
+        
+        local api_url=$(jq -r '.api_url // "'$DEFAULT_API_URL'"' "$AUTH_FILE")
+        echo -e "${BOLD}Authentication Status${NC}"
+        echo -e "${GRAY}────────────────────────────────────────${NC}"
+        echo -e "  ${WHITE}API URL:${NC} ${GRAY}${api_url}${NC}"
+        echo -e "  ${WHITE}API Key:${NC} ${api_key:0:8}..."
+        echo -e "  ${WHITE}Authenticated:${NC} $auth_date"
+        echo -e "  ${WHITE}Status:${NC} ${BRIGHT_BLUE}Active${NC}"
+        
+        # Test API connection
+        echo -n -e "  ${WHITE}API Connection:${NC} "
+        if call_graphyn_api "/health" &>/dev/null; then
+            echo -e "${BRIGHT_BLUE}Connected${NC}"
+        else
+            echo -e "${DARK_BROWN}Offline${NC}"
+        fi
+    else
+        echo -e "${BOLD}Authentication Status${NC}"
+        echo -e "${GRAY}────────────────────────────────────────${NC}"
+        echo -e "  ${WHITE}Status:${NC} ${DARK_BROWN}Not authenticated${NC}"
+        echo
+        echo -e "${GRAY}Run 'fuego auth <api-key>' to authenticate${NC}"
+    fi
+}
+
+# Logout
+logout() {
+    if [[ -f "$AUTH_FILE" ]]; then
+        rm -f "$AUTH_FILE"
+        success "Logged out successfully"
+    else
+        info "Already logged out"
+    fi
+}
+
+# Show usage
+usage() {
+    show_banner
+    
+    echo -e "${BOLD}${DARK_BROWN}USAGE${NC}"
+    echo -e "  ${WHITE}fuego${NC} ${GRAY}[OPTIONS] [MESSAGE]${NC}"
+    echo
+    
+    echo -e "${BOLD}${DARK_BROWN}CONTEXT OPTIONS${NC}"
+    echo -e "  ${WHITE}--backend${NC}, ${WHITE}-b${NC}                   Use backend developer agent"
+    echo -e "  ${WHITE}--frontend${NC}, ${WHITE}-f${NC}                  Use frontend developer agent"
+    echo -e "  ${WHITE}--architect${NC}, ${WHITE}-a${NC}                 Use software architect agent"
+    echo -e "  ${WHITE}--auto${NC}                          Auto-detect context ${GRAY}(default)${NC}"
+    echo
+    
+    echo -e "${BOLD}${DARK_BROWN}AUTHENTICATION${NC}"
+    echo -e "  ${WHITE}auth${NC} ${LIGHT_PURPLE}<api-key>${NC} [OPTIONS]      Authenticate with API"
+    echo -e "    ${GRAY}--terminal-demo${NC}              Use local terminal-demo"
+    echo -e "    ${GRAY}--api-url <url>${NC}             Use custom API URL"
+    echo -e "  ${WHITE}logout${NC}                          Remove authentication"
+    echo -e "  ${WHITE}whoami${NC}                          Show current authentication"
+    echo
+    
+    echo -e "${BOLD}${DARK_BROWN}CONFIGURATION${NC}"
+    echo -e "  ${WHITE}--set-default${NC} ${LIGHT_PURPLE}<context>${NC}         Set default context"
+    echo -e "  ${WHITE}--context${NC}                       Show current context"
+    echo -e "  ${WHITE}--list${NC}, ${WHITE}-l${NC}                      List available contexts"
+    echo
+    
+    echo -e "${BOLD}${DARK_BROWN}ADVANCED${NC}"
+    echo -e "  ${WHITE}--chain${NC}, ${WHITE}-c${NC} ${LIGHT_PURPLE}<query>${NC}             Chain all agents for complex tasks"
+    echo -e "  ${WHITE}--update${NC}, ${WHITE}-u${NC}                    Update prompts from git"
+    echo -e "  ${WHITE}--stats${NC}                         Show usage statistics"
+    echo
+    
+    echo -e "${BOLD}${DARK_BROWN}OTHER${NC}"
+    echo -e "  ${WHITE}--version${NC}, ${WHITE}-v${NC}                   Show version"
+    echo -e "  ${WHITE}--help${NC}, ${WHITE}-h${NC}                      Show this help"
+    echo
+    
+    echo -e "${BOLD}${DARK_BROWN}EXAMPLES${NC}"
+    echo -e "  ${GRAY}# First time setup${NC}"
+    echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx${NC}"
+    echo
+    echo -e "  ${GRAY}# Auto-detect context from current directory${NC}"
+    echo -e "  ${WHITE}fuego${NC} ${LIGHT_PURPLE}\"How do I implement SSE?\"${NC}"
+    echo
+    echo -e "  ${GRAY}# Explicit context${NC}"
+    echo -e "  ${WHITE}fuego --backend${NC} ${LIGHT_PURPLE}\"Create a new endpoint\"${NC}"
+    echo -e "  ${WHITE}fuego --frontend${NC} ${LIGHT_PURPLE}\"Build a dashboard\"${NC}"
+    echo
+    echo -e "  ${GRAY}# Chain agents for complex tasks${NC}"
+    echo -e "  ${WHITE}fuego --chain${NC} ${LIGHT_PURPLE}\"implement real-time notifications\"${NC}"
+    echo
+    echo -e "${GRAY}Get your API key from: https://graphyn.ai/settings/api${NC}"
+}
+
+# Main execution
+main() {
+    init_user_dirs
+    
+    # Parse command line arguments
+    local context=""
+    local message=""
+    local explicit_context=false
+    
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            # Authentication commands
+            auth)
+                shift
+                authenticate "$@"
+                exit 0
+                ;;
+            logout)
+                logout
+                exit 0
+                ;;
+            whoami)
+                show_auth_status
+                exit 0
+                ;;
+                
+            # Context options
+            --backend|-b)
+                context="backend"
+                explicit_context=true
+                shift
+                ;;
+            --frontend|-f)
+                context="frontend"
+                explicit_context=true
+                shift
+                ;;
+            --architect|-a)
+                context="architect"
+                explicit_context=true
+                shift
+                ;;
+            --auto)
+                explicit_context=false
+                shift
+                ;;
+                
+            # Configuration
+            --set-default)
+                save_context "$2"
+                exit 0
+                ;;
+            --context)
+                show_context
+                exit 0
+                ;;
+            --list|-l)
+                echo -e "${BOLD}Available contexts:${NC}"
+                echo -e "  ${BRIGHT_BLUE}backend${NC}    - Backend developer (Encore.ts)"
+                echo -e "  ${BRIGHT_BLUE}frontend${NC}   - Frontend developer (React/Next.js)"
+                echo -e "  ${BRIGHT_BLUE}architect${NC}  - Software architect (System design)"
+                exit 0
+                ;;
+                
+            # Advanced
+            --chain|-c)
+                shift
+                chain_agents "$*"
+                exit 0
+                ;;
+                
+            # Other options
+            --update|-u)
+                # TODO: Implement update from git
+                warn "Update feature coming soon"
+                exit 0
+                ;;
+            --stats)
+                # TODO: Implement statistics
+                warn "Statistics feature coming soon"
+                exit 0
+                ;;
+            --version|-v)
+                echo -e "${BRIGHT_BLUE}Fuego CLI${NC} ${WHITE}v2.0.0${NC}"
+                echo -e "${GRAY}Build space for stateful agents${NC}"
+                exit 0
+                ;;
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            -*)
+                error "Unknown option: $1"
+                echo -e "${GRAY}Run 'fuego --help' for usage information${NC}"
+                exit 1
+                ;;
+            *)
+                # Assume everything else is the message
+                message="$*"
+                break
+                ;;
+        esac
+    done
+    
+    # Determine context if not explicitly set
+    if [[ -z "$context" ]] && [[ "$explicit_context" == false ]]; then
+        # Try auto-detection
+        context=$(detect_context)
+        
+        # Fall back to saved default
+        if [[ -z "$context" ]]; then
+            context=$(get_saved_context)
+        fi
+        
+        # If still no context, show error
+        if [[ -z "$context" ]]; then
+            error "No context detected or set"
+            echo
+            echo -e "${GRAY}Options:${NC}"
+            echo -e "  1. Specify context: ${WHITE}fuego --backend${NC}"
+            echo -e "  2. Set default: ${WHITE}fuego --set-default backend${NC}"
+            echo -e "  3. Navigate to a project directory"
+            echo
+            echo -e "${GRAY}Run 'fuego --help' for more information${NC}"
+            exit 1
+        fi
+        
+        # Show detected context
+        info "Using context: $context (auto-detected)"
+    fi
+    
+    # Check authentication before running
+    if ! check_auth; then
+        exit 1
+    fi
+    
+    # Run with determined context
+    run_agent "$context" "$message"
+}
+
+# Check if no arguments provided
+if [[ $# -eq 0 ]]; then
+    # Try to run with auto-detected context
+    main --auto
+else
+    main "$@"
+fi

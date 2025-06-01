@@ -1,0 +1,62 @@
+{
+  "name": "@graphyn/code",
+  "version": "1.0.0",
+  "description": "Free AI Development Tool for Claude Code Users",
+  "main": "dist/index.js",
+  "bin": {
+    "graphyn": "./bin/graphyn"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "prepublishOnly": "npm run build",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "keywords": [
+    "ai",
+    "development",
+    "cli",
+    "claude-code",
+    "graphyn",
+    "assistant",
+    "backend",
+    "frontend",
+    "architect"
+  ],
+  "author": "Graphyn Team",
+  "license": "MIT",
+  "homepage": "https://graphyn.xyz/code",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/graphyn-xyz/graphyn-code.git"
+  },
+  "bugs": {
+    "url": "https://github.com/graphyn-xyz/graphyn-code/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chalk": "^5.3.0",
+    "commander": "^11.0.0",
+    "dotenv": "^16.3.1",
+    "inquirer": "^9.2.0",
+    "ora": "^7.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/inquirer": "^9.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "prompts",
+    "templates",
+    "scripts/postinstall.js",
+    "README.md",
+    "LICENSE"
+  ]
+}
