@@ -137,10 +137,13 @@ install_files() {
     log "Installing Fuego CLI files..."
     
     # Copy all necessary files
-    cp -r "$ROOT_DIR"/{scripts,prompts,config,templates} "$INSTALL_DIR/" || {
+    cp -r "$ROOT_DIR"/{scripts,prompts,templates} "$INSTALL_DIR/" || {
         error "Failed to copy files to $INSTALL_DIR"
         exit 1
     }
+    
+    # Create config directory if it doesn't exist
+    mkdir -p "$INSTALL_DIR/config"
     
     # Create version file
     echo "2.0.0" > "$INSTALL_DIR/config/version.txt"
