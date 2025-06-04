@@ -1,9 +1,9 @@
-# Fuego CLI - Development Tasks
+# Graphyn Code CLI - Development Tasks
 
 ## High Priority
 
-- [x] Create project structure and initialize Fuego CLI directory
-- [x] Implement main Fuego CLI script with Graphyn branding and colors
+- [x] Create project structure and initialize Graphyn Code CLI directory
+- [x] Implement main Graphyn Code CLI script with branding and colors
 - [x] Create agent prompt files (backend, frontend, architect)
 - [x] Implement authentication system with Graphyn API key
 
@@ -21,7 +21,7 @@
 ## Features to Implement
 
 ### Core Features
-- Unified `fuego` command with context flags
+- Unified `graphyn` command with context flags
 - API key-based authentication with secure storage
 - Auto-detection of agent context based on:
   - Current directory path
@@ -52,7 +52,7 @@
 ## Terminal Demo Integration 🚧 IN PROGRESS
 
 ### Authentication Updates
-- [ ] Update Fuego CLI to support terminal-demo backend:
+- [ ] Update Graphyn Code CLI to support terminal-demo backend:
     - [ ] Change API URL to point to terminal-demo (localhost:4000 in dev)
     - [ ] Update API key validation to accept keys from terminal-demo
     - [ ] Add environment variable support for API URL
@@ -67,10 +67,10 @@
 
 ### New Commands
 - [ ] Add terminal-demo specific commands:
-    - [ ] `fuego connect` - Connect to terminal-demo instance
-    - [ ] `fuego agents list` - List available agents from terminal-demo
-    - [ ] `fuego chat <agent>` - Start chat session with specific agent
-    - [ ] `fuego sessions` - List previous chat sessions
+    - [ ] `graphyn connect` - Connect to terminal-demo instance
+    - [ ] `graphyn agents list` - List available agents from terminal-demo
+    - [ ] `graphyn chat <agent>` - Start chat session with specific agent
+    - [ ] `graphyn sessions` - List previous chat sessions
 
 ### Configuration
 - [ ] Update config structure:

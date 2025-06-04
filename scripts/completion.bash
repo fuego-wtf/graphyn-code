@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Bash completion script for Fuego CLI
+# Bash completion script for Graphyn Code CLI
 # Install: source this file in your ~/.bashrc or ~/.bash_profile
 
-_fuego_completion() {
+_graphyn_completion() {
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
@@ -31,7 +31,7 @@ _fuego_completion() {
             COMPREPLY=( $(compgen -W "${chain_queries}" -- ${cur}) )
             return 0
             ;;
-        fuego)
+        graphyn)
             # If first argument after fuego
             COMPREPLY=( $(compgen -W "${main_opts}" -- ${cur}) )
             return 0
@@ -49,7 +49,7 @@ _fuego_completion() {
 }
 
 # Register the completion function
-complete -F _fuego_completion fuego
+complete -F _graphyn_completion graphyn
 
-# Also support the 'fue' shorthand
-complete -F _fuego_completion fue
+# Also support the 'gra' shorthand
+complete -F _graphyn_completion gra

@@ -5,7 +5,7 @@ Free AI Development Tool for Claude Code Users
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/fuego-wtf/graphyn-code/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/graphyn-xyz/graphyn-code/main/scripts/install.sh | bash
 ```
 
 ## Setup

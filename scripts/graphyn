@@ -75,25 +75,25 @@ init_user_dirs() {
 show_banner() {
     echo -e "${BRIGHT_BLUE}"
     cat << 'EOF'
-    ┌─────────────────────────────────────────────┐
-    │                                             │
-    │  ███████╗██╗   ██╗███████╗ ██████╗  ██████╗│
-    │  ██╔════╝██║   ██║██╔════╝██╔════╝ ██╔═══██╗
-    │  █████╗  ██║   ██║█████╗  ██║  ███╗██║   ██║
-    │  ██╔══╝  ██║   ██║██╔══╝  ██║   ██║██║   ██║
-    │  ██║     ╚██████╔╝███████╗╚██████╔╝╚██████╔╝
-    │  ╚═╝      ╚═════╝ ╚══════╝ ╚═════╝  ╚═════╝ 
-    │                                             │
+    ┌─────────────────────────────────────────────────┐
+    │                                                 │
+    │   ██████╗ ██████╗  █████╗ ██████╗ ██╗  ██╗██╗   ██╗███╗   ██╗│
+    │  ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║  ██║╚██╗ ██╔╝████╗  ██║│
+    │  ██║  ███╗██████╔╝███████║██████╔╝███████║ ╚████╔╝ ██╔██╗ ██║│
+    │  ██║   ██║██╔══██╗██╔══██║██╔═══╝ ██╔══██║  ╚██╔╝  ██║╚██╗██║│
+    │  ╚██████╔╝██║  ██║██║  ██║██║     ██║  ██║   ██║   ██║ ╚████║│
+    │   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═══╝│
+    │                                                 │
 EOF
-    echo -e "${LIGHT_PURPLE}    │        Build space for stateful agents      │${NC}"
-    echo -e "${BRIGHT_BLUE}    └─────────────────────────────────────────────┘${NC}"
+    echo -e "${LIGHT_PURPLE}    │         AI-powered development assistant        │${NC}"
+    echo -e "${BRIGHT_BLUE}    └─────────────────────────────────────────────────┘${NC}"
     echo
 }
 
 # Authentication check
 check_auth() {
     if [[ ! -f "$AUTH_FILE" ]]; then
-        error "Not authenticated. Please run: fuego auth <api-key>"
+        error "Not authenticated. Please run: graphyn auth <api-key>"
         echo -e "${GRAY}Get your API key from: https://graphyn.ai/settings/api${NC}"
         return 1
     fi
@@ -138,11 +138,11 @@ authenticate() {
     
     if [[ -z "$api_key" ]]; then
         error "Please provide an API key"
-        echo -e "${GRAY}Usage: fuego auth <api-key> [--api-url <url>|--terminal-demo]${NC}"
+        echo -e "${GRAY}Usage: graphyn auth <api-key> [--api-url <url>|--terminal-demo]${NC}"
         echo -e "${GRAY}Examples:${NC}"
-        echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx${NC}                    # Use default Graphyn API"
-        echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx --terminal-demo${NC}    # Use local terminal-demo"
-        echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx --api-url https://api.example.com${NC}"
+        echo -e "  ${WHITE}graphyn auth gph_xxxxxxxxxxxx${NC}                    # Use default Graphyn API"
+        echo -e "  ${WHITE}graphyn auth gph_xxxxxxxxxxxx --terminal-demo${NC}    # Use local terminal-demo"
+        echo -e "  ${WHITE}graphyn auth gph_xxxxxxxxxxxx --api-url https://api.example.com${NC}"
         return 1
     fi
     
@@ -344,7 +344,7 @@ EOF
 Your task is: ${message}"
 
     # Save context to temporary file
-    local context_file="${USER_HOME}/.fuego_context_${role}.md"
+    local context_file="${USER_HOME}/.graphyn_context_${role}.md"
     echo "$context_content" > "$context_file"
     
     # Run in interactive or query mode
@@ -512,7 +512,7 @@ show_auth_status() {
         echo -e "${GRAY}────────────────────────────────────────${NC}"
         echo -e "  ${WHITE}Status:${NC} ${DARK_BROWN}Not authenticated${NC}"
         echo
-        echo -e "${GRAY}Run 'fuego auth <api-key>' to authenticate${NC}"
+        echo -e "${GRAY}Run 'graphyn auth <api-key>' to authenticate${NC}"
     fi
 }
 
@@ -531,7 +531,7 @@ usage() {
     show_banner
     
     echo -e "${BOLD}${DARK_BROWN}USAGE${NC}"
-    echo -e "  ${WHITE}fuego${NC} ${GRAY}[OPTIONS] [MESSAGE]${NC}"
+    echo -e "  ${WHITE}graphyn${NC} ${GRAY}[OPTIONS] [MESSAGE]${NC}"
     echo
     
     echo -e "${BOLD}${DARK_BROWN}CONTEXT OPTIONS${NC}"
@@ -568,17 +568,17 @@ usage() {
     
     echo -e "${BOLD}${DARK_BROWN}EXAMPLES${NC}"
     echo -e "  ${GRAY}# First time setup${NC}"
-    echo -e "  ${WHITE}fuego auth gph_xxxxxxxxxxxx${NC}"
+    echo -e "  ${WHITE}graphyn auth gph_xxxxxxxxxxxx${NC}"
     echo
     echo -e "  ${GRAY}# Auto-detect context from current directory${NC}"
-    echo -e "  ${WHITE}fuego${NC} ${LIGHT_PURPLE}\"How do I implement SSE?\"${NC}"
+    echo -e "  ${WHITE}graphyn${NC} ${LIGHT_PURPLE}\"How do I implement SSE?\"${NC}"
     echo
     echo -e "  ${GRAY}# Explicit context${NC}"
-    echo -e "  ${WHITE}fuego --backend${NC} ${LIGHT_PURPLE}\"Create a new endpoint\"${NC}"
-    echo -e "  ${WHITE}fuego --frontend${NC} ${LIGHT_PURPLE}\"Build a dashboard\"${NC}"
+    echo -e "  ${WHITE}graphyn --backend${NC} ${LIGHT_PURPLE}\"Create a new endpoint\"${NC}"
+    echo -e "  ${WHITE}graphyn --frontend${NC} ${LIGHT_PURPLE}\"Build a dashboard\"${NC}"
     echo
     echo -e "  ${GRAY}# Chain agents for complex tasks${NC}"
-    echo -e "  ${WHITE}fuego --chain${NC} ${LIGHT_PURPLE}\"implement real-time notifications\"${NC}"
+    echo -e "  ${WHITE}graphyn --chain${NC} ${LIGHT_PURPLE}\"implement real-time notifications\"${NC}"
     echo
     echo -e "${GRAY}Get your API key from: https://graphyn.ai/settings/api${NC}"
 }
@@ -666,7 +666,7 @@ main() {
                 exit 0
                 ;;
             --version|-v)
-                echo -e "${BRIGHT_BLUE}Fuego CLI${NC} ${WHITE}v2.0.0${NC}"
+                echo -e "${BRIGHT_BLUE}Graphyn Code CLI${NC} ${WHITE}v2.0.0${NC}"
                 echo -e "${GRAY}Build space for stateful agents${NC}"
                 exit 0
                 ;;
@@ -676,7 +676,7 @@ main() {
                 ;;
             -*)
                 error "Unknown option: $1"
-                echo -e "${GRAY}Run 'fuego --help' for usage information${NC}"
+                echo -e "${GRAY}Run 'graphyn --help' for usage information${NC}"
                 exit 1
                 ;;
             *)
@@ -702,11 +702,11 @@ main() {
             error "No context detected or set"
             echo
             echo -e "${GRAY}Options:${NC}"
-            echo -e "  1. Specify context: ${WHITE}fuego --backend${NC}"
-            echo -e "  2. Set default: ${WHITE}fuego --set-default backend${NC}"
+            echo -e "  1. Specify context: ${WHITE}graphyn --backend${NC}"
+            echo -e "  2. Set default: ${WHITE}graphyn --set-default backend${NC}"
             echo -e "  3. Navigate to a project directory"
             echo
-            echo -e "${GRAY}Run 'fuego --help' for more information${NC}"
+            echo -e "${GRAY}Run 'graphyn --help' for more information${NC}"
             exit 1
         fi
         

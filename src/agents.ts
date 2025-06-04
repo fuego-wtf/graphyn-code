@@ -23,8 +23,6 @@ export class AgentManager {
   }
 
   async startInteractiveSession(type: string): Promise<void> {
-    const { spawn } = require('child_process');
-    
     // Get the prompt file path
     const promptsDir = path.join(__dirname, '..', 'prompts');
     const promptFile = path.join(promptsDir, `${type}.md`);
@@ -38,21 +36,14 @@ export class AgentManager {
       // Read the prompt content
       const promptContent = fs.readFileSync(promptFile, 'utf8');
       
-      console.log(colors.info(`Starting Claude Code with ${type} context...`));
-      
-      // Launch Claude Code with the prompt as initial message
-      const claude = spawn('claude', [promptContent], {
-        stdio: 'inherit', // Pass through all stdio to user
-        env: { ...process.env }
-      });
-      
-      claude.on('close', () => {
-        console.log(colors.info(`\nClaude session ended`));
-      });
-      
-      claude.on('error', (error: any) => {
-        console.error(colors.error(`Failed to start Claude: ${error.message}`));
-      });
+      console.log(colors.primary(`\n🚀 ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Interactive Mode`));
+      console.log(colors.info('─'.repeat(60)));
+      console.log(colors.accent('Agent Context:'));
+      console.log(promptContent);
+      console.log(colors.info('─'.repeat(60)));
+      console.log(colors.success('\n✓ Agent context loaded!'));
+      console.log(colors.info('You can now interact with this specialized agent context.'));
+      console.log(colors.accent('\n💡 Tip: Ask questions or request implementations based on the context above.\n'));
       
     } catch (error) {
       console.error(colors.error(`Failed to read prompt file: ${error instanceof Error ? error.message : String(error)}`));
@@ -93,6 +84,7 @@ export class AgentManager {
 
   private async queryWithClaudeCode(type: string, query: string): Promise<string> {
     const { spawn } = require('child_process');
+    const os = require('os');
     
     const promptsDir = path.join(__dirname, '..', 'prompts');
     const promptFile = path.join(promptsDir, `${type}.md`);
@@ -103,29 +95,55 @@ export class AgentManager {
 
     try {
       const promptContent = fs.readFileSync(promptFile, 'utf8');
-      const fullPrompt = `${promptContent}\n\nUser Query: ${query}`;
       
-      console.log(colors.info(`Starting Claude Code interactive session with your query...`));
+      const fullContent = `# ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Context
+
+${promptContent}
+
+# User Query
+
+${query}
+
+# Instructions
+
+Please analyze the above query in the context of the ${type} agent role and provide a comprehensive response.`;
       
-      // Launch Claude Code interactively with the initial prompt
-      const claude = spawn('claude', [fullPrompt], {
-        stdio: 'inherit', // Pass through all stdio to user
-        env: { ...process.env }
-      });
+      console.log(colors.info(`\n🚀 Launching Claude Code with ${type} agent context...`));
       
-      claude.on('close', () => {
-        console.log(colors.info(`\nClaude session ended`));
-      });
+      // Try to launch Claude Code
+      const claudePath = '/Users/resatugurulu/.claude/local/claude';
       
-      claude.on('error', (error: any) => {
-        console.error(colors.error(`Failed to start Claude: ${error.message}`));
-      });
-      
-      // Return empty string since we're launching interactive mode
-      return '';
+      if (fs.existsSync(claudePath)) {
+        // Pass the full content directly as the initial prompt
+        const claude = spawn(claudePath, [fullContent], {
+          stdio: 'inherit',
+          env: { ...process.env }
+        });
+        
+        claude.on('error', (error: any) => {
+          console.error(colors.error(`Failed to start Claude: ${error.message}`));
+          // Save as fallback
+          const tmpDir = os.tmpdir();
+          const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.md`);
+          fs.writeFileSync(tmpFile, fullContent);
+          console.log(colors.info(`\nContext saved to: ${tmpFile}`));
+          console.log(colors.accent('You can copy the content and paste it in Claude Code.'));
+        });
+        
+        return '';
+      } else {
+        console.log(colors.warning('⚠️  Claude CLI not found at expected location.'));
+        // Save content to file as fallback
+        const tmpDir = os.tmpdir();
+        const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.md`);
+        fs.writeFileSync(tmpFile, fullContent);
+        console.log(colors.info(`\nContext saved to: ${tmpFile}`));
+        console.log(colors.accent(`You can copy and paste the content from this file into Claude Code.`));
+        return '';
+      }
       
     } catch (error) {
-      console.log(colors.warning('⚠️  Claude Code CLI unavailable, using template response.'));
+      console.log(colors.warning('⚠️  Failed to launch Claude Code.'));
       return this.getFallbackResponse(type, query);
     }
   }

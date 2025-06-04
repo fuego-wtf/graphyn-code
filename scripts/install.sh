@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Fuego CLI Installer
-# This script installs Fuego CLI globally on your system
+# Graphyn Code Installer
+# This script installs Graphyn Code globally on your system
 
 set -euo pipefail
 
 # Constants
-readonly INSTALL_DIR="${FUEGO_INSTALL_DIR:-/usr/local/lib/fuego}"
-readonly BIN_DIR="${FUEGO_BIN_DIR:-/usr/local/bin}"
-readonly USER_HOME_DIR="${HOME}/.fuego"
+readonly INSTALL_DIR="${GRAPHYN_INSTALL_DIR:-/usr/local/lib/graphyn}"
+readonly BIN_DIR="${GRAPHYN_BIN_DIR:-/usr/local/bin}"
+readonly USER_HOME_DIR="${HOME}/.graphyn"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
@@ -44,7 +44,7 @@ warn() { echo -e "${TAN_BROWN}⚠${NC} $*" >&2; }
 show_header() {
     echo
     echo -e "${BRIGHT_BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BRIGHT_BLUE}║${NC}      ${BOLD}${WHITE}Fuego CLI Installer${NC}              ${BRIGHT_BLUE}║${NC}"
+    echo -e "${BRIGHT_BLUE}║${NC}      ${BOLD}${WHITE}Graphyn Code Installer${NC}          ${BRIGHT_BLUE}║${NC}"
     echo -e "${BRIGHT_BLUE}║${NC}  ${LIGHT_PURPLE}Build space for stateful agents${NC}      ${BRIGHT_BLUE}║${NC}"
     echo -e "${BRIGHT_BLUE}╚════════════════════════════════════════╝${NC}"
     echo
@@ -68,7 +68,7 @@ check_permissions() {
     else
         error "Cannot write to $BIN_DIR"
         echo -e "${GRAY}Please run with sudo: ${WHITE}sudo $0${NC}"
-        echo -e "${GRAY}Or set a custom location: ${WHITE}FUEGO_BIN_DIR=~/.local/bin $0${NC}"
+        echo -e "${GRAY}Or set a custom location: ${WHITE}GRAPHYN_BIN_DIR=~/.local/bin $0${NC}"
         exit 1
     fi
 }
@@ -119,7 +119,7 @@ create_directories() {
     if [[ ! -d "$INSTALL_DIR" ]]; then
         mkdir -p "$INSTALL_DIR" || {
             error "Failed to create $INSTALL_DIR"
-            echo -e "${GRAY}Try running with sudo or set FUEGO_INSTALL_DIR to a writable location${NC}"
+            echo -e "${GRAY}Try running with sudo or set GRAPHYN_INSTALL_DIR to a writable location${NC}"
             exit 1
         }
     fi
@@ -134,7 +134,7 @@ create_directories() {
 
 # Install files
 install_files() {
-    log "Installing Fuego CLI files..."
+    log "Installing Graphyn Code files..."
     
     # Copy all necessary files
     cp -r "$ROOT_DIR"/{scripts,prompts,templates} "$INSTALL_DIR/" || {
@@ -150,14 +150,14 @@ install_files() {
     
     # Set permissions
     chmod -R 755 "$INSTALL_DIR"
-    chmod 755 "$INSTALL_DIR/scripts/fuego"
+    chmod 755 "$INSTALL_DIR/scripts/graphyn"
     
     success "Files installed to $INSTALL_DIR"
 }
 
 # Create symlink
 create_symlink() {
-    local symlink_path="$BIN_DIR/fuego"
+    local symlink_path="$BIN_DIR/graphyn"
     
     # Remove existing symlink if present
     if [[ -L "$symlink_path" ]] || [[ -f "$symlink_path" ]]; then
@@ -168,7 +168,7 @@ create_symlink() {
     fi
     
     # Create new symlink
-    ln -s "$INSTALL_DIR/scripts/fuego" "$symlink_path" || {
+    ln -s "$INSTALL_DIR/scripts/graphyn" "$symlink_path" || {
         error "Failed to create symlink"
         exit 1
     }
@@ -229,7 +229,7 @@ update_shell_config() {
         else
             {
                 echo
-                echo "# Fuego CLI"
+                echo "# Graphyn Code"
                 echo "export PATH=\"\$PATH:$BIN_DIR\""
             } >> "$shell_config"
         fi
@@ -239,12 +239,12 @@ update_shell_config() {
     
     # Add shell completions
     if [[ "$shell_name" != "fish" ]]; then
-        local completion_marker="# Fuego CLI Completions"
+        local completion_marker="# Graphyn Code Completions"
         if ! grep -q "$completion_marker" "$shell_config" 2>/dev/null; then
             {
                 echo
                 echo "$completion_marker"
-                echo 'complete -W "auth logout whoami --backend --frontend --architect --chain --context --set-default --list --update --stats --version --help" fuego'
+                echo 'complete -W "auth logout whoami --backend --frontend --architect --chain --context --set-default --list --update --stats --version --help" graphyn'
             } >> "$shell_config"
         fi
     fi
@@ -262,24 +262,24 @@ post_install() {
         echo
         echo -e "${BOLD}Authentication Required${NC}"
         echo -e "${GRAY}────────────────────────────────────────${NC}"
-        echo -e "To use Fuego CLI, you need to authenticate:"
+        echo -e "To use Graphyn Code, you need to authenticate:"
         echo
         echo -e "  1. Get your API key from: ${WHITE}https://graphyn.ai/settings/api${NC}"
-        echo -e "  2. Run: ${WHITE}fuego auth gph_xxxxxxxxxxxx${NC}"
+        echo -e "  2. Run: ${WHITE}graphyn auth gph_xxxxxxxxxxxx${NC}"
         echo
     fi
 }
 
 # Uninstall function
 uninstall() {
-    echo -e "${BOLD}Uninstalling Fuego CLI${NC}"
+    echo -e "${BOLD}Uninstalling Graphyn Code${NC}"
     echo
     
-    read -p "Remove all Fuego data including history? (y/N) " -n 1 -r
+    read -p "Remove all Graphyn data including history? (y/N) " -n 1 -r
     echo
     
     # Remove symlink
-    rm -f "$BIN_DIR/fuego"
+    rm -f "$BIN_DIR/graphyn"
     
     # Remove installation directory
     if [[ -d "$INSTALL_DIR" ]]; then
@@ -294,7 +294,7 @@ uninstall() {
         log "Kept user data in $USER_HOME_DIR"
     fi
     
-    success "Fuego CLI uninstalled"
+    success "Graphyn Code uninstalled"
 }
 
 # Main installation
@@ -337,14 +337,14 @@ main() {
     
     echo -e "${WHITE}Next steps:${NC}"
     echo -e "  ${BRIGHT_BLUE}1.${NC} Restart your shell or run: ${WHITE}source ~/.*rc${NC}"
-    echo -e "  ${BRIGHT_BLUE}2.${NC} Authenticate: ${WHITE}fuego auth gph_xxxxxxxxxxxx${NC}"
-    echo -e "  ${BRIGHT_BLUE}3.${NC} Run ${WHITE}fuego --help${NC} to get started"
+    echo -e "  ${BRIGHT_BLUE}2.${NC} Authenticate: ${WHITE}graphyn auth gph_xxxxxxxxxxxx${NC}"
+    echo -e "  ${BRIGHT_BLUE}3.${NC} Run ${WHITE}graphyn --help${NC} to get started"
     echo
     
     echo -e "${GRAY}Quick examples:${NC}"
-    echo -e "  ${WHITE}fuego${NC} ${LIGHT_PURPLE}\"How do I implement SSE?\"${NC}     ${GRAY}# Auto-detect context${NC}"
-    echo -e "  ${WHITE}fuego --backend${NC} ${LIGHT_PURPLE}\"Create endpoint\"${NC}    ${GRAY}# Explicit context${NC}"
-    echo -e "  ${WHITE}fuego --chain${NC} ${LIGHT_PURPLE}\"add notifications\"${NC}   ${GRAY}# Chain agents${NC}"
+    echo -e "  ${WHITE}graphyn${NC} ${LIGHT_PURPLE}\"How do I implement SSE?\"${NC}     ${GRAY}# Auto-detect context${NC}"
+    echo -e "  ${WHITE}graphyn --backend${NC} ${LIGHT_PURPLE}\"Create endpoint\"${NC}    ${GRAY}# Explicit context${NC}"
+    echo -e "  ${WHITE}graphyn --chain${NC} ${LIGHT_PURPLE}\"add notifications\"${NC}   ${GRAY}# Chain agents${NC}"
     echo
     
     post_install

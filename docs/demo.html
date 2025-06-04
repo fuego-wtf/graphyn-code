@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fuego CLI Interactive Demo</title>
+    <title>Graphyn Code CLI Interactive Demo</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
         
@@ -88,7 +88,7 @@
             margin-left: 0;
         }
         
-        /* Fuego brand colors */
+        /* Graphyn brand colors */
         .bright-blue { color: #3267F5; }
         .light-purple { color: #C0B7FD; }
         .tan-brown { color: #A67763; }
@@ -210,12 +210,12 @@
                 <div class="terminal-button minimize"></div>
                 <div class="terminal-button maximize"></div>
             </div>
-            <div class="terminal-title">fuego — ~/projects/graphyn</div>
+            <div class="terminal-title">graphyn — ~/projects/graphyn</div>
             <div></div>
         </div>
         <div class="terminal-body" id="terminal">
             <div class="terminal-line">
-                <span class="output gray">Fuego CLI v2.0.0 - Build space for stateful agents</span>
+                <span class="output gray">Graphyn Code CLI v2.0.0 - Build space for stateful agents</span>
             </div>
             <div class="input-line">
                 <span class="prompt">$</span>
@@ -280,8 +280,8 @@
             const args = cmd.trim().split(' ');
             const command = args[0];
             
-            if (command === 'fuego') {
-                await processFuego(args.slice(1));
+            if (command === 'graphyn') {
+                await processGraphyn(args.slice(1));
             } else if (command === 'cd') {
                 currentDirectory = args[1] || currentDirectory;
                 addLine(`<span class="gray">Changed directory to ${currentDirectory}</span>`);
@@ -296,7 +296,7 @@
             isProcessing = false;
         }
         
-        async function processFuego(args) {
+        async function processGraphyn(args) {
             const firstArg = args[0];
             
             if (!firstArg || firstArg === '--help' || firstArg === '-h') {
@@ -316,7 +316,7 @@
             } else if (firstArg === '--chain' || firstArg === '-c') {
                 await runChain(args.slice(1).join(' '));
             } else if (firstArg === '--version' || firstArg === '-v') {
-                addLine('<span class="bright-blue">Fuego CLI</span> <span class="white">v2.0.0</span>');
+                addLine('<span class="bright-blue">Graphyn Code CLI</span> <span class="white">v2.0.0</span>');
                 addLine('<span class="gray">Build space for stateful agents</span>');
             } else {
                 // Try to run with auto-detected context
@@ -325,11 +325,11 @@
         }
         
         async function showHelp() {
-            const help = `<span class="bold dark-brown">Fuego CLI - AI Agent Prompt Manager</span>
+            const help = `<span class="bold dark-brown">Graphyn Code CLI - AI Agent Prompt Manager</span>
 <span class="gray">Build space for stateful agents</span>
 
 <span class="bold">USAGE:</span>
-  <span class="white">fuego</span> [OPTIONS] [MESSAGE]
+  <span class="white">graphyn</span> [OPTIONS] [MESSAGE]
 
 <span class="bold">CONTEXT OPTIONS:</span>
   <span class="white">--backend</span>    Use backend developer agent
@@ -352,7 +352,7 @@
         async function authenticate(apiKey) {
             if (!apiKey) {
                 addLine('<span class="error">✗</span> Please provide an API key');
-                addLine('<span class="gray">Usage: fuego auth &lt;api-key&gt;</span>');
+                addLine('<span class="gray">Usage: graphyn auth &lt;api-key&gt;</span>');
                 return;
             }
             
@@ -362,7 +362,7 @@
             if (apiKey.startsWith('gph_')) {
                 authenticated = true;
                 addLine('<span class="success">✓</span> Authentication successful!');
-                addLine('<span class="info">ℹ</span> API key stored securely in ~/.fuego/auth.json');
+                addLine('<span class="info">ℹ</span> API key stored securely in ~/.graphyn/auth.json');
             } else {
                 addLine('<span class="warning">⚠</span> API key format seems invalid (expected: gph_xxxxxxxxxxxx)');
             }
@@ -380,7 +380,7 @@
 <span class="gray">────────────────────────────────────────</span>
   <span class="white">Status:</span> <span class="error">Not authenticated</span>
 
-<span class="gray">Run 'fuego auth &lt;api-key&gt;' to authenticate</span>`);
+<span class="gray">Run 'graphyn auth &lt;api-key&gt;' to authenticate</span>`);
             }
         }
         
@@ -406,7 +406,7 @@
         
         async function runAgent(role, message) {
             if (!authenticated) {
-                addLine('<span class="error">✗</span> Not authenticated. Please run: fuego auth &lt;api-key&gt;');
+                addLine('<span class="error">✗</span> Not authenticated. Please run: graphyn auth &lt;api-key&gt;');
                 return;
             }
             
@@ -446,7 +446,7 @@
             if (!context) {
                 addLine('<span class="error">✗</span> No context detected or set');
                 addLine('\n<span class="gray">Options:</span>');
-                addLine('<span class="gray">  1. Specify context: <span class="white">fuego --backend</span></span>');
+                addLine('<span class="gray">  1. Specify context: <span class="white">graphyn --backend</span></span>');
                 addLine('<span class="gray">  2. Navigate to a project directory</span>');
                 return;
             }
@@ -457,7 +457,7 @@
         
         async function runChain(query) {
             if (!authenticated) {
-                addLine('<span class="error">✗</span> Not authenticated. Please run: fuego auth &lt;api-key&gt;');
+                addLine('<span class="error">✗</span> Not authenticated. Please run: graphyn auth &lt;api-key&gt;');
                 return;
             }
             
@@ -499,37 +499,37 @@
             
             switch(scenario) {
                 case 'auth':
-                    await processCommand('fuego whoami');
+                    await processCommand('graphyn whoami');
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    await processCommand('fuego auth gph_1234567890ab');
+                    await processCommand('graphyn auth gph_1234567890ab');
                     break;
                     
                 case 'detect':
                     await processCommand('pwd');
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    await processCommand('fuego --context');
+                    await processCommand('graphyn --context');
                     await new Promise(resolve => setTimeout(resolve, 1000));
                     await processCommand('cd ~/projects/graphyn/backend');
                     currentDirectory = '~/projects/graphyn/backend';
                     await new Promise(resolve => setTimeout(resolve, 500));
-                    await processCommand('fuego --context');
+                    await processCommand('graphyn --context');
                     break;
                     
                 case 'backend':
                     authenticated = true;
                     currentDirectory = '~/projects/graphyn/backend';
-                    await processCommand('fuego "How do I implement SSE endpoints?"');
+                    await processCommand('graphyn "How do I implement SSE endpoints?"');
                     break;
                     
                 case 'frontend':
                     authenticated = true;
                     currentDirectory = '~/projects/graphyn/frontend';
-                    await processCommand('fuego --frontend "Build a memory visualization component"');
+                    await processCommand('graphyn --frontend "Build a memory visualization component"');
                     break;
                     
                 case 'chain':
                     authenticated = true;
-                    await processCommand('fuego --chain "implement real-time notifications"');
+                    await processCommand('graphyn --chain "implement real-time notifications"');
                     break;
             }
         }
@@ -552,7 +552,7 @@
         // Initial state
         window.onload = () => {
             input.focus();
-            addLine('<span class="gray">Try running: <span class="white">fuego --help</span> or click the scenario buttons →</span>');
+            addLine('<span class="gray">Try running: <span class="white">graphyn --help</span> or click the scenario buttons →</span>');
         };
     </script>
 </body>

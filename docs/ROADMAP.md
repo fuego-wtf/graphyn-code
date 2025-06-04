@@ -1,4 +1,4 @@
-# Fuego CLI Roadmap
+# Graphyn Code CLI Roadmap
 
 ## Version 2.1 - Enhanced Developer Experience
 
@@ -10,12 +10,12 @@
 
 ```bash
 # Example completion
-fuego --b[TAB] → --backend
-fuego auth [TAB] → suggests "gph_"
+graphyn --b[TAB] → --backend
+graphyn auth [TAB] → suggests "gph_"
 ```
 
 ### Project Configuration
-- [ ] `.fuego/project.json` support
+- [ ] `.graphyn/project.json` support
 - [ ] Per-project settings
 - [ ] Custom todo paths
 - [ ] Team sync configuration
@@ -45,7 +45,7 @@ fuego auth [TAB] → suggests "gph_"
 ## Version 2.2 - Team Collaboration
 
 ### Multi-Project Support
-- [ ] Project registry in `~/.fuego/projects.json`
+- [ ] Project registry in `~/.graphyn/projects.json`
 - [ ] Quick project switching
 - [ ] Per-project contexts
 - [ ] Project templates
@@ -57,7 +57,7 @@ fuego auth [TAB] → suggests "gph_"
 - [ ] Quick profile switching
 
 ```bash
-fuego --profile production
+graphyn --profile production
 ```
 
 ### Team Features
@@ -76,9 +76,9 @@ fuego --profile production
 
 ```json
 {
-  "fuego.defaultContext": "auto",
-  "fuego.showContextInStatusBar": true,
-  "fuego.enableInlineQueries": true
+  "graphyn.defaultContext": "auto",
+  "graphyn.showContextInStatusBar": true,
+  "graphyn.enableInlineQueries": true
 }
 ```
 
@@ -90,14 +90,14 @@ fuego --profile production
 ## Version 2.4 - CI/CD & Automation
 
 ### GitHub Actions
-- [ ] Official Fuego action
+- [ ] Official Graphyn action
 - [ ] PR review automation
 - [ ] Architecture validation
 - [ ] Code quality checks
 
 ```yaml
-- name: Fuego Review
-  uses: graphyn/fuego-action@v1
+- name: Graphyn Review
+  uses: graphyn/graphyn-action@v1
   with:
     context: architect
     query: "Review PR for architectural impact"
@@ -117,7 +117,7 @@ fuego --profile production
 - [ ] Agent extensions
 
 ```javascript
-// ~/.fuego/plugins/custom-linter.js
+// ~/.graphyn/plugins/custom-linter.js
 module.exports = {
   name: 'custom-linter',
   command: 'lint',
@@ -134,7 +134,7 @@ module.exports = {
 - [ ] Detailed statistics dashboard
 
 ```bash
-fuego --stats --detailed
+graphyn --stats --detailed
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 Average response time: 234ms
@@ -154,9 +154,9 @@ Estimated cost: $0.34
 - [ ] Agent marketplace access
 
 ```bash
-fuego sync-todo        # Sync with Graphyn dashboard
-fuego create-pr        # Create PR with suggestions
-fuego review-changes   # AI review of changes
+graphyn sync-todo        # Sync with Graphyn dashboard
+graphyn create-pr        # Create PR with suggestions
+graphyn review-changes   # AI review of changes
 ```
 
 ### Advanced Debugging
@@ -166,7 +166,7 @@ fuego review-changes   # AI review of changes
 - [ ] Request/response logging
 
 ```bash
-FUEGO_DEBUG=1 fuego --show-timings --trace-api
+GRAPHYN_DEBUG=1 graphyn --show-timings --trace-api
 ```
 
 ## Implementation Priority
@@ -204,8 +204,8 @@ FUEGO_DEBUG=1 fuego --show-timings --trace-api
 
 We welcome community feedback and contributions! Please submit feature requests via:
 - GitHub Issues: Feature request template
-- Discord: #fuego-features channel
-- Email: fuego@graphyn.ai
+- Discord: #graphyn-features channel
+- Email: code@graphyn.xyz
 
 ## Success Metrics
 

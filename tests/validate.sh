@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Validation test suite for Fuego CLI
+# Validation test suite for Graphyn Code CLI
 # Run this to ensure all components are working correctly
 
 set -euo pipefail
@@ -8,7 +8,7 @@ set -euo pipefail
 # Test configuration
 readonly TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR="$(cd "${TEST_DIR}/.." && pwd)"
-readonly FUEGO_CMD="${ROOT_DIR}/scripts/fuego"
+readonly GRAPHYN_CMD="${ROOT_DIR}/scripts/graphyn"
 
 # Colors
 readonly GREEN='\033[0;32m'
@@ -38,13 +38,13 @@ test_fail() {
     ((TESTS_FAILED++))
 }
 
-# Test: Check if fuego script exists and is executable
+# Test: Check if graphyn script exists and is executable
 test_executable() {
-    test_start "fuego executable"
-    if [[ -x "$FUEGO_CMD" ]]; then
+    test_start "graphyn executable"
+    if [[ -x "$GRAPHYN_CMD" ]]; then
         test_pass
     else
-        test_fail "fuego script not found or not executable"
+        test_fail "graphyn script not found or not executable"
     fi
 }
 
@@ -101,7 +101,7 @@ test_prompt_files() {
 # Test: Check help command
 test_help_command() {
     test_start "help command"
-    if "$FUEGO_CMD" --help &>/dev/null; then
+    if "$GRAPHYN_CMD" --help &>/dev/null; then
         test_pass
     else
         test_fail "Help command failed"
@@ -111,7 +111,7 @@ test_help_command() {
 # Test: Check version command
 test_version_command() {
     test_start "version command"
-    if "$FUEGO_CMD" --version | grep -q "2.0.0"; then
+    if "$GRAPHYN_CMD" --version | grep -q "2.0.0"; then
         test_pass
     else
         test_fail "Version command failed or incorrect version"
@@ -121,7 +121,7 @@ test_version_command() {
 # Test: Check list command
 test_list_command() {
     test_start "list command"
-    local output=$("$FUEGO_CMD" --list 2>&1)
+    local output=$("$GRAPHYN_CMD" --list 2>&1)
     if echo "$output" | grep -q "backend" && echo "$output" | grep -q "frontend" && echo "$output" | grep -q "architect"; then
         test_pass
     else
@@ -132,7 +132,7 @@ test_list_command() {
 # Test: Check authentication flow (without real API key)
 test_auth_check() {
     test_start "authentication check"
-    local output=$("$FUEGO_CMD" whoami 2>&1 || true)
+    local output=$("$GRAPHYN_CMD" whoami 2>&1 || true)
     if echo "$output" | grep -q "Not authenticated"; then
         test_pass
     else
@@ -145,7 +145,7 @@ test_context_detection() {
     test_start "context detection"
     # This would need to be in a backend directory to work
     # For now, just check if the command runs
-    if "$FUEGO_CMD" --context &>/dev/null; then
+    if "$GRAPHYN_CMD" --context &>/dev/null; then
         test_pass
     else
         test_fail "Context detection command failed"
@@ -177,7 +177,7 @@ test_bash_syntax() {
     test_start "bash syntax"
     local has_errors=false
     
-    for script in "$ROOT_DIR/scripts"/*.sh "$FUEGO_CMD"; do
+    for script in "$ROOT_DIR/scripts"/*.sh "$GRAPHYN_CMD"; do
         if [[ -f "$script" ]]; then
             if ! bash -n "$script" 2>/dev/null; then
                 has_errors=true
@@ -196,7 +196,7 @@ test_bash_syntax() {
 # Test: Check for required dependencies in main script
 test_dependencies() {
     test_start "dependency checks"
-    if grep -q "check_dependencies" "$FUEGO_CMD"; then
+    if grep -q "check_dependencies" "$GRAPHYN_CMD"; then
         test_pass
     else
         test_fail "No dependency checking found in main script"
@@ -206,7 +206,7 @@ test_dependencies() {
 # Main test execution
 main() {
     echo "╔══════════════════════════════════════╗"
-    echo "║       Fuego CLI Test Suite           ║"
+    echo "║     Graphyn Code CLI Test Suite      ║"
     echo "╚══════════════════════════════════════╝"
     echo
     
