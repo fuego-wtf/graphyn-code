@@ -1,19 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
-import chalk from 'chalk';
 import { AuthManager } from './auth';
 import { config } from './config';
-
-const colors = {
-  primary: chalk.blueBright,
-  secondary: chalk.magenta,
-  accent: chalk.yellow,
-  success: chalk.green,
-  error: chalk.red,
-  warning: chalk.yellow,
-  info: chalk.gray
-};
+import { 
+  colors, 
+  createDivider,
+  agentThemes,
+  createProgressSteps
+} from './ui';
 
 export class AgentManager {
   private authManager: AuthManager;
@@ -108,7 +103,9 @@ ${query}
 
 Please analyze the above query in the context of the ${type} agent role and provide a comprehensive response.`;
       
-      console.log(colors.info(`\n🚀 Launching Claude Code with ${type} agent context...`));
+      const theme = agentThemes[type as keyof typeof agentThemes];
+      console.log();
+      console.log(theme ? theme.gradient(`🚀 Launching Claude Code with ${type} agent context...`) : colors.info(`🚀 Launching Claude Code with ${type} agent context...`));
       
       // Try to launch Claude Code
       const claudePath = '/Users/resatugurulu/.claude/local/claude';
@@ -149,22 +146,39 @@ Please analyze the above query in the context of the ${type} agent role and prov
   }
 
   async chainAgents(query: string): Promise<void> {
-    console.log(colors.primary('🔗 Starting agent chain...'));
     console.log();
-
+    console.log(colors.bold('🔗 Starting agent chain...'));
+    console.log(createDivider());
+    
     const agents = ['backend', 'frontend', 'architect'];
     const responses: string[] = [];
+    
+    // Show progress steps
+    const steps = agents.map(agent => ({ name: `${agent} agent`, status: 'pending' as 'pending' | 'active' | 'done' | 'error' }));
+    console.log(createProgressSteps(steps));
+    console.log();
 
-    for (const agent of agents) {
-      console.log(colors.info(`▸ Running ${agent} agent...`));
+    for (let i = 0; i < agents.length; i++) {
+      const agent = agents[i];
+      
+      // Update progress
+      steps[i].status = 'active';
+      console.log('\x1B[' + (agents.length + 2) + 'A'); // Move cursor up
+      console.log(createProgressSteps(steps));
+      console.log();
+      
       const response = await this.queryAgent(agent, query + (responses.length > 0 ? `\n\nPrevious responses:\n${responses.join('\n')}` : ''));
       responses.push(response);
-      console.log(response);
-      console.log(colors.primary('─'.repeat(60)));
+      
+      // Update to done
+      steps[i].status = 'done';
+      console.log('\x1B[' + (agents.length + 2) + 'A'); // Move cursor up
+      console.log(createProgressSteps(steps));
+      console.log();
     }
-
+    
     console.log();
-    console.log(colors.success('✓ Agent chain completed'));
+    console.log(colors.success.bold('✅ Agent chain completed!'));
   }
 
   private async getLocalPrompt(type: string, query: string): Promise<string> {

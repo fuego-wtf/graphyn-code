@@ -1,42 +1,34 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
 import { AuthManager } from './auth';
 import { AgentManager } from './agents';
 import { GraphynMDManager } from './graphyn-md';
 import { version } from '../package.json';
+import { 
+  colors, 
+  createBanner, 
+  createAgentHeader, 
+  createSuccessBox,
+  createErrorBox,
+  createTipBox,
+  createDivider
+} from './ui';
 
 // Initialize CLI
 const program = new Command();
 
-// Brand colors
-const colors = {
-  primary: chalk.hex('#3267F5'),
-  secondary: chalk.hex('#C0B7FD'),
-  accent: chalk.hex('#A67763'),
-  success: chalk.green,
-  error: chalk.red,
-  warning: chalk.yellow,
-  info: chalk.gray
-};
-
-// ASCII Banner
-const banner = `
-${colors.primary('╔══════════════════════════════════════════════════════════╗')}
-${colors.primary('║')}                  ${colors.secondary('🚀 Graphyn Code')}                        ${colors.primary('║')}
-${colors.primary('║')}        ${colors.info('Free AI Development Tool for Claude Code Users')}   ${colors.primary('║')}
-${colors.primary('╚══════════════════════════════════════════════════════════╝')}
-`;
-
-// Configure CLI
-program
-  .name('graphyn')
-  .description('AI development agents in your terminal')
-  .version(version)
-  .addHelpText('before', banner);
+// Configure CLI with async banner
+(async () => {
+  const banner = await createBanner();
+  
+  program
+    .name('graphyn')
+    .description('AI development agents in your terminal')
+    .version(version)
+    .addHelpText('before', banner);
 
 // Auth command
 program
@@ -60,10 +52,10 @@ program
     try {
       await authManager.authenticate(apiKey!);
       spinner.succeed('Authentication successful!');
-      console.log(colors.info('You can now use all Graphyn Code features.'));
+      console.log(createSuccessBox('You can now use all Graphyn Code features.'));
     } catch (error) {
       spinner.fail('Authentication failed');
-      console.error(colors.error(error instanceof Error ? error.message : 'Unknown error'));
+      console.log(createErrorBox(error instanceof Error ? error.message : 'Unknown error'));
       process.exit(1);
     }
   });
@@ -196,19 +188,11 @@ async function runAgent(type: string, query: string) {
   }
   
   // Show agent header
-  const agentIcons = {
-    backend: '🔧',
-    frontend: '🎨',
-    architect: '🏗️'
-  };
-  
   console.log();
-  console.log(colors.primary('╭─────────────────────────────────────────╮'));
-  console.log(colors.primary('│') + `  ${chalk.bold.white(`${type.charAt(0).toUpperCase() + type.slice(1)} Agent`)} ${agentIcons[type as keyof typeof agentIcons]}                     ` + colors.primary('│'));
-  console.log(colors.primary('╰─────────────────────────────────────────╯'));
+  console.log(createAgentHeader(type));
   console.log();
-  console.log(colors.info(`Query: ${query}`));
-  console.log();
+  console.log(colors.info('Query: ') + colors.bold(query));
+  console.log(createDivider());
   
   const spinner = ora('Analyzing your request...').start();
   
@@ -226,29 +210,32 @@ async function runAgent(type: string, query: string) {
 async function runInteractiveAgent(type: string) {
   const agentManager = new AgentManager();
   
-  // Show agent header
-  const agentIcons = {
-    backend: '🔧',
-    frontend: '🎨',
-    architect: '🏗️'
-  };
-  
   console.log();
-  console.log(colors.primary('╭─────────────────────────────────────────╮'));
-  console.log(colors.primary('│') + `  ${chalk.bold.white(`${type.charAt(0).toUpperCase() + type.slice(1)} Agent`)} ${agentIcons[type as keyof typeof agentIcons]} - Interactive Mode         ` + colors.primary('│'));
-  console.log(colors.primary('╰─────────────────────────────────────────╯'));
+  console.log(createAgentHeader(type, 'Interactive Mode'));
   console.log();
-  console.log(colors.info('Type your questions and press Enter. Type "exit" to quit.'));
+  console.log(createTipBox('Type your questions and press Enter. Type "exit" to quit.'));
   console.log();
   
   // Start interactive Claude session with context
   await agentManager.startInteractiveSession(type);
 }
 
-// Parse arguments
-program.parse(process.argv);
+  // Add interactive command
+  program
+    .command('interactive')
+    .alias('i')
+    .description('Start interactive mode')
+    .action(async () => {
+      const { interactiveMenu } = await import('./interactive');
+      await interactiveMenu();
+    });
 
-// Show help if no arguments
-if (!process.argv.slice(2).length) {
-  program.outputHelp();
-}
+  // Parse arguments
+  program.parse(process.argv);
+
+  // Show interactive menu if no arguments
+  if (!process.argv.slice(2).length) {
+    const { interactiveMenu } = await import('./interactive');
+    await interactiveMenu();
+  }
+})();
