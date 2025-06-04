@@ -175,6 +175,39 @@ program
     await authManager.logout();
   });
 
+// History command
+program
+  .command('history')
+  .description('Show recent agent interactions')
+  .option('-n, --number <count>', 'Number of interactions to show', '10')
+  .action(async (options) => {
+    const { GraphynLogger } = await import('./logger');
+    const logger = new GraphynLogger();
+    const interactions = logger.getRecentInteractions(parseInt(options.number));
+    
+    if (interactions.length === 0) {
+      console.log(colors.info('No recent interactions found.'));
+      return;
+    }
+    
+    console.log(colors.primary('\n📜 Recent Graphyn Interactions'));
+    console.log(colors.dim('─'.repeat(60)));
+    
+    interactions.forEach((interaction, index) => {
+      const date = new Date(interaction.timestamp);
+      const timeStr = date.toLocaleString();
+      
+      console.log();
+      console.log(colors.accent(`${index + 1}. ${interaction.agent} agent`));
+      console.log(colors.dim(`   Time: ${timeStr}`));
+      console.log(colors.info(`   Query: ${interaction.query}`));
+      console.log(colors.dim(`   File: ${interaction.contextFile}`));
+    });
+    
+    console.log();
+    console.log(colors.dim(`💡 Contexts saved in: ~/.graphyn/contexts/`));
+  });
+
 // Helper function to run agents
 async function runAgent(type: string, query: string) {
   const agentManager = new AgentManager();
@@ -199,7 +232,10 @@ async function runAgent(type: string, query: string) {
   try {
     const response = await agentManager.queryAgent(type, query);
     spinner.stop();
-    console.log(response);
+    // Only print response if it's not a status message
+    if (response && response !== 'context-saved' && response !== 'interactive-saved' && response !== 'claude-launched') {
+      console.log(response);
+    }
   } catch (error) {
     spinner.fail('Request failed');
     console.error(colors.error(error instanceof Error ? error.message : 'Unknown error'));
@@ -230,12 +266,12 @@ async function runInteractiveAgent(type: string) {
       await interactiveMenu();
     });
 
-  // Parse arguments
-  program.parse(process.argv);
-
   // Show interactive menu if no arguments
   if (!process.argv.slice(2).length) {
     const { interactiveMenu } = await import('./interactive');
     await interactiveMenu();
+  } else {
+    // Parse arguments only if we have them
+    program.parse(process.argv);
   }
 })();

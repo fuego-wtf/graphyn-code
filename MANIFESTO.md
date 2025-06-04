@@ -1,79 +1,67 @@
-# The Living Documentation Manifesto
+# The Graphyn Manifesto
 
-## A Revolution in AI-Assisted Development
+## Documentation is Dead. Long Live Living Documentation.
 
-We've discovered something profound: **Documentation should be alive.**
+For too long, we've accepted that documentation is a necessary evil—something we write once and forget, letting it rot in repositories while our code evolves without it.
 
-Not static. Not frozen. Not a one-time artifact that decays the moment it's written. But living, breathing, evolving guidance that grows with your project, your team, and your understanding.
+**We reject this reality.**
 
-## The Old Way is Dead
+## What We Believe
 
-Traditional documentation fails because:
-- It's written once and forgotten
-- It lives separately from the code it describes
-- It becomes outdated the moment you commit it
-- It treats all contexts the same
-- It ignores the unique voice of your team
+### 1. Documentation Should Breathe
+Every line of code tells a story. Every architectural decision has a reason. Every pattern emerged from experience. This knowledge shouldn't be trapped in static markdown files—it should live, breathe, and grow with your project.
 
-## The Living Way
+### 2. AI Should Understand Context, Not Just Code
+An AI that knows your coding standards is good. An AI that remembers why you made certain decisions is better. An AI that evolves its understanding based on your actual work? That's revolutionary.
 
-Living documentation is:
-- **Centrally managed** - Updated from a single source of truth
-- **Contextually aware** - Adapts to your project, your team, your goals
-- **Personally editable** - Your team's voice matters
-- **Version controlled** - Every change tracked, every evolution preserved
-- **AI-native** - Designed for AI agents to consume and act upon
+### 3. Knowledge Should Compound
+Every interaction with your AI assistant should make the next one smarter. Every problem solved should prevent future problems. Every pattern recognized should improve future suggestions.
 
-## The Pattern: GRAPHYN.md
+### 4. Teams Should Share Wisdom, Not Just Code
+When a senior developer discovers a better pattern, the whole team should benefit. When a architectural decision is made, it should propagate through every AI interaction. When standards evolve, every agent should know.
 
-Just as CLAUDE.md gives Claude context about your preferences, GRAPHYN.md gives your AI agents context about your project. But unlike static files:
+## The Future We're Building
 
-1. **Base prompts live on the server** - Constantly improved by the community
-2. **Your editorial direction is layered on top** - Your voice, your standards, your requirements
-3. **Every agent gets the combined wisdom** - Base knowledge + your customizations
-4. **Updates propagate instantly** - When we improve, you improve
+Imagine opening your terminal and having an AI that:
+- Knows your entire codebase history
+- Understands your team's conventions
+- Remembers past decisions and their outcomes
+- Suggests improvements based on actual patterns
+- Learns from every interaction
+- Shares knowledge across your organization
 
-## The Philosophy
+This isn't science fiction. This is Graphyn.
 
-**Your documentation is your product's soul.**
+## How We Get There
 
-It's not just instructions. It's the embodied wisdom of your team, the accumulated knowledge of your domain, the specific ways you've chosen to solve problems.
+### Phase 1: Instant Context (✅ Complete)
+One command launches Claude with full project understanding.
 
-When an AI agent reads your living documentation, it's not just following rules - it's channeling your team's expertise.
+### Phase 2: Living Documentation (🚧 Building)
+GRAPHYN.md becomes your project's evolving brain.
 
-## The Implementation
+### Phase 3: Context Evolution (🔜 Soon)
+Every Claude session teaches Graphyn about your project.
 
-```bash
-# Pull the latest base prompts
-graphyn sync pull
+### Phase 4: Collective Intelligence (📅 Future)
+Teams share patterns, decisions compound, knowledge multiplies.
 
-# Edit with your team's voice
-graphyn sync edit
+## Join the Revolution
 
-# Push your customizations
-graphyn sync push
+This isn't just about better tooling. It's about fundamentally changing how we think about documentation, knowledge, and AI assistance in software development.
 
-# Every agent now speaks with your voice
-graphyn architect "design our API"
-```
+We're building for developers who:
+- Ship fast but think long-term
+- Value knowledge over information
+- Believe in continuous improvement
+- Want their tools to evolve with them
 
-## The Future
+## The First Principle
 
-Imagine:
-- Documentation that improves itself based on usage patterns
-- AI agents that learn from every interaction
-- Teams that share not just code, but wisdom
-- A global network of living knowledge
-
-## The Call to Action
-
-Stop writing documentation that dies.
-Start growing documentation that lives.
-
-**Make your docs alive. Make them breathe. Make them grow.**
+**Your documentation should work as hard as your code.**
 
 ---
 
-*This is not just a feature. It's a philosophy. It's how we build software in the age of AI.*
+*Built by developers, for developers who dream bigger.*
 
-*Join the revolution. Make your documentation live.*
+*Join us: https://graphyn.xyz*

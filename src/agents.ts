@@ -6,8 +6,7 @@ import { config } from './config';
 import { 
   colors, 
   createDivider,
-  agentThemes,
-  createProgressSteps
+  agentThemes
 } from './ui';
 
 export class AgentManager {
@@ -31,14 +30,33 @@ export class AgentManager {
       // Read the prompt content
       const promptContent = fs.readFileSync(promptFile, 'utf8');
       
-      console.log(colors.primary(`\n🚀 ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Interactive Mode`));
-      console.log(colors.info('─'.repeat(60)));
-      console.log(colors.accent('Agent Context:'));
-      console.log(promptContent);
-      console.log(colors.info('─'.repeat(60)));
-      console.log(colors.success('\n✓ Agent context loaded!'));
-      console.log(colors.info('You can now interact with this specialized agent context.'));
-      console.log(colors.accent('\n💡 Tip: Ask questions or request implementations based on the context above.\n'));
+      const claudePath = '/Users/resatugurulu/.claude/local/claude';
+      
+      if (fs.existsSync(claudePath)) {
+        // Save context to file
+        const os = require('os');
+        const tmpDir = os.tmpdir();
+        const tmpFile = path.join(tmpDir, `graphyn-${type}-interactive-${Date.now()}.txt`);
+        fs.writeFileSync(tmpFile, promptContent);
+        
+        console.log(colors.success('\n✓ Interactive agent context prepared!'));
+        console.log(colors.info(`\nContext saved to: ${tmpFile}`));
+        
+        console.log(colors.accent('\n🚀 To start Claude Code with this agent:'));
+        console.log(colors.highlight(`  claude < "${tmpFile}"`));
+        console.log(colors.dim('\nOr open Claude Code and use:'));
+        console.log(colors.highlight(`  /read ${tmpFile}`))
+      } else {
+        // Fallback display
+        console.log(colors.primary(`\n🚀 ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Interactive Mode`));
+        console.log(colors.info('─'.repeat(60)));
+        console.log(colors.accent('Agent Context:'));
+        console.log(promptContent);
+        console.log(colors.info('─'.repeat(60)));
+        console.log(colors.success('\n✓ Agent context loaded!'));
+        console.log(colors.info('You can now interact with this specialized agent context.'));
+        console.log(colors.accent('\n💡 Tip: Copy this context into Claude Code.\n'));
+      }
       
     } catch (error) {
       console.error(colors.error(`Failed to read prompt file: ${error instanceof Error ? error.message : String(error)}`));
@@ -78,69 +96,62 @@ export class AgentManager {
   }
 
   private async queryWithClaudeCode(type: string, query: string): Promise<string> {
-    const { spawn } = require('child_process');
     const os = require('os');
+    const theme = agentThemes[type as keyof typeof agentThemes];
+    console.log();
+    console.log(theme ? theme.gradient(`🚀 Launching Claude Code with ${type} agent context...`) : colors.info(`🚀 Launching Claude Code with ${type} agent context...`));
     
+    // Get the username dynamically
+    const username = os.userInfo().username;
+    const claudePath = `/Users/${username}/.claude/local/claude`;
+    
+    // Read the agent prompt
     const promptsDir = path.join(__dirname, '..', 'prompts');
     const promptFile = path.join(promptsDir, `${type}.md`);
     
     if (!fs.existsSync(promptFile)) {
       return this.getFallbackResponse(type, query);
     }
-
-    try {
-      const promptContent = fs.readFileSync(promptFile, 'utf8');
-      
-      const fullContent = `# ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Context
+    
+    const promptContent = fs.readFileSync(promptFile, 'utf8');
+    
+    // Create full context with agent prompt
+    const fullContext = `# ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Context
 
 ${promptContent}
 
 # User Query
-
 ${query}
 
 # Instructions
-
 Please analyze the above query in the context of the ${type} agent role and provide a comprehensive response.`;
+    
+    // Save to temp file
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.txt`);
+    fs.writeFileSync(tmpFile, fullContext);
+    
+    if (fs.existsSync(claudePath)) {
+      const { execSync } = require('child_process');
       
-      const theme = agentThemes[type as keyof typeof agentThemes];
-      console.log();
-      console.log(theme ? theme.gradient(`🚀 Launching Claude Code with ${type} agent context...`) : colors.info(`🚀 Launching Claude Code with ${type} agent context...`));
+      console.log(colors.success('\n✨ Starting Claude Code...\n'));
       
-      // Try to launch Claude Code
-      const claudePath = '/Users/resatugurulu/.claude/local/claude';
-      
-      if (fs.existsSync(claudePath)) {
-        // Pass the full content directly as the initial prompt
-        const claude = spawn(claudePath, [fullContent], {
-          stdio: 'inherit',
-          env: { ...process.env }
-        });
-        
-        claude.on('error', (error: any) => {
-          console.error(colors.error(`Failed to start Claude: ${error.message}`));
-          // Save as fallback
-          const tmpDir = os.tmpdir();
-          const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.md`);
-          fs.writeFileSync(tmpFile, fullContent);
-          console.log(colors.info(`\nContext saved to: ${tmpFile}`));
-          console.log(colors.accent('You can copy the content and paste it in Claude Code.'));
-        });
-        
-        return '';
-      } else {
-        console.log(colors.warning('⚠️  Claude CLI not found at expected location.'));
-        // Save content to file as fallback
-        const tmpDir = os.tmpdir();
-        const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.md`);
-        fs.writeFileSync(tmpFile, fullContent);
-        console.log(colors.info(`\nContext saved to: ${tmpFile}`));
-        console.log(colors.accent(`You can copy and paste the content from this file into Claude Code.`));
-        return '';
+      try {
+        // Execute claude with the context file
+        execSync(`${claudePath} < "${tmpFile}"`, { stdio: 'inherit' });
+      } catch (error) {
+        // Claude exited - this is normal
       }
       
-    } catch (error) {
-      console.log(colors.warning('⚠️  Failed to launch Claude Code.'));
+      // Clean up temp file after a delay
+      setTimeout(() => {
+        try { fs.unlinkSync(tmpFile); } catch (e) {}
+      }, 5000);
+      
+      return 'claude-launched';
+    } else {
+      console.log(colors.warning('⚠️  Claude CLI not found at expected location.'));
+      console.log(colors.info(`Expected path: ${claudePath}`));
       return this.getFallbackResponse(type, query);
     }
   }
@@ -153,27 +164,19 @@ Please analyze the above query in the context of the ${type} agent role and prov
     const agents = ['backend', 'frontend', 'architect'];
     const responses: string[] = [];
     
-    // Show progress steps
-    const steps = agents.map(agent => ({ name: `${agent} agent`, status: 'pending' as 'pending' | 'active' | 'done' | 'error' }));
-    console.log(createProgressSteps(steps));
-    console.log();
-
+    // Show progress steps without cursor manipulation
     for (let i = 0; i < agents.length; i++) {
       const agent = agents[i];
+      const theme = agentThemes[agent as keyof typeof agentThemes];
       
-      // Update progress
-      steps[i].status = 'active';
-      console.log('\x1B[' + (agents.length + 2) + 'A'); // Move cursor up
-      console.log(createProgressSteps(steps));
-      console.log();
+      // Show current agent
+      console.log(theme ? theme.gradient(`▸ Running ${agent} agent...`) : colors.info(`▸ Running ${agent} agent...`));
       
       const response = await this.queryAgent(agent, query + (responses.length > 0 ? `\n\nPrevious responses:\n${responses.join('\n')}` : ''));
       responses.push(response);
       
-      // Update to done
-      steps[i].status = 'done';
-      console.log('\x1B[' + (agents.length + 2) + 'A'); // Move cursor up
-      console.log(createProgressSteps(steps));
+      // Show completion
+      console.log(colors.success(`✓ ${agent} agent completed`));
       console.log();
     }
     
@@ -236,33 +239,43 @@ Please analyze the above query in the context of the ${type} agent role and prov
 
   private getFallbackResponse(type: string, query: string): string {
     const typeDescriptions = {
-      backend: 'server-side development, APIs, and databases',
-      frontend: 'user interfaces, components, and user experience',
-      architect: 'system design, architecture decisions, and best practices'
+      backend: 'APIs that scale, databases that perform, systems that endure',
+      frontend: 'interfaces that delight, experiences that convert, code that inspires',
+      architect: 'decisions that last, patterns that scale, wisdom that compounds'
+    };
+
+    const philosophies = {
+      backend: 'Great backends are invisible—until they\'re not. Build for the 99.9%.',
+      frontend: 'Every pixel tells a story. Make yours worth remembering.',
+      architect: 'Architecture is the art of making the right trade-offs at the right time.'
     };
 
     return `
 ${colors.info(`🤖 ${type.charAt(0).toUpperCase() + type.slice(1)} Agent`)}
-${colors.primary('─'.repeat(40))}
+${colors.primary('─'.repeat(50))}
 
-Query: ${query}
+${colors.bold('Your Query:')} ${query}
 
-${colors.accent('Agent Focus:')}
-I specialize in ${typeDescriptions[type as keyof typeof typeDescriptions]}.
+${colors.accent('My Philosophy:')}
+${philosophies[type as keyof typeof philosophies]}
 
-${colors.accent('Local Mode:')}
-You're currently running in local mode. For full AI capabilities:
-• Get your free API key at https://graphyn.xyz/code
-• Run "graphyn auth gph_your_api_key"
+${colors.accent('I specialize in:')}
+${typeDescriptions[type as keyof typeof typeDescriptions]}
 
-${colors.accent('Quick Help:')}
-For ${type} development, consider:
-• Following best practices for your tech stack
-• Implementing proper error handling
-• Writing tests for your code
-• Documenting your work
+${colors.accent('Living Documentation:')}
+Create a GRAPHYN.md file in your project root to give me context about:
+• Your tech stack and conventions
+• Your team's coding standards
+• Your architectural decisions
 
-${colors.primary('─'.repeat(40))}
+${colors.dim('This makes every interaction smarter, every suggestion more relevant.')}
+
+${colors.accent('Ready to evolve?')}
+• Get your API key: ${colors.highlight('https://graphyn.xyz/code')}
+• Authenticate: ${colors.highlight('graphyn auth gph_your_api_key')}
+
+${colors.primary('─'.repeat(50))}
+${colors.dim('Built for developers who believe documentation should evolve with their code.')}
 `;
   }
 }

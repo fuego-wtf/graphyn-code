@@ -20,28 +20,28 @@ export async function interactiveMenu(): Promise<void> {
   
   const choices = [
     {
-      name: `${agentThemes.backend.icon}  Backend Agent - API, database, and server development`,
+      name: `${agentThemes.backend.icon}  Backend Agent - APIs that scale, databases that perform`,
       value: 'backend'
     },
     {
-      name: `${agentThemes.frontend.icon}  Frontend Agent - UI, components, and user experience`,
+      name: `${agentThemes.frontend.icon}  Frontend Agent - Interfaces users love, experiences that delight`,
       value: 'frontend'
     },
     {
-      name: `${agentThemes.architect.icon}  Architect Agent - System design and best practices`,
+      name: `${agentThemes.architect.icon}  Architect Agent - Systems that evolve, decisions that last`,
       value: 'architect'
     },
     new inquirer.Separator(createDivider()),
     {
-      name: '🔗  Chain Agents - Run all agents in sequence',
+      name: '🔗  Chain Agents - Complex problems, comprehensive solutions',
       value: 'chain'
     },
     {
-      name: '📋  Initialize GRAPHYN.md',
+      name: '📋  Initialize Living Docs - Create your project\'s evolving knowledge',
       value: 'init'
     },
     {
-      name: '🔑  Authenticate',
+      name: '🔑  Authenticate - Unlock cloud features (optional)',
       value: 'auth'
     },
     new inquirer.Separator(createDivider()),
@@ -109,10 +109,28 @@ export async function interactiveMenu(): Promise<void> {
       try {
         const response = await agentManager.queryAgent(action, query);
         spinner.stop();
-        console.log(response);
+        
+        // Handle different response types
+        if (response === 'context-saved' || response === 'interactive-saved') {
+          // Context was saved, wait for instructions to display then exit
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log(colors.dim('\n✨ Exiting graphyn. Happy coding!\n'));
+          process.exit(0);
+        } else if (response === '') {
+          console.log(colors.dim('\nClaude Code launched. Exiting interactive menu.\n'));
+          setTimeout(() => process.exit(0), 100);
+          return;
+        } else {
+          // Print other responses
+          console.log(response);
+        }
       } catch (error) {
-        spinner.fail('Query failed');
-        console.error(colors.error(error instanceof Error ? error.message : 'Unknown error'));
+        spinner.stop();
+        if (error instanceof Error && error.message.includes('Interrupt')) {
+          console.log(colors.warning('\n⚠️  Query interrupted by user'));
+        } else {
+          console.log(createErrorBox(error instanceof Error ? error.message : 'Unknown error'));
+        }
       }
     } else {
       // Start interactive session
@@ -121,6 +139,7 @@ export async function interactiveMenu(): Promise<void> {
       console.log(createAgentHeader(action, 'Interactive Mode'));
       console.log();
       await agentManager.startInteractiveSession(action);
+      // Continue with menu after showing instructions
     }
   }
   
@@ -140,8 +159,12 @@ export async function interactiveMenu(): Promise<void> {
       await agentManager.chainAgents(query);
       spinner.succeed('Agent chain completed!');
     } catch (error) {
-      spinner.fail('Chain execution failed');
-      console.error(colors.error(error instanceof Error ? error.message : 'Unknown error'));
+      spinner.stop();
+      if (error instanceof Error && error.message.includes('Interrupt')) {
+        console.log(colors.warning('\n⚠️  Chain interrupted by user'));
+      } else {
+        console.log(createErrorBox(error instanceof Error ? error.message : 'Unknown error'));
+      }
     }
   }
   
@@ -170,6 +193,9 @@ export async function interactiveMenu(): Promise<void> {
   
   // Ask if user wants to continue
   console.log();
+  // Clear any residual ANSI codes
+  process.stdout.write('\x1B[0m'); // Reset all attributes
+  
   const { continueChoice } = await inquirer.prompt([{
     type: 'confirm',
     name: 'continueChoice',

@@ -15,7 +15,7 @@ export const colors = {
   error: chalk.red,
   warning: chalk.yellow,
   info: chalk.gray,
-  highlight: chalk.cyan,
+  highlight: chalk.cyan.bold,
   dim: chalk.dim,
   bold: chalk.bold
 };
@@ -61,7 +61,7 @@ export async function createBanner(): Promise<string> {
       }
       
       const gradientBanner = gradients.brand(data);
-      const subtitle = colors.dim('AI Development Agents for Claude Code');
+      const subtitle = colors.dim('Living Documentation for AI-Powered Development');
       const boxedBanner = boxen(`${gradientBanner}\n\n${subtitle}`, {
         padding: 1,
         margin: 1,
@@ -78,7 +78,7 @@ export async function createBanner(): Promise<string> {
 // Fallback banner if figlet fails
 function createFallbackBanner(): string {
   const title = gradients.brand('═══ GRAPHYN CODE ═══');
-  const subtitle = colors.dim('AI Development Agents for Claude Code');
+  const subtitle = colors.dim('Living Documentation for AI-Powered Development');
   
   return boxen(`${title}\n${subtitle}`, {
     padding: 1,
@@ -94,16 +94,19 @@ export function createAgentHeader(type: string, mode: string = ''): string {
   const theme = agentThemes[type as keyof typeof agentThemes];
   if (!theme) return '';
   
-  const title = `${theme.icon} ${type.charAt(0).toUpperCase() + type.slice(1)} Agent`;
-  const modeText = mode ? colors.dim(` - ${mode}`) : '';
+  const title = `${theme.icon}  ${type.charAt(0).toUpperCase() + type.slice(1)} Agent`;
+  const modeText = mode ? ` - ${mode}` : '';
+  const fullTitle = title + modeText;
   
-  const header = theme.gradient(title) + modeText;
+  // Ensure minimum width for the box
+  const minWidth = 30;
   
-  return boxen(header, {
-    padding: { top: 0, bottom: 0, left: 2, right: 2 },
+  return boxen(fullTitle, {
+    padding: { top: 0, bottom: 0, left: 1, right: 1 },
     borderStyle: 'round',
     borderColor: 'cyan',
-    align: 'center'
+    align: 'center',
+    width: Math.max(minWidth, fullTitle.length + 6)
   });
 }
 

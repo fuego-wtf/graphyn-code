@@ -1,134 +1,17 @@
 #!/usr/bin/env bash
-# Quick working version of Graphyn Code
+# Graphyn Code CLI
 
 set -euo pipefail
 
-# Colors
-BRIGHT_BLUE='\033[38;2;50;103;245m'
-LIGHT_PURPLE='\033[38;2;192;183;253m' 
-WHITE='\033[97m'
-GRAY='\033[90m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-# Directories
+# Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROMPTS_DIR="${SCRIPT_DIR}/prompts"
 
-show_help() {
-    echo -e "${BRIGHT_BLUE}${BOLD}Graphyn Code${NC} - Free AI Development Tool"
-    echo
-    echo "Usage: $0 [OPTIONS] [MESSAGE]"
-    echo
-    echo "OPTIONS:"
-    echo "    --backend, -b       Use backend agent"
-    echo "    --frontend, -f      Use frontend agent"
-    echo "    --architect, -a     Use architect agent"
-    echo "    --help, -h          Show this help"
-    echo
-    echo "EXAMPLES:"
-    echo "    $0 --frontend \"Build a dashboard component\""
-    echo "    $0 --backend \"Create a REST API\""
-    echo "    $0 --architect \"Review this design\""
-    echo
-    echo "Get your free API key: https://graphyn.xyz/code"
-}
-
-run_agent() {
-    local agent="$1"
-    local query="$2"
-    
-    # Load prompt
-    local prompt_file="${PROMPTS_DIR}/${agent}.md"
-    if [[ ! -f "$prompt_file" ]]; then
-        echo -e "${BRIGHT_BLUE}❌ Agent prompt not found: $prompt_file${NC}"
-        return 1
-    fi
-    
-    local prompt=$(cat "$prompt_file")
-    
-    # Show agent header
-    echo
-    echo -e "${BRIGHT_BLUE}╭─────────────────────────────────────────╮${NC}"
-    case "$agent" in
-        backend)
-            echo -e "${BRIGHT_BLUE}│${NC}  ${BOLD}${WHITE}Backend Developer Agent${NC}  🔧          ${BRIGHT_BLUE}│${NC}"
-            ;;
-        frontend)
-            echo -e "${BRIGHT_BLUE}│${NC}  ${BOLD}${WHITE}Frontend Developer Agent${NC} 🎨          ${BRIGHT_BLUE}│${NC}"
-            ;;
-        architect)
-            echo -e "${BRIGHT_BLUE}│${NC}  ${BOLD}${WHITE}Software Architect Agent${NC} 🏗️          ${BRIGHT_BLUE}│${NC}"
-            ;;
-    esac
-    echo -e "${BRIGHT_BLUE}╰─────────────────────────────────────────╯${NC}"
-    echo
-    
-    echo -e "${GRAY}Query: $query${NC}"
-    echo
-    echo -e "${LIGHT_PURPLE}🤔 Analyzing your request...${NC}"
-    echo
-    
-    # For now, show the prompt and query (in production this would call API)
-    echo -e "${WHITE}Based on your query: \"$query\"${NC}"
-    echo
-    echo -e "${GRAY}I would use my expertise as a $agent agent to help you with this request.${NC}"
-    echo -e "${GRAY}Once deployed with API access, I'll provide detailed technical guidance.${NC}"
-    echo
-    echo -e "${BRIGHT_BLUE}✨ This is a preview. Get full functionality at https://graphyn.xyz/code${NC}"
-}
-
-# Parse arguments
-context=""
-message=""
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --backend|-b)
-            context="backend"
-            shift
-            ;;
-        --frontend|-f)
-            context="frontend" 
-            shift
-            ;;
-        --architect|-a)
-            context="architect"
-            shift
-            ;;
-        --help|-h)
-            show_help
-            exit 0
-            ;;
-        -*)
-            echo "Unknown option: $1"
-            show_help
-            exit 1
-            ;;
-        *)
-            message="$*"
-            break
-            ;;
-    esac
-done
-
-# Check if context is provided
-if [[ -z "$context" ]]; then
-    echo -e "${BRIGHT_BLUE}Please specify an agent:${NC}"
-    echo "  --backend    for backend development"
-    echo "  --frontend   for frontend development" 
-    echo "  --architect  for architecture review"
-    echo
-    echo "Example: $0 --frontend \"build a dashboard\""
-    exit 1
+# Check if we have the built TypeScript CLI
+if [[ ! -f "${SCRIPT_DIR}/dist/index.js" ]]; then
+    echo "Error: Graphyn Code not built. Running build..."
+    cd "${SCRIPT_DIR}"
+    npm run build
 fi
 
-# Check if message is provided
-if [[ -z "$message" ]]; then
-    echo -e "${BRIGHT_BLUE}Please provide a message/query${NC}"
-    echo "Example: $0 --$context \"your question here\""
-    exit 1
-fi
-
-# Run the agent
-run_agent "$context" "$message"
+# Forward all arguments to the TypeScript CLI
+exec node "${SCRIPT_DIR}/dist/index.js" "$@"
