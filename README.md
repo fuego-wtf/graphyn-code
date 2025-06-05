@@ -2,6 +2,9 @@
 
 > **Your AI development team, one command away.**
 
+[![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Why Graphyn?
 
 We believe AI assistants should understand your project deeply—not just respond to prompts. Graphyn gives Claude Code specialized agents that know your stack, follow your standards, and evolve with your codebase.
@@ -10,8 +13,14 @@ We believe AI assistants should understand your project deeply—not just respon
 
 ## Install
 
+### npm (recommended)
 ```bash
-curl -sSL https://raw.githubusercontent.com/graphyn-xyz/graphyn-code/main/scripts/install.sh | bash
+npm install -g @graphyn/code
+```
+
+### Script install
+```bash
+curl -sSL https://raw.githubusercontent.com/fuego-wtf/graphyn-code/main/scripts/install.sh | bash
 ```
 
 ## Quick Start
