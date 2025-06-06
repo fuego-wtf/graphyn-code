@@ -31,6 +31,10 @@ export async function interactiveMenu(): Promise<void> {
       name: `${agentThemes.architect.icon}  Architect Agent - Systems that evolve, decisions that last`,
       value: 'architect'
     },
+    {
+      name: `${agentThemes.cli.icon}  CLI Agent - Command-line tools that empower developers`,
+      value: 'cli'
+    },
     new inquirer.Separator(createDivider()),
     {
       name: '🔗  Chain Agents - Complex problems, comprehensive solutions',
@@ -65,7 +69,7 @@ export async function interactiveMenu(): Promise<void> {
   }
   
   // Handle agent selection
-  if (['backend', 'frontend', 'architect'].includes(action)) {
+  if (['backend', 'frontend', 'architect', 'cli'].includes(action)) {
     const { queryType } = await inquirer.prompt([{
       type: 'list',
       name: 'queryType',

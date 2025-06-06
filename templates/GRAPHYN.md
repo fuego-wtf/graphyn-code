@@ -111,6 +111,79 @@ scale: "Startup (1-10 users initially)"
 timeline: "MVP in 2 months"
 ```
 
+### Thread-Based Architecture Context
+```yaml
+# Core Architecture
+system_type: "Thread-Based Agent Builder"
+philosophy: "Everything is a conversation thread - no forms, no wizards"
+core_components:
+  - "Thread System: Foundation for all interactions"
+  - "Letta Integration: Multi-tenant AI agent management"
+  - "SSE Streaming: Real-time communication"
+  - "Builder Agent: Conversational agent creation"
+
+# Thread System
+threads:
+  types: ["builder", "testing", "production"]
+  database_schema:
+    - threads: "id, type, metadata, created_at"
+    - thread_participants: "thread_id, participant_type, participant_id"
+    - messages: "thread_id, sender_type, sender_id, content, metadata"
+  api_endpoints:
+    - "POST /api/threads - Create thread"
+    - "GET /api/threads/:id - Get thread details"
+    - "POST /api/threads/:id/messages - Send message"
+    - "GET /api/threads/:id/stream - SSE streaming"
+
+# Letta Integration
+letta:
+  connection_pattern: "identifier_key: org_${organization.clerk_id}"
+  multi_tenant: true
+  agent_types: ["builder", "custom"]
+  error_handling: "Type casting with proper error boundaries"
+
+# SSE Streaming Patterns
+streaming:
+  endpoints: "/api/threads/:id/stream"
+  reconnection: "Auto-reconnect with backoff"
+  buffering: "Message queue during disconnection"
+  event_types: ["message", "participant_join", "participant_leave", "status"]
+
+# Agent Management
+agents:
+  creation_flow: "Thread conversation → Config extraction → Agent creation"
+  testing_mode: "WhatsApp-style - invite agents to threads"
+  learning: "Automatic on agent removal from test threads"
+  versioning: "agent_versions table with pattern detection"
+```
+
+### Integration Patterns
+```yaml
+# Backend ↔ Frontend
+sse_contract:
+  event_format: '{ type: string, data: any, timestamp: number }'
+  reconnection: "Frontend handles with useThreadStream hook"
+  thread_types: "Backend enforces, Frontend displays"
+
+# Backend ↔ CLI  
+api_authentication: "API keys in .graphynrc"
+thread_access: "Same SSE endpoints as web"
+bulk_operations: "Special CLI endpoints for batch work"
+
+# Frontend ↔ CLI
+shared_state: "Both can participate in same threads"
+real_time: "Changes visible instantly across interfaces"
+export_import: "Standardized thread format"
+```
+
+### Performance Requirements
+```yaml
+thread_creation: "< 500ms"
+sse_first_token: "< 200ms"
+message_delivery: "< 100ms"
+agent_join_leave: "< 1 second"
+```
+
 ### Team Preferences
 - **Code Review**: All code must be reviewed before merging
 - **Testing**: Minimum 80% test coverage required
@@ -216,6 +289,87 @@ async function authenticateUser(email: string, password: string): Promise<AuthRe
 - Document system dependencies
 - Include deployment diagrams
 - Regular architecture reviews
+
+## 📚 Project Memory & Learnings
+
+### Key Decisions
+```yaml
+# Architecture Decisions
+decisions:
+  - date: "2025-01-06"
+    decision: "Use threads as core abstraction"
+    rationale: "Conversations are natural UI for agent building"
+    impact: "All features built on thread foundation"
+    
+  - date: "2025-01-06"
+    decision: "Letta for multi-tenant agent management"
+    rationale: "Provides isolation and state management"
+    impact: "Must handle identifier_key pattern correctly"
+```
+
+### Technical Learnings
+```yaml
+# Letta Integration
+letta_learnings:
+  - "Container health endpoint critical for stability"
+  - "identifier_key pattern: org_${organization.clerk_id}"
+  - "Type casting required for error handling"
+  - "Multi-tenant setup requires proper isolation"
+
+# SSE Implementation
+sse_learnings:
+  - "Auto-reconnection essential for reliability"
+  - "Message buffering during disconnection"
+  - "Event types must be consistent across teams"
+  - "First token latency critical for UX"
+
+# Thread System
+thread_learnings:
+  - "Thread types enforce different behaviors"
+  - "Participant management needs system messages"
+  - "Message metadata crucial for agent learning"
+  - "Thread ID format: Use UUIDs everywhere"
+```
+
+### Integration Gotchas
+```yaml
+# Common Issues
+gotchas:
+  - issue: "SSE connection drops"
+    solution: "Implement exponential backoff"
+    
+  - issue: "Thread state sync"
+    solution: "Use server as single source of truth"
+    
+  - issue: "Agent response delays"
+    solution: "Show typing indicators immediately"
+    
+  - issue: "Multi-tenant data leakage"
+    solution: "Always filter by org_id in queries"
+```
+
+### Team Task Tracking
+```yaml
+# Current Sprint Tasks
+backend_tasks:
+  - status: "blocked"
+    task: "Fix Letta multi-tenant connection"
+    blocker: "Container health endpoint"
+    
+  - status: "in_progress"
+    task: "Thread database schema"
+    assignee: "backend_team"
+    
+frontend_tasks:
+  - status: "pending"
+    task: "ChatInterface component"
+    dependency: "SSE endpoint from backend"
+    
+cli_tasks:
+  - status: "in_progress"
+    task: "Project memory management"
+    assignee: "cli_team"
+```
 
 ---
 

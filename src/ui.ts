@@ -44,6 +44,11 @@ export const agentThemes: Record<string, { icon: string; color: ChalkInstance; g
     icon: '🏗️',
     color: colors.accent,
     gradient: gradient(['#A67763', '#FF6F00'])
+  },
+  cli: {
+    icon: '🚀',
+    color: colors.highlight,
+    gradient: gradient(['#00D4FF', '#00A3CC'])
   }
 };
 

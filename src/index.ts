@@ -99,6 +99,18 @@ program
     }
   });
 
+// CLI agent
+program
+  .command('cli [query]')
+  .description('Query the CLI development specialist agent')
+  .action(async (query?: string) => {
+    if (query) {
+      await runAgent('cli', query);
+    } else {
+      await runInteractiveAgent('cli');
+    }
+  });
+
 // Chain agents
 program
   .command('chain <query>')

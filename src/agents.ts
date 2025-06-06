@@ -115,10 +115,22 @@ export class AgentManager {
     
     const promptContent = fs.readFileSync(promptFile, 'utf8');
     
+    // Check for GRAPHYN.md in current directory
+    let projectContext = '';
+    const graphynMdPath = path.join(process.cwd(), 'GRAPHYN.md');
+    if (fs.existsSync(graphynMdPath)) {
+      try {
+        const graphynContent = fs.readFileSync(graphynMdPath, 'utf8');
+        projectContext = `\n\n# Project Context (from GRAPHYN.md)\n${graphynContent}`;
+      } catch (error) {
+        // Ignore read errors
+      }
+    }
+    
     // Create full context with agent prompt
     const fullContext = `# ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Context
 
-${promptContent}
+${promptContent}${projectContext}
 
 # User Query
 ${query}

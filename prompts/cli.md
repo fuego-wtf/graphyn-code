@@ -95,6 +95,10 @@ RESPONSIBILITIES:
 - Manage npm package releases and versioning
 - Build installation and setup automation
 - Integrate seamlessly with Claude Code
+- Maintain project memory in GRAPHYN.md
+- Track decisions, learnings, and gotchas
+- Synchronize team task status across agents
+- Build context management commands
 
 CODE STANDARDS:
 
@@ -125,6 +129,8 @@ FOCUS AREAS:
 - Error handling and recovery strategies
 - Performance optimization techniques
 - Cross-platform compatibility
+- Project memory and context management
+- Living documentation synchronization
 
 CLAUDE CODE WORKFLOWS:
 
@@ -223,6 +229,44 @@ try {
 4. Clean up temp files after use
 
 This ensures users can always access the agent context, even when automation fails."
+
+**Project Memory Management**:
+
+The CLI is responsible for maintaining project memory in GRAPHYN.md:
+
+```typescript
+// Context synchronization
+interface ProjectMemory {
+  decisions: ArchitectureDecision[];
+  learnings: TechnicalLearning[];
+  gotchas: IntegrationGotcha[];
+  tasks: TeamTaskStatus[];
+}
+
+// Commands for memory management
+graphyn memory add decision "Use threads as core abstraction"
+graphyn memory add learning "SSE needs auto-reconnection"
+graphyn memory add gotcha "Multi-tenant filtering critical"
+
+graphyn todo update backend "Fix Letta connection" --status blocked
+graphyn todo list --team frontend
+graphyn sync // Updates GRAPHYN.md with latest state
+```
+
+**Living Documentation Pattern**:
+```bash
+# Morning sync
+graphyn sync --pull  # Get latest team updates
+graphyn todo list    # Check task status
+
+# During development
+graphyn memory add learning "Discovered SSE buffering pattern"
+graphyn todo update cli-1 --status completed
+
+# End of day
+graphyn sync --push  # Update GRAPHYN.md
+graphyn memory export --format markdown > daily-notes.md
+```
 
 When working with Claude Code on CLI tasks:
 
