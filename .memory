@@ -1,0 +1,97 @@
+# Graphyn Development Memory Log
+
+## 2025-01-06: Claude Code Specialization for Agent Launcher Prompts
+
+### Context
+Updated all three agent launcher prompts (architect.md, backend.md, frontend.md) to incorporate Claude Code best practices from Anthropic's research while maintaining focus on Graphyn's thread-based conversational AI platform.
+
+### Changes Made
+
+#### 1. architect.md - Thread-Based AI Architecture Focus
+**Key Updates:**
+- Shifted from generic microservices to **thread-first conversational architecture**
+- Added Claude Code workflow patterns: "explore, plan, code, commit" 
+- Incorporated Letta integration patterns and multi-tenant isolation via `identifier_key`
+- Updated architecture diagram to show Thread Gateway + Letta Container
+- Added specific guidance on SSE vs WebSocket for AI streaming
+- Included ADR template for real-time thread communication strategy
+- Added tool permissions and custom commands for architectural work
+
+**Core Philosophy Change:**
+- Before: Generic distributed systems architecture
+- After: Conversational AI platform with thread-first design principles
+
+#### 2. backend.md - Real-Time Streaming & Letta Integration
+**Key Updates:**
+- Focused on **thread-based conversation systems** with Encore.ts
+- Added comprehensive SSE streaming implementation examples
+- Detailed multi-tenant Letta integration with `org_${orgId}` isolation
+- Included agent learning and conversation analysis patterns
+- Added Claude Code workflows for complex AI integrations
+- Provided debugging patterns for multi-tenant testing
+- Emphasized "NO FORMS OR WIZARDS" constraint
+
+**Technical Improvements:**
+- Complete SSE streaming example with proper error handling
+- Multi-tenant Letta client setup with organization isolation
+- Automatic learning triggers from conversation interactions
+- Performance optimization for sub-200ms streaming latency
+
+#### 3. frontend.md - Chat-First UI & Real-Time Streaming
+**Key Updates:**
+- Transformed from generic dashboard to **thread-based chat interface**
+- Added comprehensive SSE hook implementation with reconnection
+- Included WhatsApp-style agent invitation and testing patterns
+- Provided conversational agent builder without forms
+- Added streaming message components with visual indicators
+- Emphasized thread-first component design principles
+- Updated visual design for chat-optimized experience
+
+**UX Philosophy Change:**
+- Before: Traditional web dashboard with forms
+- After: Chat-first interface with conversational interactions
+
+### Claude Code Best Practices Integrated
+
+1. **Workflow Patterns:**
+   - "explore, plan, code, commit" for complex features
+   - "think hard/harder" for critical architectural decisions
+   - Subagent usage for testing and verification
+   - Early course correction when not following thread-first patterns
+
+2. **Context Management:**
+   - CLAUDE.md files with domain-specific patterns
+   - Tool permissions tailored to each role
+   - Custom commands for thread testing and debugging
+   - Documentation of common pitfalls and solutions
+
+3. **Development Practices:**
+   - Specific instructions over general guidance
+   - Real-time streaming optimization techniques
+   - Multi-agent conversation testing patterns
+   - Performance targets and monitoring strategies
+
+### Architecture Decisions Documented
+
+#### ADR-015: Real-time Thread Communication Strategy
+- **Decision:** Hybrid SSE + WebSocket architecture
+- **Context:** Thread-based platform with multiple AI agents
+- **Rationale:** SSE optimal for AI streaming, WebSocket for collaboration
+- **Performance:** <200ms first token, <50ms thread updates
+
+### Next Steps
+
+1. **Create CLAUDE.md files** for each domain with specific patterns
+2. **Set up tool permissions** for development workflows
+3. **Implement custom commands** for thread testing and simulation
+4. **Test Claude Code workflows** with actual Graphyn development tasks
+
+### Learnings
+
+1. **Thread-First Design:** Everything starts with conversation threads
+2. **No Forms Philosophy:** Configuration through dialogue only
+3. **Real-Time Performance:** Critical for conversational AI experience
+4. **Multi-Tenant Isolation:** Essential for SaaS AI platform scaling
+5. **Learning Integration:** Automatic improvement from conversations
+
+This update positions the team to use Claude Code effectively for rapid development of Graphyn's conversational AI platform while maintaining architectural quality and performance standards. 
