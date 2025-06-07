@@ -3,6 +3,29 @@
 ## Project Overview
 Graphyn Code is a CLI tool that enhances Claude Code with specialized AI agents for backend, frontend, and architecture development. It provides context-aware prompts and manages agent interactions.
 
+## Core Intelligence Strategy (Updated January 2025)
+
+**Key Principle**: The CLI becomes intelligent by **consuming Graphyn agents**, not by building its own intelligence.
+
+### What This Means
+- CLI asks agents: "What should the user do next?"
+- CLI sends natural language to agents: "Test my customer service agent" → Agent interprets
+- Agents maintain context about user's work session
+- Agents provide suggestions, analytics, and insights
+- CLI is the orchestration layer, agents are the intelligence layer
+
+### Implementation Approach
+```typescript
+// Instead of building intelligence in CLI
+// ❌ const suggestion = analyzeUserPattern(history);
+
+// CLI consumes agent intelligence
+// ✅ const suggestion = await askAgent('cli-assistant', {
+//      query: 'What should the user do next?',
+//      context: { currentTask, recentCommands, projectState }
+//    });
+```
+
 ## Key Learnings
 
 ### Claude Code Terminal Integration Issues (January 2025)

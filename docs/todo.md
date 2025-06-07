@@ -1,5 +1,61 @@
 # Graphyn Code CLI - Development Tasks
 
+## 🧠 CLI INTELLIGENCE VIA AGENT CONSUMPTION (TOP PRIORITY - January 2025)
+
+### Core Strategy: Consume Agents, Don't Build Intelligence
+The CLI becomes intelligent by orchestrating Graphyn agents. All intelligence features come from asking agents questions and facilitating their responses.
+
+### Immediate Agent Integration Tasks
+- [ ] Create CLI Assistant Agent consumption:
+    ```typescript
+    // CLI asks agents for help
+    const nextSteps = await queryAgent('cli-assistant', {
+      query: 'What should the user do next?',
+      context: { recentCommands, projectState, currentThread }
+    });
+    ```
+- [ ] Natural language command interpretation:
+    ```bash
+    graphyn "test my customer service agent"
+    # CLI sends to agent: "Interpret this command: test my customer service agent"
+    # Agent responds with: { action: 'test', target: 'agent', filter: 'customer-service' }
+    ```
+- [ ] Context awareness through agents:
+    - [ ] Agents track user's work session
+    - [ ] Agents remember previous commands
+    - [ ] Agents understand project state
+    - [ ] Agents provide contextual suggestions
+
+### Agent-Driven Features
+- [ ] Smart suggestions:
+    ```bash
+    graphyn suggest
+    # Asks agent: "Based on context, what should user do?"
+    # Agent: "You just created an agent. Try: graphyn test agent customer-service"
+    ```
+- [ ] Learning analytics via agents:
+    ```bash
+    graphyn learning analyze
+    # Asks learning agent: "What patterns do you see?"
+    # Agent analyzes and reports insights
+    ```
+- [ ] Debugging with agent help:
+    ```bash
+    graphyn debug thread-123
+    # Asks debug agent: "Analyze this thread for issues"
+    # Agent provides detailed analysis
+    ```
+
+### Multi-Agent Orchestration
+- [ ] Agent-to-agent conversations:
+    - [ ] CLI creates thread for agents to discuss
+    - [ ] Facilitates agent collaboration
+    - [ ] Aggregates multi-agent insights
+- [ ] Agent consensus building:
+    - [ ] Ask multiple agents same question
+    - [ ] Compare and combine responses
+    - [ ] Present unified recommendation
+
 ## 🚀 LIVE BACKEND INTEGRATION (URGENT - January 2025)
 
 ### BREAKTHROUGH: APIs Are Live!
