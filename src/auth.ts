@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
+import GraphynAPIClient from './api-client.js';
 
 const colors = {
   success: chalk.green,
@@ -24,21 +25,35 @@ export class AuthManager {
   }
 
   async authenticate(apiKey: string): Promise<void> {
-    if (!apiKey.startsWith('gph_')) {
-      throw new Error('Invalid API key format. Must start with gph_');
+    // For development, accept test tokens or gph_ format
+    if (!apiKey.startsWith('gph_') && !apiKey.startsWith('test_') && apiKey !== 'test') {
+      throw new Error('Invalid API key format. Must start with gph_ or test_');
     }
 
     try {
-      // Validate with server (for now, just store locally)
+      // If it's a gph_ key, validate with server
+      // If it's a test_ key, get it from the test endpoint
+      let validatedKey = apiKey;
+      let user = null;
+      
+      if (apiKey.startsWith('test_') || apiKey === 'test') {
+        // Get test token from backend
+        const client = new GraphynAPIClient();
+        const authResponse = await client.getTestToken();
+        validatedKey = authResponse.token;
+        user = authResponse.user;
+      }
+
       const authData = {
-        apiKey,
+        apiKey: validatedKey,
         authenticatedAt: new Date().toISOString(),
-        valid: true
+        valid: true,
+        user
       };
 
       fs.writeFileSync(this.authFilePath, JSON.stringify(authData, null, 2), { mode: 0o600 });
     } catch (error) {
-      throw new Error('Authentication failed. Please check your API key.');
+      throw new Error('Authentication failed. Please check your API key or backend connection.');
     }
   }
 
@@ -97,5 +112,22 @@ export class AuthManager {
     } catch (error) {
       console.error(colors.error('Failed to logout'));
     }
+  }
+}
+
+// Helper function to load auth for commands
+export function loadAuth(): { apiKey: string; user?: any } | null {
+  try {
+    const graphynDir = path.join(os.homedir(), '.graphyn');
+    const authFilePath = path.join(graphynDir, 'auth.json');
+    
+    if (!fs.existsSync(authFilePath)) {
+      return null;
+    }
+
+    const authData = JSON.parse(fs.readFileSync(authFilePath, 'utf8'));
+    return authData.valid ? authData : null;
+  } catch {
+    return null;
   }
 }

@@ -6,6 +6,8 @@ import inquirer from 'inquirer';
 import { AuthManager } from './auth';
 import { AgentManager } from './agents';
 import { GraphynMDManager } from './graphyn-md';
+import { createThreadsCommand } from './commands/threads.js';
+import { createAgentsCommand } from './commands/agents.js';
 import { version } from '../package.json';
 import { 
   colors, 
@@ -186,6 +188,12 @@ program
     const authManager = new AuthManager();
     await authManager.logout();
   });
+
+// Threads command
+program.addCommand(createThreadsCommand());
+
+// Agents command
+program.addCommand(createAgentsCommand());
 
 // History command
 program
