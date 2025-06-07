@@ -86,14 +86,63 @@ Graphyn Code is a CLI tool that enhances Claude Code with specialized AI agents 
 - Shows "Exiting graphyn. Happy coding!" message
 - Gives 1 second for instructions to display clearly
 
+## API Architecture (Updated January 2025)
+
+### BREAKTHROUGH: Live Backend Integration Available!
+
+**Platform Status**: Backend APIs are 100% operational with real PostgreSQL database!
+
+### Core Principle: Standard API Client
+Graphyn CLI connects to the working Encore.dev backend using the same APIs as the web frontend.
+
+```typescript
+// REAL API integration (not mock!)
+const graphyn = new GraphynClient({ 
+  apiKey: process.env.GRAPHYN_API_KEY,
+  baseURL: 'https://your-encore-app.com' // Live backend!
+});
+
+// Real database operations
+const threads = await graphyn.get('/api/threads'); // Actual PostgreSQL data
+const agents = await graphyn.get('/api/agents');   // Real agent configs
+const stream = graphyn.sse('/api/threads/123/stream'); // Live SSE!
+```
+
+### CLI's New Role: Power User Interface
+With live APIs, CLI becomes the **developer interface** to the platform:
+
+1. **Testing Interface** - Validate all backend functionality
+2. **Multi-Claude Orchestration** - Launch multiple instances for learning demo
+3. **Bulk Operations** - Mass management of threads/agents
+4. **Real-Time Monitoring** - SSE streaming for live updates
+
+### Demo Support Strategy
+**Target**: Help platform reach 100% demo readiness
+
+```typescript
+// Demo workflow: CLI-driven agent learning
+await graphyn.post('/api/threads', { type: 'testing' });
+await graphyn.post('/api/threads/123/participants', { type: 'agent', id: 'agent-1' });
+// Launch Claude with agent context
+// Capture learning insights
+await graphyn.delete('/api/threads/123/participants/agent-1'); // Trigger learning
+```
+
+### Implementation Priority
+1. **Replace mock APIs** - Connect to live Encore.dev backend
+2. **Real authentication** - Use actual token system
+3. **SSE integration** - Real-time updates in terminal
+4. **Multi-instance coordination** - Support learning demonstrations
+
 ## Future Improvements
 1. Monitor Claude Code for stdin support updates
-2. Consider Claude API integration when available
-3. Explore Claude Code plugin/extension system
+2. Implement advanced orchestration patterns
+3. Build plugin system for custom agents
 4. Analyze logged interactions to improve agent prompts
 
 ## Development Guidelines
 - Always test both interactive and command line modes
-- Provide clear fallback instructions
+- Use standard API client, no special endpoints
+- Focus on orchestration and user experience
 - Document terminal-related issues thoroughly
 - Keep UI consistent and beautiful

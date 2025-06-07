@@ -25,14 +25,25 @@ curl -sSL https://raw.githubusercontent.com/fuego-wtf/graphyn-code/main/scripts/
 
 ## Quick Start
 
+> **Note**: The Graphyn API is currently in development. For now, you can explore and customize the agent prompts locally!
+
 ```bash
-# Just talk to graphyn - it launches Claude instantly
+# Explore the agent prompts
+cd prompts/
+ls -la
+
+# Edit agent behaviors by modifying their prompts
+vim backend.md     # Customize backend agent
+vim frontend.md    # Customize frontend agent
+vim architect.md   # Customize architect agent
+
+# Use your customized agents with Claude
 graphyn backend "design a REST API for user auth"
 graphyn frontend "create a dashboard with charts"
 graphyn architect "review my database schema"
 ```
 
-That's it. No setup. No configuration. Just start building.
+The prompts in the `prompts/` folder define each agent's expertise and behavior. Feel free to modify them to match your team's needs!
 
 ## The Philosophy
 
@@ -79,9 +90,16 @@ Now every agent knows your project's DNA.
 ## Start Building
 
 ```bash
-graphyn auth gph_xxxxxxxxxxxx  # Optional - get key at graphyn.xyz
+# While the API is in development, jump right in!
 graphyn backend "let's build something amazing"
+
+# Or customize agents first
+cd prompts/
+# Edit any .md file to customize agent behavior
+# Your changes take effect immediately!
 ```
+
+> **Coming Soon**: Full API integration with app.graphyn.xyz for team collaboration, agent sharing, and more!
 
 ---
 
