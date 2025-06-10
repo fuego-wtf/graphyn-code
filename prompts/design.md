@@ -40,16 +40,134 @@ claude mcp list
 
 **MCP Tool Availability Check**:
 After installation, verify these tools are available in Claude:
-- `mcp__figma-dev-mode-mcp-server__get_code`
-- `mcp__figma-dev-mode-mcp-server__get_image` 
-- `mcp__figma-dev-mode-mcp-server__get_variable_defs`
-- `mcp__figma-dev-mode-mcp-server__get_code_connect_map`
+- `mcp__figma-dev-mode-mcp-server__get_code` ✅ (Always use this first)
+- `mcp__figma-dev-mode-mcp-server__get_image` ✅ (For visual reference)
+- `mcp__figma-dev-mode-mcp-server__get_variable_defs` ✅ (For design tokens)
+
+**⚠️ Code Connect Note**:
+- `mcp__figma-dev-mode-mcp-server__get_code_connect_map` requires Figma Organization/Enterprise plans
+- This feature is not available on free/basic Figma plans
+- **Future Enhancement**: Will be added when Figma plan supports it
 
 **If MCP Tools Are Missing**:
 1. Check Claude MCP configuration file exists
 2. Restart Claude Code completely
 3. Try reinstalling the Figma MCP server
 4. Verify Node.js version compatibility (Node 16+ required)
+
+# CRITICAL: OBJECT-REASONING IMPLEMENTATION RULE
+
+**🎯 MANDATORY: Always reason about objects, not just visual appearance**
+
+When implementing Figma designs, you MUST:
+
+1. **Analyze the object structure** first, not just how it looks
+2. **Understand the behavior** behind each UI element
+3. **Implement the logic** that drives the visual state
+4. **Never assume** - always get the actual Figma structure via get_code
+
+## ❌ WRONG Approach:
+```typescript
+// Looking at visual and guessing
+const chatInput = <input placeholder="Type something..." />;
+```
+
+## ✅ CORRECT Approach:
+```typescript
+// 1. First: get_image for visual reference
+// 2. Second: get_code to understand ACTUAL objects
+// 3. Third: Reason about what each object represents
+
+/* 
+OBJECT ANALYSIS from get_code:
+- InputContainer: Has state management for commands
+- CommandTrigger: Detects "/" character typed  
+- CommandDropdown: Shows 4 specific command objects
+- Each command: Has icon, text, action properties
+- Positioning: Dropdown appears below input with specific offset
+*/
+
+const ChatInput = () => {
+  const [showCommands, setShowCommands] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  
+  const handleInputChange = (value) => {
+    setInputValue(value);
+    // Object reasoning: "/" triggers command dropdown
+    setShowCommands(value.endsWith('/'));
+  };
+  
+  const commands = [
+    { id: 'upload', icon: '📁', text: 'Upload file', action: handleUpload },
+    { id: 'learning', icon: '🧠', text: 'Add learning', action: handleLearning },
+    { id: 'search', icon: '🔍', text: 'Search web', action: handleSearch },
+    { id: 'team', icon: '👥', text: 'Create team', action: handleTeam }
+  ];
+  
+  return (
+    <div className="relative">
+      <input 
+        value={inputValue}
+        onChange={(e) => handleInputChange(e.target.value)}
+        className="..." 
+      />
+      {showCommands && (
+        <CommandDropdown 
+          commands={commands}
+          onSelect={handleCommandSelect}
+          position="below-input"
+        />
+      )}
+    </div>
+  );
+};
+```
+
+# TOKEN LIMIT HANDLING STRATEGY
+
+**When get_code exceeds maximum tokens (25000), use breakdown strategy:**
+
+## 🔧 Large Node Breakdown Process:
+
+```typescript
+// 1. Always try get_code first (the rule)
+try {
+  const code = await mcp.figma.get_code({ nodeId: "1561:88851" });
+  // Success - implement directly
+} catch (error) {
+  if (error.message.includes('exceeds maximum allowed tokens')) {
+    // 2. Switch to component breakdown strategy
+    console.log('🔨 Node too large, breaking into logical components...');
+    
+    // 3. Identify logical sections from visual analysis
+    const sections = identifyLogicalSections(nodeId);
+    // Example: Header, Sidebar, MainContent, Footer
+    
+    // 4. Get child node IDs for each section
+    const childNodes = await getChildNodeIds(sections);
+    
+    // 5. Get code for each section separately
+    for (const section of childNodes) {
+      const sectionCode = await mcp.figma.get_code({ nodeId: section.id });
+      // Implement each section
+    }
+  }
+}
+```
+
+## 🎯 Logical Section Identification:
+
+**For complex interfaces like chat/threads, break down into:**
+- **Header**: Navigation, user profile, tabs
+- **Sidebar**: Thread list, navigation menu
+- **MainContent**: Chat messages, input area
+- **StatusBar**: Online indicators, notifications
+
+**Implementation Strategy:**
+1. **Visual Analysis**: Use get_image to understand layout
+2. **Section Mapping**: Identify natural component boundaries
+3. **Progressive Fetching**: Get code for each section separately  
+4. **Object Assembly**: Combine sections with proper state management
 
 **Figma Access Requirements**:
 - Figma OAuth 2.0 authentication (run `graphyn design auth`)
@@ -102,21 +220,42 @@ CLAUDE CODE SPECIALIZATION:
 
 **MCP Tool Usage Patterns**:
 ```typescript
-// 1. Visual Reference and Planning
-await mcp.figma.get_image({ nodeId: "1487:34172" });
-
-// 2. Code Structure Discovery
-await mcp.figma.get_code({ 
+// 1. Visual Reference (Always first)
+await mcp.figma.get_image({ 
   nodeId: "1487:34172",
-  clientFrameworks: "react",
-  clientLanguages: "typescript,css"
+  clientName: "claude code",
+  clientModel: "claude-sonnet-4-20250514",
+  clientLanguages: "typescript,javascript,react",
+  clientFrameworks: "react"
 });
 
-// 3. Design Token Extraction
-await mcp.figma.get_variable_defs({ nodeId: "1487:34172" });
+// 2. Object Structure Discovery (MANDATORY - Always try this)
+try {
+  const code = await mcp.figma.get_code({ 
+    nodeId: "1487:34172",
+    clientName: "claude code", 
+    clientModel: "claude-sonnet-4-20250514",
+    clientFrameworks: "react",
+    clientLanguages: "typescript,javascript,react"
+  });
+  // Analyze object structure, not just visual appearance
+} catch (error) {
+  if (error.includes('exceeds maximum allowed tokens')) {
+    // Use breakdown strategy for large components
+    await breakdownLargeNode("1487:34172");
+  }
+}
 
-// 4. Component Mapping (if available)
-await mcp.figma.get_code_connect_map({ nodeId: "1487:34172" });
+// 3. Design Token Extraction (Once per design system)
+await mcp.figma.get_variable_defs({ 
+  nodeId: "1487:34172",
+  clientName: "claude code",
+  clientModel: "claude-sonnet-4-20250514"
+});
+
+// 4. Code Connect (Enterprise only - skip for now)
+// await mcp.figma.get_code_connect_map({ nodeId: "1487:34172" });
+// Note: Requires Figma Organization/Enterprise plan
 ```
 
 **Discovery and Implementation Process**:
