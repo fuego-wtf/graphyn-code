@@ -13,37 +13,38 @@ We believe AI assistants should understand your project deeply—not just respon
 
 ## Install
 
-### npm (recommended)
 ```bash
 npm install -g @graphyn/code
 ```
 
-### Script install
-```bash
-curl -sSL https://raw.githubusercontent.com/fuego-wtf/graphyn-code/main/scripts/install.sh | bash
-```
+That's it! Graphyn will guide you through setup on first run.
+
+## Platform Support
+
+- ✅ **macOS** - Fully supported
+- ✅ **Linux** - Fully supported  
+- ⚠️ **Windows** - Experimental (WSL recommended)
+
+Check your setup: `graphyn doctor`
 
 ## Quick Start
 
-> **Note**: The Graphyn API is currently in development. For now, you can explore and customize the agent prompts locally!
-
 ```bash
-# Explore the agent prompts
-cd prompts/
-ls -la
+# First run triggers automatic setup
+graphyn
 
-# Edit agent behaviors by modifying their prompts
-vim backend.md     # Customize backend agent
-vim frontend.md    # Customize frontend agent
-vim architect.md   # Customize architect agent
-
-# Use your customized agents with Claude
+# Use specialized AI agents
 graphyn backend "design a REST API for user auth"
-graphyn frontend "create a dashboard with charts"
+graphyn frontend "create a dashboard with charts" 
 graphyn architect "review my database schema"
-```
+graphyn design <figma-url>  # Convert Figma to code
 
-The prompts in the `prompts/` folder define each agent's expertise and behavior. Feel free to modify them to match your team's needs!
+# Check your setup anytime
+graphyn doctor
+
+# Reconfigure if needed
+graphyn setup
+```
 
 ## The Philosophy
 
@@ -61,6 +62,9 @@ Master of UI/UX, React, and modern web. Builds components that users love.
 
 ### 🏗️ Architect Agent
 Your technical advisor. Reviews designs, suggests improvements, ensures best practices.
+
+### 🎨 Design Agent
+Converts Figma prototypes to working code. Analyzes designs, creates implementation plans, and launches Claude Code with full MCP integration.
 
 ## Living Documentation
 
@@ -87,19 +91,36 @@ Now every agent knows your project's DNA.
 - **Pattern Recognition**: Detect and suggest improvements
 - **Sleep-time Compute**: AI improves while you rest
 
-## Start Building
+## Commands
 
 ```bash
-# While the API is in development, jump right in!
-graphyn backend "let's build something amazing"
+# Specialized agents
+graphyn backend "create a REST API"
+graphyn frontend "build a dashboard" 
+graphyn architect "review my system design"
+graphyn design "https://figma.com/..."
 
-# Or customize agents first
-cd prompts/
-# Edit any .md file to customize agent behavior
-# Your changes take effect immediately!
+# Setup and diagnostics
+graphyn setup     # Run setup wizard
+graphyn doctor    # Check your environment
+graphyn auth      # Authenticate with Graphyn
+
+# Advanced
+graphyn chain "complex multi-agent task"
+graphyn history   # View recent interactions
 ```
 
-> **Coming Soon**: Full API integration with app.graphyn.xyz for team collaboration, agent sharing, and more!
+## Troubleshooting
+
+**Setup issues?**
+```bash
+graphyn doctor -v  # Detailed diagnostics
+```
+
+**Need help?**
+- Check [COMPATIBILITY.md](COMPATIBILITY.md) for platform support
+- Run `graphyn setup` to reconfigure
+- Report issues at [github.com/fuego-wtf/graphyn-code](https://github.com/fuego-wtf/graphyn-code)
 
 ---
 
