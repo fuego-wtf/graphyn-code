@@ -1,0 +1,725 @@
+import axios, { AxiosInstance } from 'axios';
+
+interface FigmaFile {
+  name: string;
+  lastModified: string;
+  version: string;
+  document: FigmaDocument;
+}
+
+interface FigmaDocument {
+  id: string;
+  name: string;
+  type: string;
+  children: FigmaNode[];
+}
+
+interface FigmaNode {
+  id: string;
+  name: string;
+  type: string;
+  children?: FigmaNode[];
+  // Navigation properties for prototypes
+  transitionNodeID?: string;
+  transitionDuration?: number;
+  transitionEasing?: string;
+  // Component properties
+  componentId?: string;
+  isInstance?: boolean;
+}
+
+interface FigmaPrototypeFlow {
+  fileKey: string;
+  fileName: string;
+  screens: PrototypeScreen[];
+  navigation: NavigationLink[];
+  components: ComponentInfo[];
+  totalScreens: number;
+  totalComponents: number;
+}
+
+interface PrototypeScreen {
+  id: string;
+  name: string;
+  frameId: string;
+  components: string[];
+  navigatesTo: string[];
+}
+
+interface NavigationLink {
+  from: string;
+  to: string;
+  trigger?: string;
+}
+
+interface ComponentInfo {
+  id: string;
+  name: string;
+  type: string;
+  parentScreen: string;
+  instances: number;
+}
+
+export class FigmaAPIClient {
+  private client: AxiosInstance;
+
+  constructor(token: string) {
+    this.client = axios.create({
+      baseURL: 'https://api.figma.com/v1',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+  }
+
+  /**
+   * Parse a Figma URL to extract file key and node ID
+   */
+  parseUrl(url: string): { fileKey: string; nodeId?: string } {
+    // Handle various Figma URL formats
+    const patterns = [
+      // https://www.figma.com/file/ABC123/File-Name?node-id=1%3A2
+      /figma\.com\/file\/([^\/]+).*node-id=([^&]+)/,
+      // https://www.figma.com/design/ABC123/File-Name?node-id=1-2
+      /figma\.com\/design\/([^\/]+).*node-id=([^&]+)/,
+      // https://www.figma.com/proto/ABC123/File-Name?node-id=1%3A2
+      /figma\.com\/proto\/([^\/]+).*node-id=([^&]+)/,
+      // Simple file URL without node
+      /figma\.com\/(?:file|design|proto)\/([^\/\?]+)/
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        const fileKey = match[1];
+        const nodeId = match[2] ? decodeURIComponent(match[2]).replace('-', ':') : undefined;
+        return { fileKey, nodeId };
+      }
+    }
+
+    throw new Error('Invalid Figma URL format');
+  }
+
+  /**
+   * Fetch a Figma file
+   */
+  async getFile(fileKey: string, options?: { geometry?: string; depth?: number }): Promise<FigmaFile> {
+    try {
+      const params = new URLSearchParams();
+      
+      // Add query parameters to reduce response size
+      if (options?.geometry) {
+        params.append('geometry', options.geometry);
+      }
+      if (options?.depth) {
+        params.append('depth', options.depth.toString());
+      }
+      
+      // Default to minimal geometry to avoid "request too large" errors
+      if (!params.has('geometry')) {
+        params.append('geometry', 'paths');
+      }
+      
+      const url = `/files/${fileKey}${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await this.client.get(url);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        throw new Error('Invalid Figma token or no access to file');
+      }
+      if (error.response?.status === 400 && error.response?.data?.err?.includes('Request too large')) {
+        throw new Error('Figma file is too large. Try specifying a specific node ID in the URL.');
+      }
+      throw new Error(`Failed to fetch Figma file: ${error.message}`);
+    }
+  }
+
+  /**
+   * Fetch specific nodes from a Figma file
+   */
+  async getNodes(fileKey: string, nodeIds: string[]): Promise<any> {
+    try {
+      const idsParam = nodeIds.join(',');
+      const response = await this.client.get(`/files/${fileKey}/nodes?ids=${idsParam}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        throw new Error('Invalid Figma token or no access to file');
+      }
+      throw new Error(`Failed to fetch Figma nodes: ${error.message}`);
+    }
+  }
+
+  /**
+   * Analyze real prototype by following actual transitions
+   */
+  async analyzeSpecificNode(fileKey: string, startNodeId: string, progressCallback?: (message: string) => void): Promise<FigmaPrototypeFlow> {
+    try {
+      const screens: PrototypeScreen[] = [];
+      const navigation: NavigationLink[] = [];
+      const components: ComponentInfo[] = [];
+      const visited = new Set<string>();
+      const toVisit = [startNodeId];
+      
+      progressCallback?.(`Starting from frame ${startNodeId}...`);
+      
+      // Follow all transitions to discover real screens
+      while (toVisit.length > 0) {
+        const currentNodeId = toVisit.shift()!;
+        if (visited.has(currentNodeId)) continue;
+        visited.add(currentNodeId);
+        
+        progressCallback?.(`Analyzing frame ${currentNodeId}... (${visited.size} screens found)`);
+        
+        try {
+          // Get node details with depth to see transitions
+          const nodeData = await this.getNodes(fileKey, [currentNodeId]);
+          const node = nodeData.nodes[currentNodeId];
+          
+          if (!node || !node.document) {
+            progressCallback?.(`⚠️  Frame ${currentNodeId} not accessible, skipping...`);
+            continue;
+          }
+          
+          const doc = node.document;
+          
+          progressCallback?.(`✓ Found: ${doc.name || `Frame ${currentNodeId}`}`);
+          
+          // Create screen from real frame data
+          const screen: PrototypeScreen = {
+            id: currentNodeId,
+            name: doc.name || `Frame ${currentNodeId}`,
+            frameId: currentNodeId,
+            components: [],
+            navigatesTo: []
+          };
+          
+          // Find transitions in the document
+          if (doc.transitionNodeID) {
+            screen.navigatesTo.push(doc.transitionNodeID);
+            if (!visited.has(doc.transitionNodeID)) {
+              toVisit.push(doc.transitionNodeID);
+              progressCallback?.(`🔗 Found navigation to ${doc.transitionNodeID}`);
+            }
+            
+            navigation.push({
+              from: currentNodeId,
+              to: doc.transitionNodeID,
+              trigger: 'click'
+            });
+          }
+          
+          // Check interactions for more navigation
+          if (doc.interactions) {
+            doc.interactions.forEach((interaction: any) => {
+              if (interaction.actions) {
+                interaction.actions.forEach((action: any) => {
+                  if (action.destinationId && action.navigation === 'NAVIGATE') {
+                    if (!screen.navigatesTo.includes(action.destinationId)) {
+                      screen.navigatesTo.push(action.destinationId);
+                    }
+                    if (!visited.has(action.destinationId)) {
+                      toVisit.push(action.destinationId);
+                    }
+                    
+                    navigation.push({
+                      from: currentNodeId,
+                      to: action.destinationId,
+                      trigger: interaction.trigger?.type || 'click'
+                    });
+                  }
+                });
+              }
+            });
+          }
+          
+          // Check children for interactions
+          if (doc.children) {
+            this.findChildTransitions(doc.children, currentNodeId, screen, toVisit, visited, navigation);
+          }
+          
+          screens.push(screen);
+          
+          // Add basic component info
+          components.push({
+            id: currentNodeId,
+            name: doc.name || 'Frame Component',
+            type: doc.type || 'FRAME',
+            parentScreen: currentNodeId,
+            instances: 1
+          });
+          
+        } catch (error: any) {
+          progressCallback?.(`❌ Error analyzing ${currentNodeId}: ${error.message}`);
+        }
+      }
+      
+      progressCallback?.(`🎉 Analysis complete! Found ${screens.length} screens with ${navigation.length} connections`);
+      
+      return {
+        fileKey,
+        fileName: 'Graphyn Prototype',
+        screens,
+        navigation,
+        components,
+        totalScreens: screens.length,
+        totalComponents: components.length
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to analyze prototype: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find transitions in child nodes
+   */
+  private findChildTransitions(
+    children: any[], 
+    parentId: string, 
+    screen: PrototypeScreen,
+    toVisit: string[],
+    visited: Set<string>,
+    navigation: NavigationLink[]
+  ) {
+    children.forEach(child => {
+      if (child.transitionNodeID) {
+        if (!screen.navigatesTo.includes(child.transitionNodeID)) {
+          screen.navigatesTo.push(child.transitionNodeID);
+        }
+        if (!visited.has(child.transitionNodeID)) {
+          toVisit.push(child.transitionNodeID);
+        }
+        
+        navigation.push({
+          from: parentId,
+          to: child.transitionNodeID,
+          trigger: 'click'
+        });
+      }
+      
+      if (child.interactions) {
+        child.interactions.forEach((interaction: any) => {
+          if (interaction.actions) {
+            interaction.actions.forEach((action: any) => {
+              if (action.destinationId && action.navigation === 'NAVIGATE') {
+                if (!screen.navigatesTo.includes(action.destinationId)) {
+                  screen.navigatesTo.push(action.destinationId);
+                }
+                if (!visited.has(action.destinationId)) {
+                  toVisit.push(action.destinationId);
+                }
+                
+                navigation.push({
+                  from: parentId,
+                  to: action.destinationId,
+                  trigger: interaction.trigger?.type || 'click'
+                });
+              }
+            });
+          }
+        });
+      }
+      
+      // Recursively check child's children
+      if (child.children) {
+        this.findChildTransitions(child.children, parentId, screen, toVisit, visited, navigation);
+      }
+    });
+  }
+
+  /**
+   * Get all frames in a prototype flow starting from a specific node
+   */
+  async getPrototypeFlow(fileKey: string, startNodeId: string): Promise<any[]> {
+    const visited = new Set<string>();
+    const frames: any[] = [];
+    const toVisit = [startNodeId];
+    
+    while (toVisit.length > 0) {
+      const currentId = toVisit.shift()!;
+      
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+      
+      try {
+        const nodeData = await this.getNodes(fileKey, [currentId]);
+        const node = nodeData.nodes[currentId];
+        
+        if (node) {
+          // Extract navigation targets from the node
+          const navigationTargets = this.extractNavigationTargets(node);
+          
+          frames.push({
+            id: currentId,
+            name: node.name,
+            type: node.type,
+            navigatesTo: navigationTargets,
+            children: node.children || []
+          });
+          
+          // Add navigation targets to visit queue
+          navigationTargets.forEach(targetId => {
+            if (!visited.has(targetId)) {
+              toVisit.push(targetId);
+            }
+          });
+        }
+      } catch (error: any) {
+        // If we can't fetch a specific node, that's ok - continue with others
+        console.warn(`Could not fetch node ${currentId}:`, error.message);
+      }
+    }
+    
+    return frames;
+  }
+
+  /**
+   * Extract navigation targets from a node
+   */
+  private extractNavigationTargets(node: any): string[] {
+    const targets: string[] = [];
+    
+    // Check direct transition
+    if (node.transitionNodeID) {
+      targets.push(node.transitionNodeID);
+    }
+    
+    // Check children for interactions
+    if (node.children) {
+      this.traverseNodeForNavigation(node, targets);
+    }
+    
+    return targets;
+  }
+
+  /**
+   * Traverse node tree to find navigation interactions
+   */
+  private traverseNodeForNavigation(node: any, targets: string[]) {
+    if (node.transitionNodeID && !targets.includes(node.transitionNodeID)) {
+      targets.push(node.transitionNodeID);
+    }
+    
+    if (node.children) {
+      node.children.forEach((child: any) => {
+        this.traverseNodeForNavigation(child, targets);
+      });
+    }
+  }
+
+
+
+  /**
+   * Analyze a prototype and extract all screens and navigation
+   */
+  async analyzePrototype(url: string, progressCallback?: (message: string) => void): Promise<FigmaPrototypeFlow> {
+    const { fileKey, nodeId } = this.parseUrl(url);
+    
+    progressCallback?.('Parsing Figma URL...');
+    
+    // For prototype URLs with specific node IDs, use simplified analysis
+    if (nodeId && url.includes('/proto/')) {
+      return this.analyzeSpecificNode(fileKey, nodeId, progressCallback);
+    }
+    
+    progressCallback?.('Fetching file structure...');
+    
+    // For full file analysis
+    let file: FigmaFile;
+    try {
+      file = await this.getFile(fileKey, { geometry: 'paths' });
+      progressCallback?.('File loaded successfully!');
+    } catch (error: any) {
+      if (error.message.includes('too large') && nodeId) {
+        progressCallback?.('File too large, using node-specific analysis...');
+        // Fall back to simplified node analysis
+        return this.analyzeSpecificNode(fileKey, nodeId, progressCallback);
+      }
+      throw error;
+    }
+    
+    // Find all frames (screens) in the document
+    const screens: PrototypeScreen[] = [];
+    const navigation: NavigationLink[] = [];
+    const components: ComponentInfo[] = [];
+    
+    // If nodeId is specified, start from that node
+    const startNode = nodeId ? this.findNodeById(file.document, nodeId) : file.document;
+    if (!startNode) {
+      throw new Error(`Node ${nodeId} not found in file`);
+    }
+    
+    // Traverse the document tree to find frames and components
+    this.traverseNode(startNode, (node, parent) => {
+      // Frames are typically screens in Figma
+      if (node.type === 'FRAME' && parent?.type === 'CANVAS') {
+        const screen: PrototypeScreen = {
+          id: node.id,
+          name: node.name,
+          frameId: node.id,
+          components: [],
+          navigatesTo: []
+        };
+        
+        // Find components within this frame
+        this.traverseNode(node, (child) => {
+          if (child.type === 'COMPONENT' || child.isInstance) {
+            screen.components.push(child.id);
+            
+            const componentInfo: ComponentInfo = {
+              id: child.id,
+              name: child.name,
+              type: child.type,
+              parentScreen: screen.id,
+              instances: 1
+            };
+            
+            // Check if this component already exists
+            const existing = components.find(c => c.name === child.name && c.type === child.type);
+            if (existing) {
+              existing.instances++;
+            } else {
+              components.push(componentInfo);
+            }
+          }
+          
+          // Check for navigation links
+          if (child.transitionNodeID) {
+            screen.navigatesTo.push(child.transitionNodeID);
+            navigation.push({
+              from: screen.id,
+              to: child.transitionNodeID,
+              trigger: 'click' // Default trigger
+            });
+          }
+        });
+        
+        screens.push(screen);
+      }
+    });
+    
+    return {
+      fileKey,
+      fileName: file.name,
+      screens,
+      navigation,
+      components,
+      totalScreens: screens.length,
+      totalComponents: components.length
+    };
+  }
+
+  /**
+   * Find a node by ID in the document tree
+   */
+  private findNodeById(node: FigmaNode, targetId: string): FigmaNode | null {
+    if (node.id === targetId) {
+      return node;
+    }
+    
+    if (node.children) {
+      for (const child of node.children) {
+        const found = this.findNodeById(child, targetId);
+        if (found) return found;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Traverse the node tree and execute callback
+   */
+  private traverseNode(node: FigmaNode, callback: (node: FigmaNode, parent?: FigmaNode) => void, parent?: FigmaNode) {
+    callback(node, parent);
+    
+    if (node.children) {
+      for (const child of node.children) {
+        this.traverseNode(child, callback, node);
+      }
+    }
+  }
+
+  /**
+   * Generate semantic component name from screen name
+   */
+  private generateComponentName(screenName: string): string {
+    // Convert screen names to proper React component names
+    const nameMap: Record<string, string> = {
+      'landing': 'LandingPage',
+      'sign up': 'SignUpPage', 
+      'signup': 'SignUpPage',
+      'login': 'LoginPage',
+      'signin': 'SignInPage',
+      'sign in': 'SignInPage',
+      'dashboard': 'Dashboard',
+      'home': 'HomePage',
+      'profile': 'ProfilePage',
+      'settings': 'SettingsPage',
+      'create organization': 'CreateOrganizationPage',
+      'organization': 'OrganizationPage',
+      'thread list': 'ThreadListPage',
+      'threads': 'ThreadListPage',
+      'chat': 'ChatPage',
+      'conversation': 'ConversationPage',
+      'agent creation': 'AgentCreationPage',
+      'agent builder': 'AgentBuilderPage',
+      'testing': 'TestingPage',
+      'whatsapp': 'WhatsAppStyleChat'
+    };
+
+    const cleanName = screenName.toLowerCase()
+      .replace(/frame\s*\d+:?\s*/g, '') // Remove "Frame 1:", "Frame2", etc.
+      .replace(/[^a-zA-Z\s]/g, '') // Remove special characters
+      .trim();
+
+    // Check for exact matches first
+    if (nameMap[cleanName]) {
+      return nameMap[cleanName];
+    }
+
+    // Check for partial matches
+    for (const [key, value] of Object.entries(nameMap)) {
+      if (cleanName.includes(key) || key.includes(cleanName)) {
+        return value;
+      }
+    }
+
+    // Fallback: convert to PascalCase
+    return cleanName
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('') + 'Page';
+  }
+
+  /**
+   * Generate implementation plan from prototype analysis
+   */
+  generateImplementationPlan(prototype: FigmaPrototypeFlow): ImplementationPlan {
+    const tasks: ImplementationTask[] = [];
+    
+    // Only create tasks if we have real screens
+    if (prototype.screens.length === 0) {
+      tasks.push({
+        id: 'discovery',
+        title: 'Discover prototype screens via MCP',
+        frameId: '',
+        description: 'Use Figma MCP tools to explore the prototype structure',
+        subtasks: [],
+        priority: 'high',
+        components: 0
+      });
+    } else {
+      // Create tasks for each real screen found
+      prototype.screens.forEach((screen, index) => {
+        const componentName = this.generateComponentName(screen.name);
+        const task: ImplementationTask = {
+          id: `component-${componentName.toLowerCase()}`,
+          title: `Implement ${componentName}`,
+          frameId: screen.frameId,
+          description: `${componentName} component (Figma Frame: ${screen.frameId})`,
+          subtasks: [],
+          priority: index === 0 ? 'high' : 'medium',
+          components: screen.components.length
+        };
+        
+        // Add component subtasks with semantic names
+        const screenComponents = prototype.components.filter(c => c.parentScreen === screen.id);
+        screenComponents.forEach(component => {
+          task.subtasks.push({
+            id: `subcomponent-${component.id}`,
+            title: `Build ${component.name} component`,
+            type: component.type
+          });
+        });
+        
+        // Add navigation subtasks if applicable
+        if (screen.navigatesTo.length > 0) {
+          const navTargets = screen.navigatesTo.map(id => {
+            const targetScreen = prototype.screens.find(s => s.id === id);
+            return targetScreen ? this.generateComponentName(targetScreen.name) : id;
+          }).join(', ');
+          
+          task.subtasks.push({
+            id: `nav-${screen.id}`,
+            title: `Add navigation to: ${navTargets}`,
+            type: 'NAVIGATION'
+          });
+        }
+        
+        tasks.push(task);
+      });
+      
+      // Add setup task only if we have components
+      if (prototype.components.length > 0) {
+        tasks.unshift({
+          id: 'setup',
+          title: 'Set up React component structure',
+          frameId: '',
+          description: 'Create component folders and base configuration',
+          subtasks: [],
+          priority: 'high',
+          components: 0
+        });
+      }
+      
+      // Add routing task only if we have actual navigation
+      if (prototype.navigation.length > 0) {
+        tasks.push({
+          id: 'routing',
+          title: 'Configure React Router',
+          frameId: '',
+          description: 'Set up routing between screens',
+          subtasks: prototype.navigation.map((nav, i) => ({
+            id: `route-${i}`,
+            title: `Route: ${this.getScreenName(prototype, nav.from)} → ${this.getScreenName(prototype, nav.to)}`,
+            type: 'ROUTE'
+          })),
+          priority: 'medium',
+          components: 0
+        });
+      }
+    }
+    
+    return {
+      tasks,
+      summary: {
+        totalScreens: prototype.totalScreens,
+        totalComponents: prototype.totalComponents,
+        totalTasks: tasks.length,
+        estimatedHours: Math.max(1, Math.ceil((prototype.totalScreens * 2) + (prototype.totalComponents * 0.5)))
+      }
+    };
+  }
+
+  private getScreenName(prototype: FigmaPrototypeFlow, screenId: string): string {
+    const screen = prototype.screens.find(s => s.id === screenId);
+    return screen ? screen.name : 'Unknown Screen';
+  }
+}
+
+export interface ImplementationPlan {
+  tasks: ImplementationTask[];
+  summary: {
+    totalScreens: number;
+    totalComponents: number;
+    totalTasks: number;
+    estimatedHours: number;
+  };
+}
+
+export interface ImplementationTask {
+  id: string;
+  title: string;
+  frameId: string;
+  description: string;
+  subtasks: Subtask[];
+  priority: 'high' | 'medium' | 'low';
+  components: number;
+}
+
+interface Subtask {
+  id: string;
+  title: string;
+  type: string;
+}

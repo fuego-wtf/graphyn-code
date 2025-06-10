@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
 import ora from 'ora';
-import GraphynAPIClient from '../api-client.js';
-import { loadAuth } from '../auth.js';
+import GraphynAPIClient from '../api-client';
+import { loadAuth } from '../auth';
 
 const client = new GraphynAPIClient();
 

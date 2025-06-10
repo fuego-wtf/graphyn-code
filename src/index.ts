@@ -6,8 +6,11 @@ import inquirer from 'inquirer';
 import { AuthManager } from './auth';
 import { AgentManager } from './agents';
 import { GraphynMDManager } from './graphyn-md';
-import { createThreadsCommand } from './commands/threads.js';
-import { createAgentsCommand } from './commands/agents.js';
+import { createThreadsCommand } from './commands/threads';
+import { createAgentsCommand } from './commands/agents';
+import { createDesignCommand } from './commands/design';
+import { createDoctorCommand } from './commands/doctor';
+import { createSetupCommand } from './commands/setup';
 import { version } from '../package.json';
 import { 
   colors, 
@@ -18,6 +21,7 @@ import {
   createTipBox,
   createDivider
 } from './ui';
+import { isFirstRun, runFirstTimeSetup } from './setup/first-run-wizard';
 
 // Initialize CLI
 const program = new Command();
@@ -195,6 +199,15 @@ program.addCommand(createThreadsCommand());
 // Agents command
 program.addCommand(createAgentsCommand());
 
+// Design command
+program.addCommand(createDesignCommand());
+
+// Doctor command
+program.addCommand(createDoctorCommand());
+
+// Setup command
+program.addCommand(createSetupCommand());
+
 // History command
 program
   .command('history')
@@ -286,6 +299,15 @@ async function runInteractiveAgent(type: string) {
       await interactiveMenu();
     });
 
+  // Check for first run (skip for certain commands)
+  const skipSetupCommands = ['--version', '-V', '--help', '-h', 'doctor', 'setup'];
+  const shouldCheckFirstRun = !process.argv.slice(2).some(arg => skipSetupCommands.includes(arg));
+  
+  if (shouldCheckFirstRun && await isFirstRun()) {
+    await runFirstTimeSetup();
+    return; // Exit after setup
+  }
+  
   // Show interactive menu if no arguments
   if (!process.argv.slice(2).length) {
     const { interactiveMenu } = await import('./interactive');

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import axios from 'axios';
 import { AuthManager } from './auth';
 import { config } from './config';
@@ -8,6 +9,7 @@ import {
   createDivider,
   agentThemes
 } from './ui';
+import { findClaude } from './utils/claude-detector';
 
 export class AgentManager {
   private authManager: AuthManager;
@@ -30,11 +32,11 @@ export class AgentManager {
       // Read the prompt content
       const promptContent = fs.readFileSync(promptFile, 'utf8');
       
-      const claudePath = '/Users/resatugurulu/.claude/local/claude';
+      // Use claude detector instead of hardcoded path
+      const claudeResult = await findClaude();
       
-      if (fs.existsSync(claudePath)) {
+      if (claudeResult.found) {
         // Save context to file
-        const os = require('os');
         const tmpDir = os.tmpdir();
         const tmpFile = path.join(tmpDir, `graphyn-${type}-interactive-${Date.now()}.txt`);
         fs.writeFileSync(tmpFile, promptContent);
@@ -96,14 +98,12 @@ export class AgentManager {
   }
 
   private async queryWithClaudeCode(type: string, query: string): Promise<string> {
-    const os = require('os');
     const theme = agentThemes[type as keyof typeof agentThemes];
     console.log();
     console.log(theme ? theme.gradient(`🚀 Launching Claude Code with ${type} agent context...`) : colors.info(`🚀 Launching Claude Code with ${type} agent context...`));
     
-    // Get the username dynamically
-    const username = os.userInfo().username;
-    const claudePath = `/Users/${username}/.claude/local/claude`;
+    // Find Claude using detector
+    const claudeResult = await findClaude();
     
     // Read the agent prompt
     const promptsDir = path.join(__dirname, '..', 'prompts');
@@ -143,14 +143,14 @@ Please analyze the above query in the context of the ${type} agent role and prov
     const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.txt`);
     fs.writeFileSync(tmpFile, fullContext);
     
-    if (fs.existsSync(claudePath)) {
+    if (claudeResult.found && claudeResult.path) {
       const { execSync } = require('child_process');
       
       console.log(colors.success('\n✨ Starting Claude Code...\n'));
       
       try {
         // Execute claude with the context file
-        execSync(`${claudePath} < "${tmpFile}"`, { stdio: 'inherit' });
+        execSync(`"${claudeResult.path}" < "${tmpFile}"`, { stdio: 'inherit' });
       } catch (error) {
         // Claude exited - this is normal
       }
@@ -162,9 +162,14 @@ Please analyze the above query in the context of the ${type} agent role and prov
       
       return 'claude-launched';
     } else {
-      console.log(colors.warning('⚠️  Claude CLI not found at expected location.'));
-      console.log(colors.info(`Expected path: ${claudePath}`));
-      return this.getFallbackResponse(type, query);
+      console.log(colors.warning('\n⚠️  Claude Code not found.'));
+      console.log(colors.info('\nTo install Claude Code:'));
+      console.log(colors.primary('1. Visit https://claude.ai/code'));
+      console.log(colors.primary('2. Download and install for your platform'));
+      console.log(colors.primary('3. Run "graphyn doctor" to verify installation\n'));
+      console.log(colors.info('Alternative: Copy context from:'));
+      console.log(colors.dim(tmpFile));
+      return 'context-saved';
     }
   }
 

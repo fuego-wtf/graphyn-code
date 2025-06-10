@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
-import GraphynAPIClient from './api-client.js';
+import GraphynAPIClient from './api-client';
 
 const colors = {
   success: chalk.green,
