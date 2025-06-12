@@ -143,24 +143,33 @@ Please analyze the above query in the context of the ${type} agent role and prov
     const tmpFile = path.join(tmpDir, `graphyn-${type}-${Date.now()}.txt`);
     fs.writeFileSync(tmpFile, fullContext);
     
+    // Log the interaction
+    const { GraphynLogger } = await import('./logger');
+    const logger = new GraphynLogger();
+    logger.logInteraction({
+      agent: type,
+      query: query,
+      contextFile: tmpFile,
+      mode: 'cli'
+    });
+    
     if (claudeResult.found && claudeResult.path) {
-      const { execSync } = require('child_process');
+      console.log(colors.success('\n✓ Agent context prepared and logged!'));
+      console.log(colors.info(`Context saved to: ${tmpFile}`));
       
-      console.log(colors.success('\n✨ Starting Claude Code...\n'));
+      console.log(colors.accent('\n🚀 To start Claude Code with this agent:'));
+      console.log(colors.highlight(`  claude "${fullContext.substring(0, 100)}..."`));
+      console.log(colors.dim('\nOr open Claude Code and use:'));
+      console.log(colors.highlight(`  /read ${tmpFile}`));
       
-      try {
-        // Execute claude with the context file
-        execSync(`"${claudeResult.path}" < "${tmpFile}"`, { stdio: 'inherit' });
-      } catch (error) {
-        // Claude exited - this is normal
-      }
+      console.log(colors.dim('\n💡 Context will be automatically cleaned up in 5 minutes.'));
       
       // Clean up temp file after a delay
       setTimeout(() => {
         try { fs.unlinkSync(tmpFile); } catch (e) {}
-      }, 5000);
+      }, 300000); // 5 minutes
       
-      return 'claude-launched';
+      return 'context-saved';
     } else {
       console.log(colors.warning('\n⚠️  Claude Code not found.'));
       console.log(colors.info('\nTo install Claude Code:'));

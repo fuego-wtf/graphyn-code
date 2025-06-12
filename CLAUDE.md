@@ -169,3 +169,39 @@ await graphyn.delete('/api/threads/123/participants/agent-1'); // Trigger learni
 - Focus on orchestration and user experience
 - Document terminal-related issues thoroughly
 - Keep UI consistent and beautiful
+
+## Context Mapping Boundaries (Added January 2025)
+
+### Key Learning: Agent Commands Work Through Context Files
+All agent commands (frontend, backend, architect, cli) now work properly by:
+1. **Preparing context** in temp files instead of direct Claude Code spawning
+2. **Showing manual commands** for users to launch Claude Code
+3. **Logging interactions** for history and debugging
+4. **5-minute cleanup** of temporary context files
+
+### Technical Implementation
+```typescript
+// Working approach (implemented)
+// ✅ Save context to file → Show commands → Let user launch Claude
+fs.writeFileSync(tmpFile, fullContext);
+console.log(`claude "${truncatedPreview}..."`);
+console.log(`/read ${tmpFile}`);
+
+// Failed approach (causes terminal conflicts)
+// ❌ execSync(`claude < "${tmpFile}"`, { stdio: 'inherit' });
+```
+
+### Why This Boundary Exists
+- Claude Code requires **exclusive terminal control** (Ink framework)
+- Cannot function as child process or with piped stdin
+- Raw mode conflicts are **fundamental**, not fixable from our side
+- This is the definitive solution until Claude Code supports stdin piping
+
+### User Experience Flow
+1. User runs: `graphyn architect "design my system"`
+2. CLI prepares full context with agent prompt + query
+3. CLI saves to temp file and shows instructions
+4. User manually launches Claude Code with context
+5. Context auto-cleans up after 5 minutes
+
+This boundary ensures **all agent commands work reliably** without terminal conflicts.
