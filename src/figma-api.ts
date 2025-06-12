@@ -82,8 +82,10 @@ export class FigmaAPIClient {
       /figma\.com\/file\/([^\/]+).*node-id=([^&]+)/,
       // https://www.figma.com/design/ABC123/File-Name?node-id=1-2
       /figma\.com\/design\/([^\/]+).*node-id=([^&]+)/,
-      // https://www.figma.com/proto/ABC123/File-Name?node-id=1%3A2
+      // https://www.figma.com/proto/ABC123/File-Name?node-id=1%3A2 or node-id=1568-55865
       /figma\.com\/proto\/([^\/]+).*node-id=([^&]+)/,
+      // Prototype URLs with starting-point-node-id
+      /figma\.com\/proto\/([^\/]+).*starting-point-node-id=([^&]+)/,
       // Simple file URL without node
       /figma\.com\/(?:file|design|proto)\/([^\/\?]+)/
     ];
@@ -92,7 +94,19 @@ export class FigmaAPIClient {
       const match = url.match(pattern);
       if (match) {
         const fileKey = match[1];
-        const nodeId = match[2] ? decodeURIComponent(match[2]).replace('-', ':') : undefined;
+        let nodeId = match[2] ? decodeURIComponent(match[2]) : undefined;
+        
+        // Handle different node ID formats
+        if (nodeId) {
+          // Convert 1568-55865 to 1568:55865
+          if (nodeId.includes('-') && !nodeId.includes(':')) {
+            nodeId = nodeId.replace('-', ':');
+          }
+          // Handle URL encoded formats like 1%3A2
+          nodeId = nodeId.replace('%3A', ':');
+        }
+        
+        console.log(`Parsed Figma URL: fileKey=${fileKey}, nodeId=${nodeId}`);
         return { fileKey, nodeId };
       }
     }
@@ -140,11 +154,31 @@ export class FigmaAPIClient {
   async getNodes(fileKey: string, nodeIds: string[]): Promise<any> {
     try {
       const idsParam = nodeIds.join(',');
-      const response = await this.client.get(`/files/${fileKey}/nodes?ids=${idsParam}`);
+      const url = `/files/${fileKey}/nodes?ids=${idsParam}`;
+      console.log(`Fetching nodes: ${url}`);
+      
+      const response = await this.client.get(url);
+      console.log(`Node response keys: ${Object.keys(response.data).join(', ')}`);
+      
+      // Check for error in response
+      if (response.data.err) {
+        console.error(`Figma API error: ${response.data.err}`);
+        throw new Error(`Figma API error: ${response.data.err}`);
+      }
+      
+      if (response.data.nodes) {
+        const nodeKeys = Object.keys(response.data.nodes);
+        console.log(`Found ${nodeKeys.length} nodes: ${nodeKeys.join(', ')}`);
+      }
+      
       return response.data;
     } catch (error: any) {
+      console.error(`Error fetching nodes: ${error.response?.status} - ${error.message}`);
       if (error.response?.status === 403) {
         throw new Error('Invalid Figma token or no access to file');
+      }
+      if (error.response?.status === 404) {
+        throw new Error('Figma file or node not found');
       }
       throw new Error(`Failed to fetch Figma nodes: ${error.message}`);
     }
@@ -176,14 +210,25 @@ export class FigmaAPIClient {
           const nodeData = await this.getNodes(fileKey, [currentNodeId]);
           const node = nodeData.nodes[currentNodeId];
           
-          if (!node || !node.document) {
+          if (!node) {
             progressCallback?.(`⚠️  Frame ${currentNodeId} not accessible, skipping...`);
             continue;
           }
           
-          const doc = node.document;
+          // Handle both document structure and direct node structure
+          const doc = node.document || node;
           
           progressCallback?.(`✓ Found: ${doc.name || `Frame ${currentNodeId}`}`);
+          
+          // Log node structure for debugging
+          console.log(`Node structure for ${currentNodeId}:`, {
+            type: doc.type,
+            name: doc.name,
+            hasChildren: !!doc.children,
+            childCount: doc.children?.length || 0,
+            hasTransition: !!doc.transitionNodeID,
+            hasInteractions: !!doc.interactions
+          });
           
           // Create screen from real frame data
           const screen: PrototypeScreen = {
@@ -417,9 +462,10 @@ export class FigmaAPIClient {
     
     progressCallback?.('Parsing Figma URL...');
     
-    // For prototype URLs with specific node IDs, use simplified analysis
+    // For prototype URLs with specific node IDs, use prototype-specific analysis
     if (nodeId && url.includes('/proto/')) {
-      return this.analyzeSpecificNode(fileKey, nodeId, progressCallback);
+      progressCallback?.('Detected prototype URL - using specialized analysis...');
+      return this.analyzePrototypeFile(fileKey, nodeId, progressCallback);
     }
     
     progressCallback?.('Fetching file structure...');
@@ -695,6 +741,244 @@ export class FigmaAPIClient {
   private getScreenName(prototype: FigmaPrototypeFlow, screenId: string): string {
     const screen = prototype.screens.find(s => s.id === screenId);
     return screen ? screen.name : 'Unknown Screen';
+  }
+
+  /**
+   * Get image URL for a frame
+   */
+  async getFrameImage(frameId: string, fileKey?: string): Promise<string> {
+    try {
+      // Extract file key from instance if not provided
+      const actualFileKey = fileKey || this.currentFileKey;
+      if (!actualFileKey) {
+        throw new Error('File key required for image generation');
+      }
+
+      const response = await this.client.get(`/images/${actualFileKey}?ids=${frameId}&format=png&scale=2`);
+      
+      if (!response.data.images || !response.data.images[frameId]) {
+        throw new Error('No image URL returned from Figma API');
+      }
+      
+      return response.data.images[frameId];
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        throw new Error('Invalid Figma token or no access to file');
+      }
+      throw new Error(`Failed to get frame image: ${error.message}`);
+    }
+  }
+
+  // Store current file key for image generation
+  private currentFileKey?: string;
+
+  /**
+   * Set the current file key for operations
+   */
+  setCurrentFileKey(fileKey: string) {
+    this.currentFileKey = fileKey;
+  }
+
+  /**
+   * Analyze prototype file using different approach
+   */
+  async analyzePrototypeFile(fileKey: string, startNodeId: string, progressCallback?: (message: string) => void): Promise<FigmaPrototypeFlow> {
+    try {
+      progressCallback?.('Fetching prototype file structure...');
+      
+      // First, try to get the file with minimal data
+      let fileData: any;
+      try {
+        fileData = await this.getFile(fileKey, { geometry: 'paths', depth: 2 });
+        progressCallback?.(`✓ Accessed file: ${fileData.name}`);
+      } catch (error: any) {
+        console.error('File fetch error:', error.message);
+        // If file is too large or inaccessible, create mock structure
+        progressCallback?.('⚠️  Cannot access full file - will use image export to discover frames');
+        
+        // Try alternative approach: Export all pages as images
+        return this.discoverPrototypeFramesViaExport(fileKey, startNodeId, progressCallback);
+      }
+
+      // For prototypes, we want to follow the flow, not get all frames
+      progressCallback?.('Following prototype flow from starting point...');
+      
+      // Use the same flow discovery logic
+      return this.discoverPrototypeFramesViaExport(fileKey, startNodeId, progressCallback);
+    } catch (error: any) {
+      progressCallback?.(`Error: ${error.message}`);
+      throw error;
+    }
+  }
+
+
+  /**
+   * Discover prototype frames using export approach
+   */
+  private async discoverPrototypeFramesViaExport(fileKey: string, startNodeId: string, progressCallback?: (message: string) => void): Promise<FigmaPrototypeFlow> {
+    progressCallback?.('Discovering prototype flow (only connected frames)...');
+    
+    const validFrames: PrototypeScreen[] = [];
+    const navigation: NavigationLink[] = [];
+    const visited = new Set<string>();
+    const toCheck = [startNodeId];
+    
+    progressCallback?.(`Starting from frame: ${startNodeId}`);
+    
+    // Only follow prototype connections, don't scan everything
+    while (toCheck.length > 0 && validFrames.length < 50) { // Limit to 50 frames max
+      const currentFrameId = toCheck.shift()!;
+      
+      if (visited.has(currentFrameId)) continue;
+      visited.add(currentFrameId);
+      
+      try {
+        // First, try to get node data to find connections
+        const nodeResponse = await this.client.get(`/files/${fileKey}/nodes?ids=${currentFrameId}`);
+        
+        if (nodeResponse.data.nodes && nodeResponse.data.nodes[currentFrameId]) {
+          const node = nodeResponse.data.nodes[currentFrameId];
+          const nodeName = node.document?.name || node.name || `Frame ${currentFrameId}`;
+          
+          progressCallback?.(`✓ Found prototype frame: ${nodeName}`);
+          
+          validFrames.push({
+            id: currentFrameId,
+            name: nodeName,
+            frameId: currentFrameId,
+            components: [],
+            navigatesTo: []
+          });
+          
+          // Look for prototype connections in the node
+          const connections = this.findPrototypeConnections(node);
+          connections.forEach(targetId => {
+            if (!visited.has(targetId)) {
+              toCheck.push(targetId);
+              navigation.push({
+                from: currentFrameId,
+                to: targetId,
+                trigger: 'click'
+              });
+              validFrames[validFrames.length - 1].navigatesTo.push(targetId);
+            }
+          });
+        }
+      } catch (error: any) {
+        // If node fetch fails, try image check as fallback
+        try {
+          const imageUrl = await this.client.get(`/images/${fileKey}?ids=${currentFrameId}&format=png&scale=1`);
+          
+          if (imageUrl.data.images && imageUrl.data.images[currentFrameId]) {
+            progressCallback?.(`✓ Found frame via image: ${currentFrameId}`);
+            
+            validFrames.push({
+              id: currentFrameId,
+              name: `Frame ${currentFrameId}`,
+              frameId: currentFrameId,
+              components: [],
+              navigatesTo: []
+            });
+          }
+        } catch (imgError) {
+          // Frame not accessible, skip
+        }
+      }
+    }
+
+    if (validFrames.length === 0) {
+      // Fallback to at least the starting frame
+      validFrames.push({
+        id: startNodeId,
+        name: `Starting Frame`,
+        frameId: startNodeId,
+        components: [],
+        navigatesTo: []
+      });
+    }
+
+    progressCallback?.(`Found ${validFrames.length} frames with ${navigation.length} connections`);
+    
+    // Log the user flow for clarity
+    if (navigation.length > 0) {
+      progressCallback?.('\n🔄 User Flow Discovered:');
+      navigation.forEach(nav => {
+        const fromFrame = validFrames.find(f => f.id === nav.from);
+        const toFrame = validFrames.find(f => f.id === nav.to);
+        progressCallback?.(`   ${fromFrame?.name || nav.from} → ${toFrame?.name || nav.to}`);
+      });
+    }
+
+    return {
+      fileKey,
+      fileName: 'Prototype Flow',
+      screens: validFrames,
+      navigation: navigation,
+      components: [],
+      totalScreens: validFrames.length,
+      totalComponents: 0
+    };
+  }
+
+  /**
+   * Find prototype connections in a node
+   */
+  private findPrototypeConnections(node: any): string[] {
+    const connections: string[] = [];
+    
+    // Check node document for transitions
+    if (node.document) {
+      if (node.document.transitionNodeID) {
+        connections.push(node.document.transitionNodeID);
+      }
+      
+      // Check for interactions
+      if (node.document.interactions) {
+        node.document.interactions.forEach((interaction: any) => {
+          if (interaction.actions) {
+            interaction.actions.forEach((action: any) => {
+              if (action.destinationId && action.navigation === 'NAVIGATE') {
+                connections.push(action.destinationId);
+              }
+            });
+          }
+        });
+      }
+      
+      // Recursively check children
+      if (node.document.children) {
+        this.findConnectionsInChildren(node.document.children, connections);
+      }
+    }
+    
+    return [...new Set(connections)]; // Remove duplicates
+  }
+
+  /**
+   * Recursively find connections in children
+   */
+  private findConnectionsInChildren(children: any[], connections: string[]) {
+    children.forEach(child => {
+      if (child.transitionNodeID) {
+        connections.push(child.transitionNodeID);
+      }
+      
+      if (child.interactions) {
+        child.interactions.forEach((interaction: any) => {
+          if (interaction.actions) {
+            interaction.actions.forEach((action: any) => {
+              if (action.destinationId && action.navigation === 'NAVIGATE') {
+                connections.push(action.destinationId);
+              }
+            });
+          }
+        });
+      }
+      
+      if (child.children) {
+        this.findConnectionsInChildren(child.children, connections);
+      }
+    });
   }
 }
 

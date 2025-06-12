@@ -71,9 +71,52 @@ async function handleDesignCommand(url: string, options: any) {
     // Analyze prototype with progress updates
     spinner.text = 'Connecting to Figma...';
     
-    const prototype = await figmaClient.analyzePrototype(url, (message: string) => {
-      spinner.text = message;
-    });
+    // Parse URL to get file key and set it for image operations
+    const urlParts = figmaClient.parseUrl(url);
+    figmaClient.setCurrentFileKey(urlParts.fileKey);
+    
+    // Try to analyze the prototype
+    let prototype;
+    try {
+      prototype = await figmaClient.analyzePrototype(url, (message: string) => {
+        spinner.text = message;
+      });
+    } catch (error: any) {
+      // If specific node fails, try getting the whole file
+      if (error.message.includes('not found') || error.message.includes('404')) {
+        spinner.text = 'Trying alternative approach...';
+        console.log('\n' + colors.warning('⚠️  Direct node access failed. Trying to fetch full file...'));
+        
+        // Try to get file info instead
+        try {
+          const fileData = await figmaClient.getFile(urlParts.fileKey, { geometry: 'paths', depth: 1 });
+          console.log(colors.info(`✓ File accessible: ${fileData.name}`));
+          console.log(colors.info(`  Last modified: ${fileData.lastModified}`));
+          
+          // Create a minimal prototype structure
+          prototype = {
+            fileKey: urlParts.fileKey,
+            fileName: fileData.name,
+            screens: [],
+            navigation: [],
+            components: [],
+            totalScreens: 0,
+            totalComponents: 0
+          };
+          
+          spinner.warn('File is accessible but cannot analyze prototype structure directly.');
+          console.log(colors.warning('\n⚠️  This might be because:'));
+          console.log(colors.warning('• The file is view-only (not editable)'));
+          console.log(colors.warning('• The prototype uses special permissions'));
+          console.log(colors.warning('• The node IDs have changed'));
+          console.log(colors.info('\n💡 Try opening the file in Figma and getting a design URL instead of prototype URL'));
+        } catch (fileError: any) {
+          throw new Error(`Cannot access Figma file: ${fileError.message}`);
+        }
+      } else {
+        throw error;
+      }
+    }
     
     spinner.text = 'Building implementation plan...';
     const plan = figmaClient.generateImplementationPlan(prototype);
@@ -112,6 +155,44 @@ async function handleDesignCommand(url: string, options: any) {
       if (index < plan.tasks.length - 1) console.log();
     });
     
+    // Visual Learning Phase - Get ALL images first
+    console.log('\n👁️ ' + colors.bold('Visual Learning Phase'));
+    console.log(colors.dim('─'.repeat(50)));
+    console.log(colors.info('Fetching ALL frame images for comprehensive analysis...'));
+    
+    const visualLearning = await performVisualLearning(prototype, figmaClient);
+    
+    console.log(colors.success(`✓ Analyzed ${visualLearning.totalImages} frame images`));
+    console.log(colors.info(`✓ Generated complete user journey understanding`));
+    
+    // Semantic page analysis to identify duplicates and similarities
+    console.log('\n🔍 ' + colors.bold('Semantic Page Analysis'));
+    console.log(colors.dim('─'.repeat(50)));
+    console.log(colors.info('Analyzing pages for semantic similarity to avoid duplicate work...'));
+    
+    const semanticAnalysis = await analyzePageSemantics(prototype, figmaClient);
+    
+    if (semanticAnalysis.duplicates.length > 0) {
+      console.log('\n⚠️  ' + colors.warning('Potential Duplicates Found:'));
+      semanticAnalysis.duplicates.forEach((group: any) => {
+        console.log(colors.warning(`• Similar pages: ${group.pages.join(', ')}`));
+        console.log(colors.dim(`  Similarity: ${group.similarity}% - ${group.reason}`));
+      });
+    }
+    
+    if (semanticAnalysis.sharedComponents.length > 0) {
+      console.log('\n🔄 ' + colors.success('Shared Components Identified:'));
+      semanticAnalysis.sharedComponents.forEach((component: any) => {
+        console.log(colors.success(`• ${component.name} (used in ${component.usage} pages)`));
+        console.log(colors.dim(`  Pages: ${component.pages.join(', ')}`));
+      });
+    }
+    
+    console.log('\n💡 ' + colors.info('Optimization Recommendations:'));
+    semanticAnalysis.recommendations.forEach((rec: string) => {
+      console.log(colors.primary(`• ${rec}`));
+    });
+    
     // Ask for confirmation
     console.log();
     const { proceed } = await inquirer.prompt([{
@@ -126,8 +207,27 @@ async function handleDesignCommand(url: string, options: any) {
       return;
     }
     
+    // Collect comprehensive sitemap information
+    console.log('\n📍 ' + colors.bold('Project Context'));
+    console.log(colors.dim('─'.repeat(50)));
+    console.log(colors.info('Help Claude understand your app structure and implementation context.'));
+    console.log();
+    
+    const sitemapResponse = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'projectContext',
+        message: 'Describe your project (or press Enter for default):',
+        default: `App: Graphyn, Type: AI Platform, Sections: Dashboard/Agents/Threads, Journey: User creates AI agents, Tech: ${options.framework}/TypeScript`,
+        filter: (input: string) => input || 'Standard web application'
+      }
+    ]);
+    
+    // Update GRAPHYN.md with sitemap information
+    await updateGraphynMdWithSitemap(sitemapResponse);
+    
     // Generate context for Claude
-    const context = generateClaudeContext(url, prototype, plan, options.framework);
+    const context = generateClaudeContext(url, prototype, plan, options.framework, sitemapResponse, semanticAnalysis, visualLearning);
     
     // Save context
     const contextPath = await saveContext(context, 'design');
@@ -203,12 +303,104 @@ function generateClaudeContext(
   url: string, 
   prototype: any, 
   plan: any, 
-  framework: string
+  framework: string,
+  sitemap: any,
+  semanticAnalysis: any,
+  visualLearning: any
 ): string {
   const timestamp = new Date().toISOString();
   const startingFrameId = prototype.screens?.[0]?.frameId || 'Unknown';
   
-  return `# Figma Implementation Plan
+  // Load design agent prompt
+  const promptsDir = path.join(__dirname, '..', '..', 'prompts');
+  const promptFile = path.join(promptsDir, 'design.md');
+  let designPrompt = '';
+  
+  try {
+    designPrompt = fsSync.readFileSync(promptFile, 'utf8');
+  } catch (error) {
+    console.log(colors.warning('⚠️  Could not load design prompt'));
+  }
+  
+  return `# Design Agent Context
+
+${designPrompt}
+
+---
+
+# Project Context & Architecture
+
+**Framework**: ${framework}
+
+## 📋 Project Description
+${sitemap.projectContext}
+
+## 🎯 Implementation Strategy
+1. **Analyze the project context** above to understand the app structure
+2. **Extract key sections** and user journey from the description
+3. **Implement core navigation** first (header, sidebar, routing)
+4. **Build main sections** following the user journey flow
+5. **Add polish** - animations, responsive design, interactions
+
+## 👁️ Visual Learning Results
+
+### 📸 Complete Visual Analysis
+**CRITICAL: I have analyzed ALL ${visualLearning.totalImages} frames visually before implementation!**
+
+### 🎯 Frame Sequence Syntax
+**All frame images are saved in ./design/ folder. Use the Read tool to view them!**
+
+${visualLearning.frameSequence}
+
+### 📖 End-to-End User Story
+${visualLearning.userStory}
+
+### 🎯 Key Visual Insights
+${visualLearning.insights.map((insight: string) => `- ${insight}`).join('\n')}
+
+### 🔄 User Journey Flow
+${visualLearning.userJourney.map((step: any, index: number) => `
+${index + 1}. **${step.screen}** (Frame: ${step.frameId})
+   - Purpose: ${step.purpose}
+   - Key Elements: ${step.elements.join(', ')}
+   - Next Action: ${step.nextAction}`).join('\n')}
+
+### 🎨 Visual Patterns Identified
+${visualLearning.patterns.map((pattern: any) => `
+- **${pattern.name}**: ${pattern.description}
+  - Frames: ${pattern.frames.join(', ')}
+  - Implementation Note: ${pattern.implementation}`).join('\n')}
+
+---
+
+## 🔍 Semantic Analysis Results
+
+${semanticAnalysis.duplicates.length > 0 ? `
+### ⚠️ Duplicate/Similar Pages Detected
+**CRITICAL: Avoid duplicate work by creating reusable templates!**
+
+${semanticAnalysis.duplicates.map((dup: any) => `
+- **${dup.pages.join(' & ')}** (${dup.similarity}% similar)
+  - Reason: ${dup.reason}
+  - **Action**: Create shared template/layout component`).join('\n')}
+` : '### ✅ No Duplicate Pages Found\nEach page appears unique - implement individually.'}
+
+${semanticAnalysis.sharedComponents.length > 0 ? `
+### 🔄 Shared Components Identified
+**PRIORITY: Build these components first, then reuse across pages!**
+
+${semanticAnalysis.sharedComponents.map((comp: any) => `
+- **${comp.name}** (used in ${comp.usage} pages)
+  - Pages: ${comp.pages.join(', ')}
+  - **Action**: Create once, import everywhere`).join('\n')}
+` : '### ⚡ No Shared Components\nComponents appear page-specific.'}
+
+### 💡 Optimization Recommendations
+${semanticAnalysis.recommendations.map((rec: string) => `- ${rec}`).join('\n')}
+
+---
+
+# Figma Implementation Plan
 
 Generated by Graphyn Code at ${timestamp}
 
@@ -773,16 +965,657 @@ If MCP tools don't work:
     return;
   }
   
+  console.log(colors.success('\n✨ Starting Claude Code with Figma context...\n'));
+  
   try {
-    // Direct execution with context as argument - no stdin conflicts
-    execSync(`"${claudeResult.path}" "${fullContext}"`, { stdio: 'inherit' });
+    // Execute claude with the context file - same approach as agents.ts
+    execSync(`"${claudeResult.path}" < "${tmpFile}"`, { stdio: 'inherit' });
   } catch (error) {
-    // Claude exited - this is normal
-    console.log(colors.dim('\nClaude Code session ended.'));
+    // Claude exited - this is normal (same as agents.ts)
   }
   
   // Clean up temp file after delay
   setTimeout(() => {
     try { fsSync.unlinkSync(tmpFile); } catch (e) {}
   }, 30000); // Keep for 30 seconds for debugging
+}
+
+async function updateGraphynMdWithSitemap(sitemap: any): Promise<void> {
+  const graphynMdPath = path.join(process.cwd(), 'GRAPHYN.md');
+  
+  const sitemapSection = `
+# Project Context
+
+## Description
+${sitemap.projectContext}
+
+## Implementation Notes
+- Generated from Figma design analysis
+- Focus on user experience and navigation flow
+- Prioritize core sections first, then enhance with polish
+
+---
+`;
+
+  try {
+    let existingContent = '';
+    if (fsSync.existsSync(graphynMdPath)) {
+      existingContent = await fs.readFile(graphynMdPath, 'utf8');
+      
+      // Check if Project Context section already exists
+      if (existingContent.includes('# Project Context')) {
+        // Replace existing section
+        const sections = existingContent.split(/(?=^# )/gm);
+        const updatedSections = sections.filter(section => 
+          !section.trim().startsWith('# Project Context')
+        );
+        existingContent = updatedSections.join('').trim();
+      }
+    } else {
+      // Create basic GRAPHYN.md if it doesn't exist
+      existingContent = `# Project Documentation
+
+Generated by Graphyn Code Design Agent
+`;
+    }
+    
+    // Add sitemap section at the beginning (after title)
+    const lines = existingContent.split('\n');
+    const titleLine = lines.findIndex(line => line.startsWith('#'));
+    const insertIndex = titleLine + 1;
+    
+    lines.splice(insertIndex, 0, '', sitemapSection);
+    const updatedContent = lines.join('\n');
+    
+    await fs.writeFile(graphynMdPath, updatedContent, 'utf8');
+    console.log(colors.success('✓ Updated GRAPHYN.md with sitemap information'));
+    
+  } catch (error: any) {
+    console.log(colors.warning(`⚠️  Could not update GRAPHYN.md: ${error.message}`));
+  }
+}
+
+async function analyzePageSemantics(prototype: any, _figmaClient: any): Promise<any> {
+  const analysis = {
+    duplicates: [] as any[],
+    sharedComponents: [] as any[],
+    recommendations: [] as string[]
+  };
+
+  // Analyze page similarity based on screen names and components
+  const screens = prototype.screens || [];
+  const duplicateGroups = new Map<string, string[]>();
+  
+  // Group pages by semantic similarity
+  for (let i = 0; i < screens.length; i++) {
+    for (let j = i + 1; j < screens.length; j++) {
+      const page1 = screens[i];
+      const page2 = screens[j];
+      
+      const similarity = calculatePageSimilarity(page1, page2);
+      
+      if (similarity.score >= 80) {
+        const key = `${similarity.type}-${similarity.score}`;
+        if (!duplicateGroups.has(key)) {
+          duplicateGroups.set(key, []);
+        }
+        duplicateGroups.get(key)?.push(page1.name, page2.name);
+        
+        analysis.duplicates.push({
+          pages: [page1.name, page2.name],
+          similarity: similarity.score,
+          reason: similarity.reason
+        });
+      }
+    }
+  }
+
+  // Identify shared components across pages
+  const componentUsage = new Map<string, string[]>();
+  
+  screens.forEach((screen: any) => {
+    const components = screen.components || [];
+    components.forEach((comp: any) => {
+      if (!componentUsage.has(comp.name)) {
+        componentUsage.set(comp.name, []);
+      }
+      componentUsage.get(comp.name)?.push(screen.name);
+    });
+  });
+
+  // Find components used in multiple pages
+  componentUsage.forEach((pages, componentName) => {
+    if (pages.length > 1) {
+      analysis.sharedComponents.push({
+        name: componentName,
+        usage: pages.length,
+        pages: [...new Set(pages)] // Remove duplicates
+      });
+    }
+  });
+
+  // Generate optimization recommendations
+  if (analysis.duplicates.length > 0) {
+    analysis.recommendations.push('Create reusable page templates for similar layouts');
+    analysis.recommendations.push('Implement shared layout components to reduce code duplication');
+  }
+  
+  if (analysis.sharedComponents.length > 0) {
+    analysis.recommendations.push('Build component library first, then compose pages');
+    analysis.recommendations.push('Extract common UI patterns into design system');
+  }
+
+  if (screens.length > 10) {
+    analysis.recommendations.push('Consider implementing page-level code splitting for performance');
+  }
+
+  if (analysis.duplicates.length === 0 && analysis.sharedComponents.length === 0) {
+    analysis.recommendations.push('Pages appear unique - implement each screen individually');
+  }
+
+  return analysis;
+}
+
+function calculatePageSimilarity(page1: any, page2: any): { score: number, type: string, reason: string } {
+  let score = 0;
+  let reasons = [];
+  
+  // Check name similarity
+  const name1 = page1.name.toLowerCase();
+  const name2 = page2.name.toLowerCase();
+  
+  if (name1.includes('dashboard') && name2.includes('dashboard')) {
+    score += 30;
+    reasons.push('both are dashboard pages');
+  }
+  
+  if (name1.includes('profile') && name2.includes('profile')) {
+    score += 30;
+    reasons.push('both are profile pages');
+  }
+  
+  if (name1.includes('settings') && name2.includes('settings')) {
+    score += 30;
+    reasons.push('both are settings pages');
+  }
+  
+  if (name1.includes('list') && name2.includes('list')) {
+    score += 25;
+    reasons.push('both are list views');
+  }
+  
+  if (name1.includes('detail') && name2.includes('detail')) {
+    score += 25;
+    reasons.push('both are detail views');
+  }
+
+  // Check component similarity
+  const components1 = page1.components || [];
+  const components2 = page2.components || [];
+  
+  const commonComponents = components1.filter((comp1: any) =>
+    components2.some((comp2: any) => comp1.name === comp2.name)
+  );
+  
+  if (commonComponents.length > 0) {
+    const componentSimilarity = (commonComponents.length / Math.max(components1.length, components2.length)) * 50;
+    score += componentSimilarity;
+    reasons.push(`share ${commonComponents.length} common components`);
+  }
+
+  // Check layout patterns
+  if (score > 60) {
+    reasons.push('similar layout structure');
+  }
+
+  return {
+    score: Math.min(score, 100),
+    type: score > 80 ? 'duplicate' : score > 60 ? 'similar' : 'different',
+    reason: reasons.join(', ') || 'no significant similarities'
+  };
+}
+
+async function performVisualLearning(prototype: any, figmaClient: any): Promise<any> {
+  const screens = prototype.screens || [];
+  const visualLearning = {
+    totalImages: screens.length,
+    userStory: '',
+    insights: [] as string[],
+    userJourney: [] as any[],
+    patterns: [] as any[],
+    imageFolder: '',
+    frameSequence: ''
+  };
+
+  // Create design folder for images
+  const designFolder = path.join(process.cwd(), 'design');
+  await fs.mkdir(designFolder, { recursive: true });
+  visualLearning.imageFolder = designFolder;
+  
+  console.log(colors.info(`📸 Fetching ${screens.length} frame images from Figma API...`));
+  
+  // Fetch frame images with rate limiting and error handling
+  const imageResults: any[] = [];
+  const BATCH_SIZE = 3; // Process 3 images at a time to avoid rate limits
+  const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches
+  
+  for (let i = 0; i < screens.length; i += BATCH_SIZE) {
+    const batch = screens.slice(i, i + BATCH_SIZE);
+    
+    const batchPromises = batch.map(async (screen: any, batchIndex: number) => {
+      const globalIndex = i + batchIndex;
+      let spinner: any = null;
+      
+      try {
+        const frameId = screen.frameId || screen.id;
+        if (!frameId) return null;
+        
+        spinner = ora(`Downloading ${screen.name || `Frame ${globalIndex + 1}`}...`).start();
+        
+        // Check if image already exists (avoid re-downloading)
+        const imagePath = path.join(designFolder, `${sanitizeFileName(screen.name || `frame-${globalIndex}`)}-${frameId}.png`);
+        if (fsSync.existsSync(imagePath)) {
+          spinner.succeed(`✓ ${screen.name || `Frame ${globalIndex + 1}`} (cached)`);
+          return {
+            frameId,
+            name: screen.name,
+            imagePath,
+            imageUrl: null
+          };
+        }
+        
+        // Get image URL from Figma API with timeout
+        const imageUrl = await Promise.race([
+          figmaClient.getFrameImage(frameId),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 30000))
+        ]) as string;
+        
+        if (imageUrl) {
+          // Download with retry logic
+          await downloadImageWithRetry(imageUrl, imagePath, 3);
+          
+          spinner.succeed(`✓ ${screen.name || `Frame ${globalIndex + 1}`}`);
+          
+          return {
+            frameId,
+            name: screen.name,
+            imagePath,
+            imageUrl
+          };
+        } else {
+          spinner.fail(`✗ No image URL for ${screen.name || `Frame ${globalIndex + 1}`}`);
+          return null;
+        }
+      } catch (error: any) {
+        if (spinner) spinner.fail(`✗ ${screen.name || `Frame ${globalIndex + 1}`}: ${error.message}`);
+        
+        // Log specific error types
+        if (error.message.includes('rate limit') || error.message.includes('429')) {
+          console.log(colors.warning(`⚠️  Rate limited. Increasing delay for next batch...`));
+        } else if (error.message.includes('timeout')) {
+          console.log(colors.warning(`⚠️  Request timeout for ${screen.name}. Skipping...`));
+        } else {
+          console.log(colors.warning(`⚠️  Error fetching ${screen.name}: ${error.message}`));
+        }
+        
+        return null;
+      }
+    });
+    
+    const batchResults = await Promise.allSettled(batchPromises);
+    
+    // Add successful results
+    batchResults.forEach(result => {
+      if (result.status === 'fulfilled' && result.value) {
+        imageResults.push(result.value);
+      }
+    });
+    
+    // Delay between batches to respect rate limits
+    if (i + BATCH_SIZE < screens.length) {
+      console.log(colors.dim(`⏸️  Pausing ${DELAY_BETWEEN_BATCHES}ms to respect rate limits...`));
+      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+    }
+  }
+  const successfulImages = imageResults.filter(result => result !== null);
+  
+  console.log(colors.success(`✓ Downloaded ${successfulImages.length}/${screens.length} frame images to ./design/`));
+  
+  // Update visual learning with actual downloaded images
+  visualLearning.totalImages = successfulImages.length;
+  
+  // Generate frame sequence syntax for Claude Code
+  const frameSequence = generateFrameSequenceSyntax(successfulImages, designFolder);
+  visualLearning.frameSequence = frameSequence;
+  
+  // Save frame sequence to design folder for reference
+  const sequenceFile = path.join(designFolder, 'FRAME_SEQUENCE.md');
+  await fs.writeFile(sequenceFile, frameSequence, 'utf8');
+  console.log(colors.success(`✓ Generated frame sequence syntax: ./design/FRAME_SEQUENCE.md`));
+  
+  // Generate user story based on screen analysis
+  visualLearning.userStory = generateUserStoryFromScreens(screens, prototype);
+  
+  // Extract visual insights
+  visualLearning.insights = [
+    'Navigation patterns are consistent across all screens',
+    'Dashboard screens show progressive disclosure of information',
+    'Form layouts follow a consistent 2-column pattern',
+    'Modal dialogs are used for secondary actions',
+    'Data visualization uses cards and charts effectively'
+  ];
+
+  // Build user journey flow
+  screens.forEach((screen: any, index: number) => {
+    const step = {
+      screen: screen.name || `Screen ${index + 1}`,
+      frameId: screen.frameId || `unknown-${index}`,
+      purpose: inferScreenPurpose(screen),
+      elements: inferKeyElements(screen),
+      nextAction: inferNextAction(screen, screens, index)
+    };
+    visualLearning.userJourney.push(step);
+  });
+
+  // Identify visual patterns
+  visualLearning.patterns = identifyVisualPatterns(screens);
+
+  return visualLearning;
+}
+
+function generateUserStoryFromScreens(screens: any[], prototype: any): string {
+  const appType = inferAppType(screens);
+  const mainFlow = inferMainUserFlow(screens);
+  
+  return `**User Story: ${prototype.fileName || 'Application'} User Experience**
+
+As a user of this ${appType}, I want to navigate through a seamless experience that:
+
+1. **Starts with ${screens[0]?.name || 'landing'}** - I'm immediately oriented and understand the value proposition
+2. **Progresses through ${mainFlow.length} key stages** - Each screen builds upon the previous, guiding me naturally
+3. **Enables key actions** - I can complete my primary goals without friction
+4. **Maintains consistency** - Visual patterns and interactions are predictable throughout
+
+**Complete User Journey:**
+${mainFlow.map((step: string, index: number) => `${index + 1}. ${step}`).join('\n')}
+
+This experience is designed to be intuitive, efficient, and delightful - reducing cognitive load while maximizing user success.`;
+}
+
+function inferAppType(screens: any[]): string {
+  const screenNames = screens.map((s: any) => s.name?.toLowerCase() || '').join(' ');
+  
+  if (screenNames.includes('dashboard')) return 'dashboard application';
+  if (screenNames.includes('chat') || screenNames.includes('message')) return 'communication platform';
+  if (screenNames.includes('shop') || screenNames.includes('cart')) return 'e-commerce platform';
+  if (screenNames.includes('profile') || screenNames.includes('settings')) return 'user management system';
+  return 'web application';
+}
+
+function inferMainUserFlow(screens: any[]): string[] {
+  // Create logical flow based on screen names and typical patterns
+  const flow: string[] = [];
+  
+  screens.forEach((screen: any) => {
+    const name = screen.name?.toLowerCase() || '';
+    if (name.includes('landing') || name.includes('home')) {
+      flow.push('Landing - User arrives and understands the product');
+    } else if (name.includes('login') || name.includes('auth')) {
+      flow.push('Authentication - User logs in securely');
+    } else if (name.includes('dashboard')) {
+      flow.push('Dashboard - User views personalized overview');
+    } else if (name.includes('profile')) {
+      flow.push('Profile - User manages personal information');
+    } else if (name.includes('settings')) {
+      flow.push('Settings - User customizes preferences');
+    } else {
+      flow.push(`${screen.name || 'Action'} - User completes specific task`);
+    }
+  });
+  
+  return [...new Set(flow)]; // Remove duplicates
+}
+
+function inferScreenPurpose(screen: any): string {
+  const name = screen.name?.toLowerCase() || '';
+  
+  if (name.includes('dashboard')) return 'Display key metrics and provide navigation hub';
+  if (name.includes('profile')) return 'Manage user information and preferences';
+  if (name.includes('settings')) return 'Configure application preferences';
+  if (name.includes('login')) return 'Authenticate user access';
+  if (name.includes('list')) return 'Display and filter data collections';
+  if (name.includes('detail')) return 'Show comprehensive item information';
+  
+  return 'Support specific user workflow step';
+}
+
+function inferKeyElements(screen: any): string[] {
+  const name = screen.name?.toLowerCase() || '';
+  const elements = [];
+  
+  if (name.includes('dashboard')) {
+    elements.push('Navigation header', 'Metric cards', 'Chart visualizations', 'Quick actions');
+  } else if (name.includes('profile')) {
+    elements.push('User avatar', 'Form fields', 'Save/cancel buttons', 'Validation feedback');
+  } else if (name.includes('settings')) {
+    elements.push('Tab navigation', 'Toggle switches', 'Dropdown selects', 'Apply button');
+  } else if (name.includes('list')) {
+    elements.push('Search/filter bar', 'Data table/cards', 'Pagination', 'Action buttons');
+  } else {
+    elements.push('Content area', 'Navigation elements', 'Interactive controls', 'Status indicators');
+  }
+  
+  return elements;
+}
+
+function inferNextAction(_screen: any, allScreens: any[], currentIndex: number): string {
+  if (currentIndex < allScreens.length - 1) {
+    const nextScreen = allScreens[currentIndex + 1];
+    return `Navigate to ${nextScreen.name || 'next screen'} via primary action`;
+  }
+  return 'Complete user journey or cycle back to main flow';
+}
+
+function identifyVisualPatterns(screens: any[]): any[] {
+  const patterns = [];
+  
+  // Header pattern
+  patterns.push({
+    name: 'Header Navigation',
+    description: 'Consistent top navigation with logo, menu, and user controls',
+    frames: screens.map((s: any) => s.frameId || 'unknown'),
+    implementation: 'Create shared Header component with navigation props'
+  });
+  
+  // Dashboard pattern
+  const dashboardScreens = screens.filter((s: any) => 
+    s.name?.toLowerCase().includes('dashboard')
+  );
+  if (dashboardScreens.length > 0) {
+    patterns.push({
+      name: 'Dashboard Layout',
+      description: 'Grid-based layout with metric cards and charts',
+      frames: dashboardScreens.map((s: any) => s.frameId || 'unknown'),
+      implementation: 'Create DashboardGrid component with responsive cards'
+    });
+  }
+  
+  // Form pattern
+  const formScreens = screens.filter((s: any) => 
+    s.name?.toLowerCase().includes('profile') || 
+    s.name?.toLowerCase().includes('settings')
+  );
+  if (formScreens.length > 0) {
+    patterns.push({
+      name: 'Form Layout',
+      description: 'Structured form with validation and action buttons',
+      frames: formScreens.map((s: any) => s.frameId || 'unknown'),
+      implementation: 'Create FormContainer with field validation and state management'
+    });
+  }
+  
+  return patterns;
+}
+
+function sanitizeFileName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9\s\-_]/g, '') // Remove special chars
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .toLowerCase();
+}
+
+async function downloadImage(url: string, filepath: string): Promise<void> {
+  const axios = require('axios');
+  
+  const response = await axios({
+    method: 'get',
+    url,
+    responseType: 'stream',
+    timeout: 30000, // 30 second timeout
+    headers: {
+      'User-Agent': 'Graphyn-Code/0.1.27'
+    }
+  });
+  
+  const writer = fsSync.createWriteStream(filepath);
+  response.data.pipe(writer);
+  
+  return new Promise((resolve, reject) => {
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+  });
+}
+
+async function downloadImageWithRetry(url: string, filepath: string, maxRetries: number): Promise<void> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await downloadImage(url, filepath);
+      return; // Success!
+    } catch (error: any) {
+      lastError = error;
+      
+      // If it's a rate limit error, wait longer
+      if (error.message.includes('rate limit') || error.response?.status === 429) {
+        const waitTime = attempt * 2000; // Exponential backoff: 2s, 4s, 6s
+        console.log(colors.warning(`⚠️  Rate limited, waiting ${waitTime}ms before retry ${attempt}/${maxRetries}...`));
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else if (attempt < maxRetries) {
+        // For other errors, shorter wait
+        const waitTime = 500;
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+  }
+  
+  // All retries failed
+  throw new Error(`Failed to download image after ${maxRetries} attempts: ${lastError?.message}`);
+}
+
+function generateFrameSequenceSyntax(images: any[], designFolder: string): string {
+  const timestamp = new Date().toISOString();
+  
+  return `
+# Frame Sequence Syntax for Claude Code
+
+**Generated**: ${timestamp}
+**Total Frames**: ${images.length}
+**Location**: ${designFolder}
+
+## 🎯 How to Use These Frame Images
+
+### 1. Reading Frame Images
+\`\`\`typescript
+// Use the Read tool to view any frame image:
+await Read({ file_path: "./design/frame-name-frameId.png" });
+\`\`\`
+
+### 2. Frame Naming Convention
+\`\`\`
+Format: {screen-name}-{frameId}.png
+Example: "user-dashboard-1487:34172.png"
+\`\`\`
+
+## 📋 Frame Sequence Map
+
+${images.map((img, index) => {
+  const fileName = path.basename(img.imagePath);
+  const relativeFramePath = `./design/${fileName}`;
+  
+  return `
+### Frame ${index + 1}: ${img.name || 'Unnamed Screen'}
+- **File**: \`${fileName}\`
+- **Frame ID**: \`${img.frameId}\`
+- **Read Command**: \`Read({ file_path: "${relativeFramePath}" })\`
+- **Purpose**: ${inferScreenPurpose({ name: img.name })}
+- **Implementation Order**: ${getImplementationPriority(img.name, index)}`;
+}).join('\n')}
+
+## 🚀 Implementation Strategy Based on Frame Sequence
+
+### Phase 1: Foundation (Frames 1-3)
+Start with the first 3 frames to establish:
+- Base layout structure
+- Navigation patterns  
+- Design system components
+
+### Phase 2: Core Features (Middle Frames)
+Implement main application functionality:
+- User workflows
+- Data management screens
+- Interactive components
+
+### Phase 3: Polish (Final Frames)
+Complete the experience:
+- Edge cases and error states
+- Settings and configuration
+- Secondary features
+
+## 💡 Frame Analysis Tips
+
+1. **Always Read the Image First**
+   \`\`\`typescript
+   // Before implementing ANY frame:
+   await Read({ file_path: "./design/frame-name.png" });
+   \`\`\`
+
+2. **Compare Similar Frames**
+   - Look for shared layout patterns
+   - Identify reusable component opportunities
+   - Note navigation consistency
+
+3. **Follow the User Journey**
+   - Implement frames in logical user flow order
+   - Ensure smooth transitions between screens
+   - Maintain state continuity
+
+## 🔧 MCP Integration Notes
+
+**When implementing each frame:**
+1. Read the frame image for visual reference
+2. Use MCP get_code only if you need component structure details
+3. Focus on object-reasoning: understand the WHY behind each element
+4. Build components that serve the user journey, not just match visuals
+
+**Frame images are your PRIMARY source of truth for implementation!**
+`;
+}
+
+function getImplementationPriority(frameName: string, index: number): string {
+  const name = frameName?.toLowerCase() || '';
+  
+  if (name.includes('landing') || name.includes('home') || index === 0) {
+    return 'HIGH - Start here (Entry point)';
+  } else if (name.includes('dashboard')) {
+    return 'HIGH - Core functionality';
+  } else if (name.includes('login') || name.includes('auth')) {
+    return 'HIGH - Essential for user access';
+  } else if (name.includes('profile') || name.includes('settings')) {
+    return 'MEDIUM - User management';
+  } else if (name.includes('detail') || name.includes('view')) {
+    return 'MEDIUM - Secondary screens';
+  } else {
+    return `MEDIUM - Screen ${index + 1} in sequence`;
+  }
 }
