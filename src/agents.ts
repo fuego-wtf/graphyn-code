@@ -162,9 +162,12 @@ Please analyze the above query in the context of the ${type} agent role and prov
       const { execSync } = require('child_process');
       
       try {
-        // Execute claude with the context piped from temp file
-        // Using direct argument with complex text causes shell escaping issues
-        execSync(`"${claudeResult.path}" /read "${tmpFile}"`, { stdio: 'inherit' });
+        // Use printf to properly handle multi-line content
+        const escapedContent = fullContext.replace(/'/g, "'\\''");
+        execSync(`printf '%s' '${escapedContent}' | "${claudeResult.path}"`, { 
+          stdio: 'inherit',
+          shell: true 
+        });
       } catch (error) {
         // Claude exited - this is normal
       }
