@@ -162,9 +162,15 @@ Please analyze the above query in the context of the ${type} agent role and prov
       const { execSync } = require('child_process');
       
       try {
-        // Use printf to properly handle multi-line content
-        const escapedContent = fullContext.replace(/'/g, "'\\''");
-        execSync(`printf '%s' '${escapedContent}' | "${claudeResult.path}"`, { 
+        // Pass content as direct argument to Claude
+        // Properly escape the content for shell
+        const escapedContent = fullContext
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"')
+          .replace(/`/g, '\\`')
+          .replace(/\$/g, '\\$');
+        
+        execSync(`"${claudeResult.path}" "${escapedContent}"`, { 
           stdio: 'inherit',
           shell: true 
         });
