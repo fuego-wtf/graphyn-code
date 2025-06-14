@@ -157,19 +157,23 @@ Please analyze the above query in the context of the ${type} agent role and prov
       console.log(colors.success('\n✓ Agent context prepared and logged!'));
       console.log(colors.info(`Context saved to: ${tmpFile}`));
       
-      console.log(colors.accent('\n🚀 To start Claude Code with this agent:'));
-      console.log(colors.highlight(`  claude "${fullContext.substring(0, 100)}..."`));
-      console.log(colors.dim('\nOr open Claude Code and use:'));
-      console.log(colors.highlight(`  /read ${tmpFile}`));
+      console.log(colors.accent('\n🚀 Launching Claude Code with ' + type + ' agent context...\n'));
       
-      console.log(colors.dim('\n💡 Context will be automatically cleaned up in 5 minutes.'));
+      const { execSync } = require('child_process');
+      
+      try {
+        // Execute claude with the context as direct argument
+        execSync(`"${claudeResult.path}" "${fullContext}"`, { stdio: 'inherit' });
+      } catch (error) {
+        // Claude exited - this is normal
+      }
       
       // Clean up temp file after a delay
       setTimeout(() => {
         try { fs.unlinkSync(tmpFile); } catch (e) {}
       }, 300000); // 5 minutes
       
-      return 'context-saved';
+      return '';
     } else {
       console.log(colors.warning('\n⚠️  Claude Code not found.'));
       console.log(colors.info('\nTo install Claude Code:'));

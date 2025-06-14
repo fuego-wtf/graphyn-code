@@ -968,10 +968,10 @@ If MCP tools don't work:
   console.log(colors.success('\n✨ Starting Claude Code with Figma context...\n'));
   
   try {
-    // Execute claude with the context file - same approach as agents.ts
-    execSync(`"${claudeResult.path}" < "${tmpFile}"`, { stdio: 'inherit' });
+    // Execute claude with the context as direct argument
+    execSync(`"${claudeResult.path}" "${fullContext}"`, { stdio: 'inherit' });
   } catch (error) {
-    // Claude exited - this is normal (same as agents.ts)
+    // Claude exited - this is normal
   }
   
   // Clean up temp file after delay
