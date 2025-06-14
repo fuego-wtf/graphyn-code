@@ -1,6 +1,6 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "Free AI Development Tool for Claude Code Users",
   "main": "dist/index.js",
   "bin": {
