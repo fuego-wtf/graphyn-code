@@ -162,8 +162,9 @@ Please analyze the above query in the context of the ${type} agent role and prov
       const { execSync } = require('child_process');
       
       try {
-        // Execute claude with the context as direct argument
-        execSync(`"${claudeResult.path}" "${fullContext}"`, { stdio: 'inherit' });
+        // Execute claude with the context piped from temp file
+        // Using direct argument with complex text causes shell escaping issues
+        execSync(`"${claudeResult.path}" /read "${tmpFile}"`, { stdio: 'inherit' });
       } catch (error) {
         // Claude exited - this is normal
       }

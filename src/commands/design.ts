@@ -968,8 +968,8 @@ If MCP tools don't work:
   console.log(colors.success('\n✨ Starting Claude Code with Figma context...\n'));
   
   try {
-    // Execute claude with the context as direct argument
-    execSync(`"${claudeResult.path}" "${fullContext}"`, { stdio: 'inherit' });
+    // Execute claude with /read command to load context from file
+    execSync(`"${claudeResult.path}" /read "${tmpFile}"`, { stdio: 'inherit' });
   } catch (error) {
     // Claude exited - this is normal
   }
