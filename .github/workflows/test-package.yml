@@ -1,0 +1,63 @@
+name: Test NPM Package
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [16, 18, 20]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Create package
+        run: npm pack
+      
+      - name: Test installation (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          # Create test directory
+          mkdir test-install
+          cd test-install
+          npm init -y
+          
+          # Install the package
+          npm install ../*.tgz
+          
+          # Test CLI works
+          npx graphyn --version
+          npx graphyn --help
+      
+      - name: Test installation (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Create test directory
+          mkdir test-install
+          cd test-install
+          npm init -y
+          
+          # Install the package
+          $package = Get-ChildItem .. -Filter "*.tgz" | Select-Object -First 1
+          npm install $package.FullName
+          
+          # Test CLI works
+          npx graphyn --version
+          npx graphyn --help

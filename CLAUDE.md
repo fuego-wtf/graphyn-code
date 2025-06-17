@@ -169,6 +169,40 @@ await graphyn.delete('/api/threads/123/participants/agent-1'); // Trigger learni
 - Focus on orchestration and user experience
 - Document terminal-related issues thoroughly
 - Keep UI consistent and beautiful
+- **ALWAYS run `npm run test:package` before releasing**
+
+## NPM Package Testing (Added January 2025)
+
+### Automated Testing Before Every Release
+```bash
+npm run test:package  # Tests installation in isolated environment
+```
+
+### What This Tests
+1. Package builds correctly
+2. Installation works in clean environment
+3. Postinstall script runs without dependencies
+4. CLI commands are accessible
+5. No missing dependencies
+
+### Release Process
+```bash
+# 1. Make your changes
+# 2. Test locally
+npm run test:package
+
+# 3. Bump version
+npm version patch  # or minor/major
+
+# 4. Publish (auto-runs test:package)
+npm publish
+```
+
+### Why This Matters
+- Prevents broken releases (like the chalk dependency issue)
+- Catches problems before users experience them
+- Tests actual npm installation flow
+- Verifies cross-platform compatibility
 
 ## Context Mapping Boundaries (Added January 2025)
 

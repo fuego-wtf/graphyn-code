@@ -1,37 +1,46 @@
 #!/usr/bin/env node
 
-const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+// Simple color codes without external dependencies
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  green: '\x1b[32m',
+  blue: '\x1b[34m',
+  cyan: '\x1b[36m',
+  yellow: '\x1b[33m'
+};
+
 console.log(`
 ═══════════════════════════════════════════════════════════
-🎉 Graphyn Code installed successfully!
+🎉 ${colors.green}${colors.bright}Graphyn Code installed successfully!${colors.reset}
 ═══════════════════════════════════════════════════════════
 
 ✓ Installation complete
 
-🚀 Quick Start:
-  1. Get your FREE API key: https://graphyn.xyz/code
-  2. Authenticate: graphyn auth gph_xxxxxxxxxxxx
-  3. Start coding: graphyn frontend "build a dashboard"
+🚀 ${colors.bright}Quick Start:${colors.reset}
+  1. Get your FREE API key: ${colors.cyan}https://graphyn.xyz/code${colors.reset}
+  2. Authenticate: ${colors.yellow}graphyn auth gph_xxxxxxxxxxxx${colors.reset}
+  3. Start coding: ${colors.yellow}graphyn frontend "build a dashboard"${colors.reset}
 
-📚 Commands:
-  graphyn backend <query>    Query backend agent
-  graphyn frontend <query>   Query frontend agent
-  graphyn architect <query>  Query architect agent
-  graphyn chain <query>      Chain all agents
-  graphyn init               Initialize GRAPHYN.md
-  graphyn status             Check customization status
-  graphyn --help             Show all commands
+📚 ${colors.bright}Commands:${colors.reset}
+  ${colors.yellow}graphyn backend <query>${colors.reset}    Query backend agent
+  ${colors.yellow}graphyn frontend <query>${colors.reset}   Query frontend agent
+  ${colors.yellow}graphyn architect <query>${colors.reset}  Query architect agent
+  ${colors.yellow}graphyn chain <query>${colors.reset}      Chain all agents
+  ${colors.yellow}graphyn init${colors.reset}               Initialize GRAPHYN.md
+  ${colors.yellow}graphyn status${colors.reset}             Check customization status
+  ${colors.yellow}graphyn --help${colors.reset}             Show all commands
 
-🔗 Resources:
-  Documentation: https://graphyn.xyz/code/docs
-  GitHub: https://github.com/graphyn-xyz/graphyn-code
-  Support: support@graphyn.xyz
+🔗 ${colors.bright}Resources:${colors.reset}
+  Documentation: ${colors.cyan}https://graphyn.xyz/code/docs${colors.reset}
+  GitHub: ${colors.cyan}https://github.com/graphyn-xyz/graphyn-code${colors.reset}
+  Support: ${colors.cyan}support@graphyn.xyz${colors.reset}
 
-Happy coding with AI! 🚀
+${colors.green}${colors.bright}Happy coding with AI! 🚀${colors.reset}
 `);
 
 // Create .graphyn directory

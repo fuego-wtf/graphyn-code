@@ -1,6 +1,6 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Free AI Development Tool for Claude Code Users",
   "main": "dist/index.js",
   "bin": {
@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
-    "prepublishOnly": "npm run build"
+    "test:package": "./scripts/test-package.sh",
+    "prepublishOnly": "npm run build && npm run test:package"
   },
   "keywords": [
     "ai",
