@@ -1,6 +1,67 @@
 # Graphyn Code CLI - Development Tasks
 
-## 🧠 CLI INTELLIGENCE VIA AGENT CONSUMPTION (TOP PRIORITY - January 2025)
+## 🎨 INK FRAMEWORK MIGRATION (TOP PRIORITY - January 2025)
+
+### Current Status: Tasks 1-3 of 17 Completed ✅
+We're migrating from Commander.js to Ink (React for terminals) for a modern, reactive CLI experience.
+
+### Completed Tasks
+- ✅ Task 1: Created minimal Ink app that displays 'Hello Graphyn' and exits
+- ✅ Task 2: Set up ESM-compatible build pipeline (package.json has "type": "module")
+- ✅ Task 3: Created main menu component with agent selection (MainMenu.tsx exists)
+
+### Current Focus: Task 4 - Reactive State Management
+- [ ] **Task 4: Build reactive state management with Zustand**
+  - Create `src/store/app-store.ts` for global state
+  - Define AppState interface with mode, selectedAgent, etc.
+  - Integrate with existing Ink components
+  - Enable reactive UI updates without prop drilling
+
+### Next Immediate Tasks (4-10)
+- [ ] **Task 5: Create agent context preparation component**
+  - Build `src/components/AgentContext.tsx`
+  - Handle prompt fetching and GRAPHYN.md reading
+  - Prepare combined context for Claude
+  
+- [ ] **Task 6: Implement loading states and progress indicators**
+  - Create reusable loading components
+  - Add smooth animations and progress tracking
+  
+- [ ] **Task 7: Build thread management UI component**
+  - Full CRUD interface for threads
+  - Real-time updates with keyboard shortcuts
+  
+- [ ] **Task 8: Create authentication flow component**
+  - API key input with validation
+  - Secure storage and error handling
+  
+- [ ] **Task 9: Implement error handling and recovery UI**
+  - Error boundaries and retry mechanisms
+  - Graceful fallbacks for all error types
+  
+- [ ] **Task 10: Add keyboard navigation and shortcuts**
+  - Vim-style navigation, global hotkeys
+  - Context-aware shortcuts with help overlay
+
+### Migration Challenges & Solutions
+1. **Terminal/TTY Handling**: Ink requires exclusive terminal control
+   - Solution: Clean exit before launching Claude Code
+   - Fallback: Save context to temp files
+   
+2. **ESM Module System**: Full migration to ES modules
+   - All imports use .js extensions
+   - No __dirname, use import.meta.url
+   
+3. **State Management**: Moving from imperative to reactive
+   - Zustand for global state
+   - React hooks for local state
+
+### Full Task List Reference
+See `/INK_MIGRATION_PLAN.md` for complete 17-task breakdown
+
+---
+
+## 🧠 CLI INTELLIGENCE VIA AGENT CONSUMPTION (NEXT PRIORITY)
 
 ### Core Strategy: Consume Agents, Don't Build Intelligence
 The CLI becomes intelligent by orchestrating Graphyn agents. All intelligence features come from asking agents questions and facilitating their responses.

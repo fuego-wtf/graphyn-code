@@ -20,6 +20,11 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 **Rationale**: Enables parallel agent execution and coordinated responses.
 **Impact**: Better performance, cleaner separation of concerns.
 
+### 2025-01-18: Ink Framework Migration Started
+**Decision**: Migrate from Commander.js to Ink (React for terminals) for modern reactive UI.
+**Rationale**: Better user experience, real-time updates, component reusability.
+**Impact**: Complete rewrite of CLI interface, ESM modules, new architecture patterns.
+
 ### 2025-01-05: Terminal Integration via Temp Files
 **Decision**: Use temporary files for context passing due to Claude Code terminal constraints.
 **Rationale**: Claude Code requires exclusive terminal control, cannot be spawned as child.
@@ -33,11 +38,12 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - Session metadata links related threads
 - Standard error handling across all endpoints
 
-### Terminal Constraints
-- Claude Code uses Ink framework (React for terminals)
-- Requires exclusive raw mode access to stdin
-- Cannot function as child process
-- Solution: Save context to temp files, show manual commands
+### Terminal Constraints (Updated with Ink Migration)
+- Both Claude Code and Graphyn CLI now use Ink framework
+- Ink requires exclusive raw mode access to stdin
+- Cannot have two Ink apps running simultaneously
+- Solution: Exit Graphyn Ink app cleanly before launching Claude Code
+- Fallback: Save context to temp files, show manual commands
 
 ### Multi-Agent Coordination
 - Threads created in parallel for performance
@@ -45,9 +51,16 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - Responses aggregated from multiple SSE streams
 - Session ID tracks related operations
 
-## Current State (Updated 2025-01-07 - Late Evening)
+## Current State (Updated 2025-01-18 - Ink Migration Focus)
 
-### 🎯 DOUBLE MISSION ACCOMPLISHED: Live Backend + Figma MCP Integration Complete! 
+### 🎨 INK FRAMEWORK MIGRATION IN PROGRESS: 3/17 Tasks Complete
+
+### Migration Status
+- ✅ **Task 1: Minimal Ink App** - Created and tested with "Hello Graphyn"
+- ✅ **Task 2: ESM Build Pipeline** - Configured with "type": "module"
+- ✅ **Task 3: Main Menu Component** - Basic MainMenu.tsx implemented
+- 🔄 **Task 4: State Management** - Currently implementing Zustand integration
+- ⏳ **Tasks 5-17** - Remaining UI components and feature migration
 
 ### What's Working (Platform)
 - ✅ **Production Backend** - Encore.dev serving real data (localhost:4000)
@@ -57,7 +70,7 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - ✅ **Real-Time SSE** - Streaming endpoint ready
 - ✅ **Frontend UI** - 95% complete Next.js interface
 
-### What's Working (CLI) - **BREAKTHROUGH UPDATE**
+### What's Working (CLI - Pre-Ink Version)
 - ✅ **Live Backend Integration** - GraphynAPIClient connects to real Encore.dev
 - ✅ **Real Thread Management** - Create, list, show threads from PostgreSQL
 - ✅ **Agent Management System** - List, add, test, remove agents from threads
@@ -67,16 +80,17 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - ✅ **FIGMA MCP INTEGRATION** - Complete prototype-to-code workflow
 - ✅ **Richard's Dream Feature** - `graphyn design <figma-url>` working perfectly
 
-### CLI → Platform Integration **COMPLETE**
-- ✅ **Connected to live backend** - All APIs use real Encore.dev endpoints
-- ✅ **Real thread management** - Actual database operations working
-- ✅ **Live agent integration** - Agent lifecycle management implemented
-- 🔄 **SSE streaming support** - Foundation built, needs completion
+### Ink Migration Challenges
+- 🔴 **Terminal Control Conflicts** - Ink requires exclusive TTY access
+- 🔴 **ESM Module Resolution** - All imports need .js extensions
+- 🔴 **State Management Shift** - Moving from imperative to reactive patterns
+- 🔴 **Claude Code Integration** - Must exit Ink cleanly before launching
 
 ### Blocked/Waiting
-- ⏸️ Direct Claude Code spawning (terminal constraints)
+- ⏸️ Direct Claude Code spawning (Ink terminal constraints)
+- ⏸️ Reactive state management implementation
+- ⏸️ Component migration from Commander.js
 - ⏸️ Windows platform testing
-- ⏸️ Token auto-refresh (expires quickly in development)
 
 ## Team Context (Updated 2025-01-07)
 
@@ -124,23 +138,24 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - Context-aware prompts
 - Multi-agent coordination
 
-## Next Steps (UPDATED PRIORITIES - 2025-01-07 Late Evening)
+## Next Steps (UPDATED PRIORITIES - 2025-01-18 Ink Migration)
 
-### COMPLETED TODAY ✅
-1. ✅ **Connected CLI to live backend** - GraphynAPIClient fully integrated
-2. ✅ **Tested thread management** - Create, list, show working with PostgreSQL
-3. ✅ **Built agent management** - List, add, test, remove agents from threads
-4. ✅ **Real product features** - No demos, actual developer tools
-5. ✅ **Defined intelligence strategy** - CLI consumes agents, doesn't build intelligence
-6. ✅ **Documented agent consumption architecture** - Two-list format with dependencies and sequence
-7. ✅ **Updated all documentation** - GRAPHYN.md, CLAUDE.md, prompts/cli.md aligned
-8. ✅ **Finalized task planning approach** - No dates, clear dependencies, specific implementation steps
+### COMPLETED INK TASKS ✅
+1. ✅ **Task 1: Minimal Ink App** - Basic "Hello Graphyn" app working
+2. ✅ **Task 2: ESM Build Pipeline** - TypeScript compiles to working ESM
+3. ✅ **Task 3: Main Menu Component** - Interactive menu with gradient banner
 
-### IMMEDIATE (Next Session) - Agent Intelligence Integration
-1. **Create agent consumption layer** - CLI asks agents for next steps
-2. **Natural language understanding** - Send commands to agents for interpretation
-3. **Context awareness via agents** - Agents track what user is doing
-4. **Smart suggestions from agents** - "What should I do next?" queries
+### IMMEDIATE (Current Session) - Continue Ink Migration
+1. **Task 4: Zustand State Management** - Create reactive global state
+2. **Task 5: Agent Context Component** - Prepare and display agent contexts
+3. **Task 6: Loading States** - Beautiful progress indicators
+4. **Task 7: Thread Management UI** - Full CRUD interface
+
+### SHORT-TERM (This Week) - Complete Core Migration
+1. **Tasks 8-10: Auth, Error Handling, Keyboard Nav** - Essential UI components
+2. **Tasks 11-12: API Integration & Claude Launch** - Connect to backend
+3. **Tasks 13-14: Command Migration & SSE** - Port all existing features
+4. **Tasks 15-17: Testing, Docs, Release** - Polish and ship
 
 ### SHORT-TERM (This Week) - Enhanced Agent Orchestration
 1. **Multi-agent conversations** - CLI facilitates agent-to-agent communication
@@ -177,4 +192,4 @@ This file evolves with the project. Update it when:
 - Discovering integration patterns
 - Changing team workflows
 
-Last updated: 2025-01-07 Late Evening - Agent Consumption Strategy Finalized
+Last updated: 2025-01-18 - Ink Framework Migration Started (3/17 tasks complete)
