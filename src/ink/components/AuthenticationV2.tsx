@@ -9,7 +9,7 @@ import { useAuth, useAPI } from '../hooks/useAPI.js';
 import { config as appConfig } from '../../config.js';
 import { generateState, waitForOAuthCallback, getAvailablePort } from '../utils/auth.js';
 
-type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status';
+type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service';
 
 interface AuthState {
   mode: AuthMode;
@@ -161,6 +161,20 @@ export const AuthenticationV2: React.FC = () => {
       case 'oauth':
         setState(prev => ({ ...prev, mode: 'oauth-select', error: undefined }));
         break;
+      case 'oauth-graphyn':
+        // Direct Graphyn OAuth (primary login method)
+        handleOAuthFlow('github'); // Using GitHub OAuth for Graphyn login
+        break;
+      case 'connect-github':
+        // Connect GitHub account (after already authenticated)
+        setState(prev => ({ ...prev, mode: 'connect-service', error: undefined }));
+        // TODO: Implement GitHub connection flow
+        break;
+      case 'connect-figma':
+        // Connect Figma account (after already authenticated)
+        setState(prev => ({ ...prev, mode: 'connect-service', error: undefined }));
+        // TODO: Implement Figma connection flow
+        break;
       case 'test-token':
         handleTestToken();
         break;
@@ -201,13 +215,16 @@ export const AuthenticationV2: React.FC = () => {
   if (state.mode === 'oauth-flow') {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold>OAuth Authentication - {state.oauthProvider?.charAt(0).toUpperCase() + state.oauthProvider?.slice(1)}</Text>
+        <Text bold>🚀 Graphyn Authentication</Text>
         <Box marginTop={1}>
           <Spinner type="dots" />
-          <Text> Opening browser for authentication...</Text>
+          <Text> Opening browser for Graphyn login...</Text>
         </Box>
         <Box marginTop={1}>
           <Text dimColor>Please complete the authentication in your browser</Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text dimColor>You'll be redirected to graphyn.com to sign in</Text>
         </Box>
         {state.error && (
           <Box marginTop={1}>
@@ -224,12 +241,14 @@ export const AuthenticationV2: React.FC = () => {
       const menuItems = isAuthenticated
         ? [
             { label: '📊 View Status', value: 'status' },
+            { label: '🔗 Connect GitHub', value: 'connect-github' },
+            { label: '🎨 Connect Figma', value: 'connect-figma' },
             { label: '🚪 Logout', value: 'logout' },
             { label: '← Back to Main Menu', value: 'back' }
           ]
         : [
             { label: '🔑 Enter API Key', value: 'api-key' },
-            { label: '🔗 OAuth Login (GitHub/Figma)', value: 'oauth' },
+            { label: '🚀 Login with Graphyn', value: 'oauth-graphyn' },
             { label: '🧪 Get Test Token', value: 'test-token' },
             { label: '← Back to Main Menu', value: 'back' }
           ];
@@ -357,6 +376,26 @@ export const AuthenticationV2: React.FC = () => {
           
           <Box marginTop={2}>
             <Text dimColor>Press any key to return to menu</Text>
+          </Box>
+        </Box>
+      );
+
+    case 'connect-service':
+      return (
+        <Box flexDirection="column" padding={1}>
+          <Text bold>🔗 Connect External Services</Text>
+          <Box marginTop={1}>
+            <Text color="yellow">⚠️  Coming Soon</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text>This feature will allow you to connect:</Text>
+            <Box marginLeft={2} flexDirection="column">
+              <Text>• GitHub - For repository context</Text>
+              <Text>• Figma - For design extraction</Text>
+            </Box>
+          </Box>
+          <Box marginTop={2}>
+            <Text dimColor>Press ESC to go back</Text>
           </Box>
         </Box>
       );

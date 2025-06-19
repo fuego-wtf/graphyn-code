@@ -1,6 +1,6 @@
 export const config = {
-  // Production API URL - backend deployment pending
-  apiBaseUrl: process.env.GRAPHYN_API_URL || 'http://localhost:4000',
+  // API URL - defaults to production
+  apiBaseUrl: process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz',
   authEndpoint: '/auth/validate',
   agentsEndpoint: '/agents',
   timeout: 30000,

@@ -1,7 +1,7 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.50",
-  "description": "Free AI Development Tool for Claude Code Users",
+  "version": "0.1.50-stable",
+  "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "type": "module",
   "main": "dist/ink/cli.js",
   "bin": {
