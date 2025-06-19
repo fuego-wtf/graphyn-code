@@ -1,13 +1,24 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 
 interface GraphynConfig {
   auth?: {
     token?: string;
+    user?: {
+      email: string;
+      name: string;
+      orgID: string;
+      userID: string;
+    };
   };
   figma?: {
     accessToken?: string;
+    connected?: boolean;
+  };
+  github?: {
+    connected?: boolean;
   };
   api?: {
     baseUrl?: string;
@@ -106,5 +117,16 @@ export class ConfigManager {
 
   async getAuthToken(): Promise<string | undefined> {
     return await this.get('auth.token');
+  }
+
+  getAuthTokenSync(): string | undefined {
+    // Synchronous version for components that need immediate access
+    try {
+      const data = fsSync.readFileSync(this.configPath, 'utf-8');
+      const config = JSON.parse(data);
+      return config?.auth?.token;
+    } catch {
+      return undefined;
+    }
   }
 }

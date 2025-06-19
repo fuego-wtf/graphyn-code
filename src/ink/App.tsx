@@ -5,6 +5,8 @@ import { AgentContext } from './components/AgentContext.js';
 import { Loading } from './components/Loading.js';
 import { Init } from './components/Init.js';
 import { ThreadManagement } from './components/ThreadManagement.js';
+import { Authentication } from './components/Authentication.js';
+import { Doctor } from './components/Doctor.js';
 import { useStore } from './store.js';
 
 interface AppProps {
@@ -125,26 +127,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       return <ThreadManagement />;
     
     case 'auth':
-      return (
-        <Box flexDirection="column" padding={1}>
-          <Text bold>Authentication</Text>
-          <Text color="gray">Coming soon...</Text>
-          <Box marginTop={1}>
-            <Text dimColor>Press ESC to return to menu</Text>
-          </Box>
-        </Box>
-      );
+      return <Authentication />;
     
     case 'doctor':
-      return (
-        <Box flexDirection="column" padding={1}>
-          <Text bold>System Check</Text>
-          <Text color="gray">Coming soon...</Text>
-          <Box marginTop={1}>
-            <Text dimColor>Press ESC to return to menu</Text>
-          </Box>
-        </Box>
-      );
+      return <Doctor />;
     
     default:
       return null;
