@@ -10,7 +10,7 @@ import { ThreadManagementV2 } from './components/ThreadManagementV2.js';
 import { Authentication } from './components/Authentication.js';
 import { AuthenticationV2 } from './components/AuthenticationV2.js';
 import { Doctor } from './components/Doctor.js';
-import { useStore } from './store.js';
+import { useStore, AppMode } from './store.js';
 
 interface AppProps {
   command?: string;
@@ -46,6 +46,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
   useEffect(() => {
     if (command === 'init') {
       setMode('init');
+    } else if (command === 'share' && query === 'agent') {
+      setMode('share');
+    } else if (command === 'sync' && query) {
+      setMode('sync');
     } else if (command && query) {
       const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
       // Normalize command to lowercase to handle case-insensitive inputs
@@ -61,9 +65,25 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         exit();
       }
     } else if (command && !query) {
-      // Command without query (not init)
-      const validCommands = ['backend', 'frontend', 'architect', 'design', 'cli', 'threads', 'auth', 'doctor'];
-      if (!validCommands.includes(command)) {
+      // Command without query
+      const directCommands: Record<string, AppMode> = {
+        'threads': 'threads',
+        'auth': 'auth',
+        'doctor': 'doctor',
+        'status': 'status',
+        'history': 'history',
+        'whoami': 'auth',
+        'logout': 'auth'
+      };
+      
+      if (directCommands[command]) {
+        setMode(directCommands[command]);
+      } else if (['backend', 'frontend', 'architect', 'design', 'cli'].includes(command)) {
+        // Agent without query - interactive mode
+        console.error(`Agent command requires a query: graphyn ${command} <query>`);
+        console.error('Or run "graphyn" for interactive mode');
+        exit();
+      } else {
         console.error(`Unknown command: ${command}`);
         console.error('Run "graphyn --help" for usage information');
         exit();

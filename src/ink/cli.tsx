@@ -34,13 +34,20 @@ Graphyn Code - AI Development Tool for Claude Code
 
 Usage:
   graphyn                        Interactive mode
-  graphyn init                   Initialize Graphyn in your project
+  graphyn init                   Initialize GRAPHYN.md in your project
   graphyn <agent> <query>        Direct agent query
   graphyn design <figma-url>     Generate pixel-perfect components
-  graphyn share agent            Share agent with your team
-  graphyn threads                Manage threads
-  graphyn auth [key]             Authenticate
-  graphyn doctor                 System check
+  
+Commands:
+  graphyn threads                Manage conversation threads
+  graphyn auth [key]             Authenticate with API key
+  graphyn doctor                 System health check
+  graphyn status                 Show project status
+  graphyn history                View recent interactions
+  graphyn share agent            Share agent with team
+  graphyn sync <action>          Sync GRAPHYN.md (pull|push|edit)
+  graphyn whoami                 Show authentication status
+  graphyn logout                 Remove authentication
 
 Agents:
   backend (b)                    Backend development agent
@@ -54,11 +61,11 @@ Options:
   -h, --help                     Show help
 
 Examples:
-  graphyn init
-  graphyn design figma.com/file/xyz/Button
-  graphyn backend "add user authentication"
-  graphyn frontend "create dashboard"
-  graphyn auth gph_xxxxx
+  graphyn init                   Initialize project documentation
+  graphyn design figma.com/...   Extract Figma component
+  graphyn backend "add auth"     Query backend agent
+  graphyn threads                Manage active threads
+  graphyn sync pull              Get latest GRAPHYN.md template
 `);
   process.exit(0);
 }

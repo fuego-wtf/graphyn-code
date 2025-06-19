@@ -19,6 +19,11 @@ const menuItems = [
   { label: '🔐 Authentication', value: 'auth' },
   { label: '🩺 Doctor', value: 'doctor' },
   { label: '─────────────────', value: 'separator2' },
+  { label: '📊 Project Status', value: 'status' },
+  { label: '🔄 Sync GRAPHYN.md', value: 'sync' },
+  { label: '📜 History', value: 'history' },
+  { label: '🚀 Share Agent', value: 'share' },
+  { label: '─────────────────', value: 'separator3' },
   { label: '❌ Exit', value: 'exit' },
 ];
 
