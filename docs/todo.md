@@ -2,46 +2,51 @@
 
 ## 🎨 INK FRAMEWORK MIGRATION (TOP PRIORITY - January 2025)
 
-### Current Status: Tasks 1-3 of 17 Completed ✅
+### Current Status: Tasks 1-10 of 17 Completed ✅
 We're migrating from Commander.js to Ink (React for terminals) for a modern, reactive CLI experience.
 
 ### Completed Tasks
 - ✅ Task 1: Created minimal Ink app that displays 'Hello Graphyn' and exits
 - ✅ Task 2: Set up ESM-compatible build pipeline (package.json has "type": "module")
 - ✅ Task 3: Created main menu component with agent selection (MainMenu.tsx exists)
+- ✅ Task 4: Built reactive state management with Zustand
+- ✅ Task 5: Created agent context preparation component
+- ✅ Task 6: Implemented loading states and progress indicators
+- ✅ Task 7: Fixed TTY/terminal issues for deployment
+- ✅ Task 8: Created production build script
+- ✅ Task 9: Tested npm package locally - all tests passing
+- ✅ Task 10: Handled Claude Code launching strategy with fallback
 
-### Current Focus: Task 4 - Reactive State Management
-- [ ] **Task 4: Build reactive state management with Zustand**
-  - Create `src/store/app-store.ts` for global state
-  - Define AppState interface with mode, selectedAgent, etc.
-  - Integrate with existing Ink components
-  - Enable reactive UI updates without prop drilling
-
-### Next Immediate Tasks (4-10)
-- [ ] **Task 5: Create agent context preparation component**
-  - Build `src/components/AgentContext.tsx`
-  - Handle prompt fetching and GRAPHYN.md reading
-  - Prepare combined context for Claude
+### Current Focus: Release Version 0.2.0
+- [ ] **Task 11: Publish version 0.2.0 to npm**
+  - Package built and tested successfully
+  - Ready for npm publish
   
-- [ ] **Task 6: Implement loading states and progress indicators**
-  - Create reusable loading components
-  - Add smooth animations and progress tracking
-  
-- [ ] **Task 7: Build thread management UI component**
+### Next Immediate Tasks (11-17)
+- [ ] **Task 12: Build thread management UI component**
   - Full CRUD interface for threads
   - Real-time updates with keyboard shortcuts
   
-- [ ] **Task 8: Create authentication flow component**
+- [ ] **Task 13: Create authentication flow component**
   - API key input with validation
   - Secure storage and error handling
   
-- [ ] **Task 9: Implement error handling and recovery UI**
+- [ ] **Task 14: Integrate API client for backend communication**
+  - Connect to live Encore.dev backend
+  - Replace mock implementations
+  
+- [ ] **Task 15: Implement error handling and recovery UI**
   - Error boundaries and retry mechanisms
   - Graceful fallbacks for all error types
   
-- [ ] **Task 10: Add keyboard navigation and shortcuts**
+- [ ] **Task 16: Add keyboard navigation and shortcuts**
   - Vim-style navigation, global hotkeys
   - Context-aware shortcuts with help overlay
+  
+- [ ] **Task 17: Create doctor command with system diagnostics**
+  - Check Claude Code installation
+  - Verify API connectivity
+  - Display configuration status
 
 ### Migration Challenges & Solutions
 1. **Terminal/TTY Handling**: Ink requires exclusive terminal control

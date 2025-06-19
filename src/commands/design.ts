@@ -5,11 +5,14 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
-import { FigmaAPIClient, ImplementationTask } from '../figma-api';
-import { GraphynLogger } from '../logger';
-import { colors, createSuccessBox, createErrorBox, createTipBox } from '../ui';
-import { FigmaOAuthManager } from '../figma-oauth';
-import { findClaude, getInstallInstructions } from '../utils/claude-detector';
+import { FigmaAPIClient, ImplementationTask } from '../figma-api.js';
+import { GraphynLogger } from '../logger.js';
+import { colors, createSuccessBox, createErrorBox, createTipBox } from '../ui.js';
+import { FigmaOAuthManager } from '../figma-oauth.js';
+import { findClaude, getInstallInstructions } from '../utils/claude-detector.js';
+import { GraphynAPIClient } from '../api-client.js';
+import { ConfigManager } from '../config-manager.js';
+import { config as appConfig } from '../config.js';
 
 export function createDesignCommand(): Command {
   const command = new Command('design');
@@ -62,6 +65,21 @@ async function handleDesignCommand(url: string, options: any) {
     if (!token) {
       spinner.fail('Failed to get valid Figma token');
       console.log(colors.error('Please re-authenticate with: graphyn design auth'));
+      return;
+    }
+    
+    // Initialize API client and check auth
+    const apiClient = new GraphynAPIClient(appConfig.apiBaseUrl);
+    await apiClient.initialize();
+    
+    // Check if user has auth token
+    const configManager = new ConfigManager();
+    const authToken = await configManager.getAuthToken();
+    
+    if (!authToken) {
+      spinner.fail('Graphyn authentication required');
+      console.log(colors.info('\nTo use Graphyn design features, you need to authenticate:'));
+      console.log(colors.primary('Run: graphyn init'));
       return;
     }
     
@@ -120,6 +138,24 @@ async function handleDesignCommand(url: string, options: any) {
     
     spinner.text = 'Building implementation plan...';
     const plan = figmaClient.generateImplementationPlan(prototype);
+    
+    // Call extraction API
+    spinner.text = 'Extracting design data...';
+    try {
+      const extractionResponse = await apiClient.post('/api/v1/design/extract', {
+        figmaUrl: url,
+        figmaToken: token,
+        framework: options.framework
+      });
+      
+      // Merge extraction data with prototype analysis
+      if (extractionResponse.data) {
+        prototype.extractedData = extractionResponse.data;
+        console.log(colors.success('✓ Design data extracted successfully'));
+      }
+    } catch (error: any) {
+      console.log(colors.warning('⚠️  Could not extract additional design data: ' + error.message));
+    }
     
     spinner.succeed(`Found ${prototype.totalScreens} screens with ${prototype.totalComponents} components!`);
     
@@ -207,6 +243,21 @@ async function handleDesignCommand(url: string, options: any) {
       return;
     }
     
+    // Check subscription status
+    spinner.start('Checking subscription status...');
+    try {
+      const subscriptionStatus = await apiClient.get('/api/v1/billing/status');
+      if (!subscriptionStatus.active) {
+        spinner.fail('Active subscription required');
+        console.log(colors.info('\n🚀 Subscribe to Graphyn Ultra ($39/month) to generate code:'));
+        console.log(colors.primary('Visit: https://graphyn.com/subscribe'));
+        return;
+      }
+      spinner.succeed('Subscription active');
+    } catch (error) {
+      spinner.warn('Could not verify subscription');
+    }
+    
     // Collect comprehensive sitemap information
     console.log('\n📍 ' + colors.bold('Project Context'));
     console.log(colors.dim('─'.repeat(50)));
@@ -228,6 +279,38 @@ async function handleDesignCommand(url: string, options: any) {
     
     // Generate context for Claude
     const context = generateClaudeContext(url, prototype, plan, options.framework, sitemapResponse, semanticAnalysis, visualLearning);
+    
+    // Generate code via API
+    spinner.start('Generating component code...');
+    let generatedCode = null;
+    try {
+      const generationResponse = await apiClient.post('/api/v1/design/generate', {
+        figmaUrl: url,
+        framework: options.framework,
+        prototype: prototype,
+        extractedData: prototype.extractedData || {},
+        projectContext: sitemapResponse.projectContext
+      });
+      
+      if (generationResponse.code) {
+        generatedCode = generationResponse.code;
+        spinner.succeed('Component code generated successfully');
+        
+        // Save generated code
+        const codeDir = path.join(process.cwd(), 'generated');
+        await fs.mkdir(codeDir, { recursive: true });
+        
+        for (const [filename, content] of Object.entries(generatedCode)) {
+          const filepath = path.join(codeDir, filename);
+          await fs.writeFile(filepath, content as string, 'utf-8');
+        }
+        
+        console.log(colors.success(`✓ Generated code saved to ./generated/`));
+      }
+    } catch (error: any) {
+      spinner.warn('Could not generate code automatically: ' + error.message);
+      console.log(colors.info('💡 You can still use Claude Code to implement manually'));
+    }
     
     // Save context
     const contextPath = await saveContext(context, 'design');

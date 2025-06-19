@@ -1,4 +1,5 @@
-import { EventSource } from 'eventsource';
+import EventSource from 'eventsource';
+import { ConfigManager } from './config-manager.js';
 
 export interface Thread {
   id: string;
@@ -31,12 +32,59 @@ export interface CreateThreadRequest {
   type: 'testing' | 'builder';
 }
 
+export interface Agent {
+  id: string;
+  name: string;
+  description: string;
+  applicablePaths?: string[];
+  created_by: string;
+  shared: boolean;
+  configuration?: {
+    prompt?: string;
+    tools?: string[];
+    context?: Record<string, any>;
+  };
+  organization_id?: string;
+  team_id?: string;
+}
+
+export interface AgentAvailableResponse {
+  agents: Agent[];
+  suggestedMappings?: Record<string, string[]>;
+}
+
+export interface CreateAgentRequest {
+  name: string;
+  description: string;
+  applicablePaths?: string[];
+  configuration: {
+    prompt?: string;
+    tools?: string[];
+    context?: Record<string, any>;
+  };
+}
+
+export interface RepositoryContext {
+  url?: string;
+  path?: string;
+  type?: 'monorepo' | 'single' | 'unknown';
+  framework?: string;
+  language?: string;
+}
+
 export class GraphynAPIClient {
   private baseUrl: string;
   private token?: string;
+  private configManager: ConfigManager;
 
   constructor(baseUrl: string = 'http://localhost:4000') {
     this.baseUrl = baseUrl;
+    this.configManager = new ConfigManager();
+  }
+
+  async initialize(): Promise<void> {
+    // Load token from config if available
+    this.token = await this.configManager.getAuthToken();
   }
 
   setToken(token: string) {
@@ -130,6 +178,93 @@ export class GraphynAPIClient {
   // Health Check
   async ping(): Promise<{ status: string }> {
     return this.request<{ status: string }>('/ping');
+  }
+
+  // Generic POST method for custom endpoints
+  async post<T>(endpoint: string, data: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Generic GET method for custom endpoints
+  async get<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'GET',
+    });
+  }
+
+  // Generic DELETE method for custom endpoints
+  async delete<T = void>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+    });
+  }
+
+  // Agent Management
+  async getAvailableAgents(context?: RepositoryContext): Promise<Agent[]> {
+    let endpoint = '/api/agents/available';
+    const params = new URLSearchParams();
+    
+    if (context?.url) params.append('repoUrl', context.url);
+    if (context?.path) params.append('path', context.path);
+    if (context?.type) params.append('type', context.type);
+    
+    const queryString = params.toString();
+    if (queryString) {
+      endpoint += `?${queryString}`;
+    }
+    
+    const response = await this.request<AgentAvailableResponse>(endpoint);
+    return response.agents;
+  }
+
+  async listAgents(): Promise<Agent[]> {
+    const response = await this.request<{ agents: Agent[] }>('/api/agents');
+    return response.agents;
+  }
+
+  async getAgent(agentId: string): Promise<Agent> {
+    const response = await this.request<{ agent: Agent }>(`/api/agents/${agentId}`);
+    return response.agent;
+  }
+
+  async createAgent(data: CreateAgentRequest): Promise<Agent> {
+    const response = await this.request<{ agent: Agent }>('/api/agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.agent;
+  }
+
+  async updateAgent(agentId: string, data: Partial<CreateAgentRequest>): Promise<Agent> {
+    const response = await this.request<{ agent: Agent }>(`/api/agents/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.agent;
+  }
+
+  async deleteAgent(agentId: string): Promise<void> {
+    await this.request<void>(`/api/agents/${agentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async shareAgent(agentId: string, shareWith: 'team' | 'organization'): Promise<{ shareUrl: string }> {
+    return this.request<{ shareUrl: string }>(`/api/agents/${agentId}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ shareWith }),
+    });
+  }
+
+  async learnAgentPatterns(agentId: string, patterns: Record<string, any>): Promise<Agent> {
+    const response = await this.request<{ agent: Agent }>(`/api/agents/${agentId}/learn`, {
+      method: 'POST',
+      body: JSON.stringify({ patterns }),
+    });
+    return response.agent;
   }
 }
 

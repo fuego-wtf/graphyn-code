@@ -3,6 +3,9 @@ import path from 'path';
 import os from 'os';
 
 interface GraphynConfig {
+  auth?: {
+    token?: string;
+  };
   figma?: {
     accessToken?: string;
   };
@@ -95,5 +98,13 @@ export class ConfigManager {
   async getAll(): Promise<GraphynConfig> {
     await this.load();
     return { ...this.config };
+  }
+
+  async setAuthToken(token: string): Promise<void> {
+    await this.set('auth.token', token);
+  }
+
+  async getAuthToken(): Promise<string | undefined> {
+    return await this.get('auth.token');
   }
 }

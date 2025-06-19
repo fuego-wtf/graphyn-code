@@ -1,69 +1,116 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+// Wrap entire script in try-catch to prevent npm install failures
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
 
-// Simple color codes without external dependencies
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  green: '\x1b[32m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m',
-  yellow: '\x1b[33m'
-};
+  // Check if running in CI or minimal environment
+  const isCI = process.env.CI || process.env.CONTINUOUS_INTEGRATION;
+  const isMinimal = process.env.GRAPHYN_MINIMAL_INSTALL;
+  
+  if (isCI || isMinimal) {
+    console.log('Graphyn Code: Skipping postinstall in CI/minimal environment');
+    process.exit(0);
+  }
 
-console.log(`
+  // Simple color codes without external dependencies
+  const colors = {
+    reset: '\x1b[0m',
+    bright: '\x1b[1m',
+    green: '\x1b[32m',
+    blue: '\x1b[34m',
+    cyan: '\x1b[36m',
+    yellow: '\x1b[33m'
+  };
+  
+  // Check if colors are supported
+  const supportsColor = process.stdout.isTTY && process.platform !== 'win32';
+
+  const c = supportsColor ? colors : {
+    reset: '',
+    bright: '',
+    green: '',
+    blue: '',
+    cyan: '',
+    yellow: ''
+  };
+
+  console.log(`
 ═══════════════════════════════════════════════════════════
-🎉 ${colors.green}${colors.bright}Graphyn Code installed successfully!${colors.reset}
+🎉 ${c.green}${c.bright}Graphyn Code installed successfully!${c.reset}
 ═══════════════════════════════════════════════════════════
 
 ✓ Installation complete
 
-🚀 ${colors.bright}Quick Start:${colors.reset}
-  1. Get your FREE API key: ${colors.cyan}https://graphyn.xyz/code${colors.reset}
-  2. Authenticate: ${colors.yellow}graphyn auth gph_xxxxxxxxxxxx${colors.reset}
-  3. Start coding: ${colors.yellow}graphyn frontend "build a dashboard"${colors.reset}
+🚀 ${c.bright}Quick Start:${c.reset}
+  1. Initialize your project: ${c.yellow}graphyn init${c.reset}
+  2. Generate from Figma: ${c.yellow}graphyn design <figma-url>${c.reset}
+  3. Share with team: ${c.yellow}graphyn share agent${c.reset}
 
-📚 ${colors.bright}Commands:${colors.reset}
-  ${colors.yellow}graphyn backend <query>${colors.reset}    Query backend agent
-  ${colors.yellow}graphyn frontend <query>${colors.reset}   Query frontend agent
-  ${colors.yellow}graphyn architect <query>${colors.reset}  Query architect agent
-  ${colors.yellow}graphyn chain <query>${colors.reset}      Chain all agents
-  ${colors.yellow}graphyn init${colors.reset}               Initialize GRAPHYN.md
-  ${colors.yellow}graphyn status${colors.reset}             Check customization status
-  ${colors.yellow}graphyn --help${colors.reset}             Show all commands
+📚 ${c.bright}Commands:${c.reset}
+  ${c.yellow}graphyn init${c.reset}               Set up Graphyn in your project
+  ${c.yellow}graphyn design <url>${c.reset}       Generate pixel-perfect components
+  ${c.yellow}graphyn backend <query>${c.reset}    Query backend agent
+  ${c.yellow}graphyn frontend <query>${c.reset}   Query frontend agent
+  ${c.yellow}graphyn architect <query>${c.reset}  Query architect agent
+  ${c.yellow}graphyn --help${c.reset}             Show all commands
 
-🔗 ${colors.bright}Resources:${colors.reset}
-  Documentation: ${colors.cyan}https://graphyn.xyz/code/docs${colors.reset}
-  GitHub: ${colors.cyan}https://github.com/graphyn-xyz/graphyn-code${colors.reset}
-  Support: ${colors.cyan}support@graphyn.xyz${colors.reset}
+💰 ${c.bright}Graphyn Ultra - $39/month:${c.reset}
+  • Unlimited Figma extractions
+  • Unlimited organizations
+  • Team agent sharing
+  • AI that learns your patterns
 
-${colors.green}${colors.bright}Happy coding with AI! 🚀${colors.reset}
+🔗 ${c.bright}Resources:${c.reset}
+  Website: ${c.cyan}https://graphyn.com${c.reset}
+  Documentation: ${c.cyan}https://graphyn.com/docs${c.reset}
+  Support: ${c.cyan}support@graphyn.com${c.reset}
+
+${c.green}${c.bright}Start with: graphyn init 🚀${c.reset}
 `);
 
-// Create .graphyn directory
-const graphynDir = path.join(os.homedir(), '.graphyn');
-const dirs = [
-  graphynDir,
-  path.join(graphynDir, 'prompts'),
-  path.join(graphynDir, 'templates'),
-  path.join(graphynDir, 'cache'),
-  path.join(graphynDir, 'sessions'),
-  path.join(graphynDir, 'history')
-];
+  // Create .graphyn directory with error handling
+  try {
+    const graphynDir = path.join(os.homedir(), '.graphyn');
+    const dirs = [
+      graphynDir,
+      path.join(graphynDir, 'prompts'),
+      path.join(graphynDir, 'templates'),
+      path.join(graphynDir, 'cache'),
+      path.join(graphynDir, 'sessions'),
+      path.join(graphynDir, 'history'),
+      path.join(graphynDir, 'contexts'),
+      path.join(graphynDir, 'agents')
+    ];
 
-dirs.forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    dirs.forEach(dir => {
+      try {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+      } catch (e) {
+        // Silently fail - user might not have permissions
+      }
+    });
+
+    // Copy template files if they don't exist
+    const templateSource = path.join(__dirname, '..', 'templates', 'GRAPHYN.md');
+    const templateDest = path.join(graphynDir, 'templates', 'GRAPHYN.md');
+
+    if (fs.existsSync(templateSource) && !fs.existsSync(templateDest)) {
+      try {
+        fs.copyFileSync(templateSource, templateDest);
+      } catch (e) {
+        // Silently fail
+      }
+    }
+  } catch (e) {
+    // Directory creation failed - not critical
   }
-});
 
-// Copy template files if they don't exist
-const templateSource = path.join(__dirname, '..', 'templates', 'GRAPHYN.md');
-const templateDest = path.join(graphynDir, 'templates', 'GRAPHYN.md');
-
-if (fs.existsSync(templateSource) && !fs.existsSync(templateDest)) {
-  fs.copyFileSync(templateSource, templateDest);
+} catch (error) {
+  // Silently exit - don't break npm install
+  process.exit(0);
 }

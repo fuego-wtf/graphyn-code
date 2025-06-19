@@ -1,7 +1,9 @@
-import { commandExists } from 'command-exists';
+import commandExistsLib from 'command-exists';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+
+const { commandExists } = commandExistsLib as any;
 
 export interface ClaudeDetectionResult {
   found: boolean;

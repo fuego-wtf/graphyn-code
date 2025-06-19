@@ -30,20 +30,35 @@ Check your setup: `graphyn doctor`
 ## Quick Start
 
 ```bash
-# First run triggers automatic setup
-graphyn
+# Initialize Graphyn with OAuth authentication
+graphyn init
 
 # Use specialized AI agents
 graphyn backend "design a REST API for user auth"
 graphyn frontend "create a dashboard with charts" 
 graphyn architect "review my database schema"
-graphyn design <figma-url>  # Convert Figma to code
+graphyn design <figma-url>  # Convert Figma to pixel-perfect code
 
 # Check your setup anytime
 graphyn doctor
+```
 
-# Reconfigure if needed
-graphyn setup
+### 🚀 New in v0.1.50: OAuth Integration
+
+Graphyn now integrates with your GitHub and Figma accounts for enhanced context:
+
+```bash
+# First-time setup with OAuth
+graphyn init
+# → Connects to GitHub for repository context
+# → Connects to Figma for design extraction
+# → Stores secure JWT tokens locally
+
+# Extract designs from Figma (requires auth)
+graphyn design https://figma.com/file/your-design
+# → Analyzes Figma prototype
+# → Generates pixel-perfect React/Vue components
+# → Saves to ./generated/ directory
 ```
 
 ## The Philosophy
