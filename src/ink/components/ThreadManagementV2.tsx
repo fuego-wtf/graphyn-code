@@ -6,6 +6,8 @@ import Spinner from 'ink-spinner';
 import { useStore } from '../store.js';
 import { useThreads, useParticipants } from '../hooks/useAPI.js';
 import { ThreadStream } from './ThreadStream.js';
+import { useErrorHandler } from '../hooks/useErrorHandler.js';
+import { ErrorFallback } from './ErrorFallback.js';
 
 type ViewMode = 'list' | 'create' | 'view' | 'participants' | 'stream';
 type SubMode = 'view' | 'add' | 'remove';
@@ -28,6 +30,7 @@ export const ThreadManagementV2: React.FC = () => {
   const [subMode, setSubMode] = useState<SubMode>('view');
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
   const [newThreadName, setNewThreadName] = useState('');
+  const { error: errorState, handleError, clearError } = useErrorHandler();
   const [newThreadDescription, setNewThreadDescription] = useState('');
 
   // Use API hooks
@@ -399,4 +402,15 @@ export const ThreadManagementV2: React.FC = () => {
     default:
       return null;
   }
+};
+
+// Export wrapped component with error boundary
+export const ThreadManagementV2WithErrorBoundary: React.FC = () => {
+  const { error, clearError } = useErrorHandler();
+  
+  if (error) {
+    return <ErrorFallback error={error} resetError={clearError} />;
+  }
+  
+  return <ThreadManagementV2 />;
 };

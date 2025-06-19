@@ -85,21 +85,39 @@ if (!process.stdin.isTTY && !process.env.FORCE_COLOR) {
     process.exit(0);
   });
 } else {
-  // Render the Ink app with API Provider
-  const { unmount } = render(
-    <APIProvider>
-      <App command={normalizedCommand} query={query} />
-    </APIProvider>
-  );
+  // Render the Ink app with API Provider and error handling
+  try {
+    const { unmount } = render(
+      <APIProvider>
+        <App command={normalizedCommand} query={query} />
+      </APIProvider>
+    );
 
-  // Handle process termination
-  process.on('SIGINT', () => {
-    unmount();
-    process.exit(0);
-  });
+    // Handle process termination
+    process.on('SIGINT', () => {
+      unmount();
+      process.exit(0);
+    });
 
-  process.on('SIGTERM', () => {
-    unmount();
-    process.exit(0);
-  });
+    process.on('SIGTERM', () => {
+      unmount();
+      process.exit(0);
+    });
+
+    // Handle uncaught errors
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught error:', error.message);
+      unmount();
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled rejection at:', promise, 'reason:', reason);
+      unmount();
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('Failed to start application:', error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
 }

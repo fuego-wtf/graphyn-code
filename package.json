@@ -12,6 +12,10 @@
     "build:ink": "tsc --module ESNext --target ES2022 --jsx react --esModuleInterop --skipLibCheck --moduleResolution bundler --outDir dist",
     "dev": "tsx src/ink/cli.tsx",
     "dev:minimal": "tsx src/minimal-app.tsx",
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
     "test:package": "./scripts/test-package-enhanced.sh",
     "validate": "node scripts/validate-package.cjs",
     "prepublishOnly": "npm run test:package && npm run build",
@@ -68,9 +72,12 @@
     "@types/figlet": "^1.7.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "ink-testing-library": "^3.0.0",
     "ts-node": "^10.9.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^1.2.0"
   },
   "files": [
     "dist",

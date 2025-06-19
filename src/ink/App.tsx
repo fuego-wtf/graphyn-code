@@ -16,6 +16,9 @@ import { Status } from './components/Status.js';
 import { Sync } from './components/Sync.js';
 import { Monitor } from './components/Monitor.js';
 import { AgentCollaboration } from './components/AgentCollaboration.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { ErrorFallback } from './components/ErrorFallback.js';
+import { useErrorHandler } from './hooks/useErrorHandler.js';
 import { useStore, AppMode } from './store.js';
 
 interface AppProps {
@@ -36,6 +39,7 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     setQuery,
     reset
   } = useStore();
+  const { handleError, clearError } = useErrorHandler();
 
   // Handle keyboard input - only if TTY available
   useInput((input, key) => {
@@ -44,6 +48,13 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     }
     
     if (key.escape && mode !== 'menu') {
+      reset();
+      clearError();
+    }
+
+    // Add R key for retry when error is shown
+    if (input === 'r' && error) {
+      clearError();
       reset();
     }
   }, { isActive: process.stdin.isTTY });
@@ -141,27 +152,63 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     );
   }
 
-  // Mode-based rendering
-  switch (mode) {
-    case 'menu':
-      return <MainMenu onSelect={handleMenuSelect} />;
-    
-    case 'init':
-      return <Init />;
-    
-    case 'agent':
-      return <AgentContextV2 agent={selectedAgent} query={query} />;
-    
-    case 'threads':
-      return <ThreadManagementV2 />;
-    
-    case 'auth':
-      return <AuthenticationV2 />;
-    
-    case 'doctor':
-      return <Doctor />;
-    
-    default:
-      return null;
-  }
+  // Mode-based rendering with error boundary
+  const renderContent = () => {
+    switch (mode) {
+      case 'menu':
+        return <MainMenu onSelect={handleMenuSelect} />;
+      
+      case 'init':
+        return <Init />;
+      
+      case 'agent':
+        return <AgentContextV2 agent={selectedAgent} query={query} />;
+      
+      case 'threads':
+        return <ThreadManagementV2 />;
+      
+      case 'auth':
+        return <AuthenticationV2 />;
+      
+      case 'doctor':
+        return <Doctor />;
+        
+      case 'share':
+        return <ShareAgent />;
+        
+      case 'history':
+        return <History />;
+        
+      case 'status':
+        return <Status />;
+        
+      case 'sync':
+        return <Sync />;
+        
+      case 'monitor':
+        return <Monitor />;
+        
+      case 'collaborate':
+        return <AgentCollaboration query={query || ''} agents={['backend', 'frontend', 'architect']} />;
+      
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <ErrorBoundary 
+      fallback={
+        <ErrorFallback 
+          error={new Error('Application crashed')} 
+          resetError={() => {
+            clearError();
+            reset();
+          }}
+        />
+      }
+    >
+      {renderContent()}
+    </ErrorBoundary>
+  );
 };
