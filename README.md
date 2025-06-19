@@ -5,6 +5,8 @@
 [![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+🎨 **NEW**: Beautiful interactive CLI with real-time updates, powered by React!
+
 ## Why Graphyn?
 
 We believe AI assistants should understand your project deeply—not just respond to prompts. Graphyn gives Claude Code specialized agents that know your stack, follow your standards, and evolve with your codebase.
@@ -33,7 +35,10 @@ Check your setup: `graphyn doctor`
 # Initialize Graphyn with OAuth authentication
 graphyn init
 
-# Use specialized AI agents
+# Launch beautiful interactive mode
+graphyn
+
+# Or use specialized AI agents directly
 graphyn backend "design a REST API for user auth"
 graphyn frontend "create a dashboard with charts" 
 graphyn architect "review my database schema"
