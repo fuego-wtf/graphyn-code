@@ -77,6 +77,11 @@ export class GraphynAPIClient {
   private token?: string;
   private configManager: ConfigManager;
 
+  // Getter for token (read-only)
+  get currentToken(): string | undefined {
+    return this.token;
+  }
+
   constructor(baseUrl: string = 'http://localhost:4000') {
     this.baseUrl = baseUrl;
     this.configManager = new ConfigManager();

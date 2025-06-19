@@ -2,10 +2,13 @@ import React, { useEffect } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MainMenu } from './components/MainMenu.js';
 import { AgentContext } from './components/AgentContext.js';
+import { AgentContextV2 } from './components/AgentContextV2.js';
 import { Loading } from './components/Loading.js';
 import { Init } from './components/Init.js';
 import { ThreadManagement } from './components/ThreadManagement.js';
+import { ThreadManagementV2 } from './components/ThreadManagementV2.js';
 import { Authentication } from './components/Authentication.js';
+import { AuthenticationV2 } from './components/AuthenticationV2.js';
 import { Doctor } from './components/Doctor.js';
 import { useStore } from './store.js';
 
@@ -121,13 +124,13 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       return <Init />;
     
     case 'agent':
-      return <AgentContext agent={selectedAgent} query={query} />;
+      return <AgentContextV2 agent={selectedAgent} query={query} />;
     
     case 'threads':
-      return <ThreadManagement />;
+      return <ThreadManagementV2 />;
     
     case 'auth':
-      return <Authentication />;
+      return <AuthenticationV2 />;
     
     case 'doctor':
       return <Doctor />;

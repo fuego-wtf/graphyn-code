@@ -2,6 +2,7 @@
 import React from 'react';
 import { render } from 'ink';
 import { App } from './App.js';
+import { APIProvider } from './contexts/APIContext.js';
 
 // Parse command line arguments
 const [, , rawCommand, ...args] = process.argv;
@@ -77,8 +78,12 @@ if (!process.stdin.isTTY && !process.env.FORCE_COLOR) {
     process.exit(0);
   });
 } else {
-  // Render the Ink app
-  const { unmount } = render(<App command={normalizedCommand} query={query} />);
+  // Render the Ink app with API Provider
+  const { unmount } = render(
+    <APIProvider>
+      <App command={normalizedCommand} query={query} />
+    </APIProvider>
+  );
 
   // Handle process termination
   process.on('SIGINT', () => {
