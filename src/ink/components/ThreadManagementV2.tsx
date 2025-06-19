@@ -5,8 +5,9 @@ import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
 import { useStore } from '../store.js';
 import { useThreads, useParticipants } from '../hooks/useAPI.js';
+import { ThreadStream } from './ThreadStream.js';
 
-type ViewMode = 'list' | 'create' | 'view' | 'participants';
+type ViewMode = 'list' | 'create' | 'view' | 'participants' | 'stream';
 type SubMode = 'view' | 'add' | 'remove';
 
 // Use Thread from API client and extend if needed
@@ -230,14 +231,16 @@ export const ThreadManagementV2: React.FC = () => {
           <Box marginTop={2}>
             <SelectInput
               items={[
+                { label: '💬 Open Conversation', value: 'stream' },
                 { label: '👥 Manage Participants', value: 'participants' },
-                { label: '🗨️  View Messages (coming soon)', value: 'messages' },
                 { label: '⚙️  Thread Settings (coming soon)', value: 'settings' },
                 { label: '🗑️  Delete Thread', value: 'delete' },
                 { label: '← Back to List', value: 'back' }
               ]}
               onSelect={async (item) => {
-                if (item.value === 'participants') {
+                if (item.value === 'stream') {
+                  setMode('stream');
+                } else if (item.value === 'participants') {
                   setMode('participants');
                 } else if (item.value === 'back') {
                   setMode('list');
@@ -388,6 +391,10 @@ export const ThreadManagementV2: React.FC = () => {
           );
       }
       break;
+
+    case 'stream':
+      if (!selectedThread) return null;
+      return <ThreadStream threadId={selectedThread.id} threadName={selectedThread.name} />;
 
     default:
       return null;

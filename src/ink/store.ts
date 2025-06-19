@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Agent } from '../api-client.js';
 
-export type AppMode = 'menu' | 'init' | 'agent' | 'threads' | 'auth' | 'doctor' | 'share' | 'history' | 'status' | 'sync' | 'loading' | 'error';
+export type AppMode = 'menu' | 'init' | 'agent' | 'threads' | 'auth' | 'doctor' | 'share' | 'history' | 'status' | 'sync' | 'monitor' | 'collaborate' | 'loading' | 'error';
 
 interface Thread {
   id: string;

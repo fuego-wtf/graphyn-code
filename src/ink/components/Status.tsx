@@ -18,8 +18,8 @@ interface ProjectStatus {
   };
   repository?: {
     name: string;
-    url: string;
-    branch: string;
+    url?: string;
+    branch?: string;
   };
 }
 

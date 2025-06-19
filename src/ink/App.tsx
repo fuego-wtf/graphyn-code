@@ -10,6 +10,12 @@ import { ThreadManagementV2 } from './components/ThreadManagementV2.js';
 import { Authentication } from './components/Authentication.js';
 import { AuthenticationV2 } from './components/AuthenticationV2.js';
 import { Doctor } from './components/Doctor.js';
+import { ShareAgent } from './components/ShareAgent.js';
+import { History } from './components/History.js';
+import { Status } from './components/Status.js';
+import { Sync } from './components/Sync.js';
+import { Monitor } from './components/Monitor.js';
+import { AgentCollaboration } from './components/AgentCollaboration.js';
 import { useStore, AppMode } from './store.js';
 
 interface AppProps {
