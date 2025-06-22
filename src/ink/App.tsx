@@ -17,6 +17,7 @@ import { FigmaDesign } from './components/FigmaDesign.js';
 import { FigmaAuth } from './components/FigmaAuth.js';
 import { AgentCommands } from './components/AgentCommands.js';
 import { ThreadCommand } from './components/ThreadCommand.js';
+import { Context } from './components/Context.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
@@ -116,7 +117,8 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         'status': 'status',
         'history': 'history',
         'whoami': 'auth',
-        'logout': 'auth'
+        'logout': 'auth',
+        'context': 'context'
       };
       
       if (directCommands[command]) {
@@ -251,6 +253,9 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       
       case 'thread':
         return <ThreadCommand threadId={query} />;
+      
+      case 'context':
+        return <Context />;
       
       default:
         return null;

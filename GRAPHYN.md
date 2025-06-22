@@ -3,6 +3,42 @@
 ## Project Vision
 Graphyn Code transforms Claude Code from a tool into an intelligent development partner by orchestrating context-aware AI agents that understand your project deeply.
 
+## Core Platform Features
+
+### Persistent AI Memory
+**The Game Changer**: Unlike traditional AI assistants that forget everything between sessions, Graphyn agents maintain persistent memory through our Thread API.
+
+```typescript
+// Each thread maintains context across sessions
+const thread = await client.threads.create({
+  metadata: { customerId: '12345', role: 'financial_advisor' }
+});
+
+// Day 1: Customer asks about portfolio
+await client.threads.sendMessage(thread.id, {
+  content: "My risk tolerance is moderate, focusing on tech stocks"
+});
+
+// Day 30: AI remembers everything
+await client.threads.sendMessage(thread.id, {
+  content: "Should I rebalance?"
+});
+// Response: "Based on your moderate risk tolerance and tech focus..."
+```
+
+This enables:
+- **Customer Support AI** that remembers entire conversation history
+- **Development Agents** that learn your codebase patterns over time
+- **Design Systems** that evolve with your component library
+- **Team Knowledge** that persists across projects
+
+### Repository Context Detection
+The CLI automatically understands your project:
+- Detects frameworks (Next.js, React, Vue, etc.)
+- Identifies patterns (custom hooks, component structure)
+- Learns conventions (naming, file organization)
+- Adapts generated code to match your style
+
 ## Architecture Decisions
 
 ### 2025-01-07: CLI Intelligence Through Agent Consumption
@@ -76,12 +112,14 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - ✅ **Task 17: Release Preparation** - Package built, tested, and ready for v0.1.50-stable!
 
 ### What's Working (Platform)
-- ✅ **Production Backend** - Encore.dev serving real data (localhost:4000)
-- ✅ **PostgreSQL Database** - Full schema operational
+- ✅ **Production Backend** - Encore.dev serving real data at api.graphyn.xyz
+- ✅ **PostgreSQL Database** - Full schema operational with pgvector
 - ✅ **Authentication System** - Token-based auth working
-- ✅ **Thread Management** - WhatsApp-style conversations
+- ✅ **Thread Management** - WhatsApp-style conversations with persistent memory
 - ✅ **Real-Time SSE** - Streaming endpoint ready
-- ✅ **Frontend UI** - 95% complete Next.js interface
+- ✅ **Frontend UI** - Next.js interface ready for launch
+- ✅ **Persistent AI Memory** - Threads remember context across sessions
+- ✅ **Repository Context Detection** - CLI understands your codebase patterns
 
 ### What's Working (CLI - Ink Version)
 - ✅ **Live Backend Integration** - GraphynAPIClient connects to real Encore.dev
@@ -123,11 +161,13 @@ Graphyn Code transforms Claude Code from a tool into an intelligent development 
 - ✅ **Authentication working**
 - 🔄 Adding simplified learning tables
 
-### CLI Team (Us) - **MISSION ACCOMPLISHED**
+### CLI Team (Us) - **LAUNCH READY**
 - ✅ **Integrated with live backend** - All APIs connected
-- ✅ **Built power user interface** - Professional CLI tools
-- ✅ **Supported demo completion** - Platform now 95% ready
+- ✅ **Built power user interface** - Professional CLI tools with Ink
 - ✅ **Real product features** - Agent management, thread operations
+- ✅ **Repository Context Detection** - Automatically understands your codebase
+- ✅ **Persistent Memory Integration** - Threads maintain context across sessions
+- 🚀 **v0.1.51 Ready** - Prepared for npm publish
 
 ### Integration Opportunities
 1. **CLI as Testing Interface** - Validate all backend APIs
