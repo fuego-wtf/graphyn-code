@@ -4,6 +4,7 @@ import { Loading } from './Loading.js';
 import { detectRepository, detectFramework } from '../utils/repository.js';
 import { RepositoryDetector } from '../../utils/repository-detector.js';
 import { useStore } from '../store.js';
+import { useAPI } from '../hooks/useAPI.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -11,6 +12,8 @@ export const Context: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [context, setContext] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stored, setStored] = useState(false);
+  const { client } = useAPI();
 
   useEffect(() => {
     detectContext();
@@ -44,14 +47,31 @@ export const Context: React.FC = () => {
         cssFramework: await detectCSSFramework(cwd),
       };
       
-      setContext({
+      const contextData = {
         cwd,
         repository: repoInfo,
         framework,
         ...detectedContext,
         patterns,
         hasGraphynMd,
-      });
+      };
+      
+      setContext(contextData);
+      
+      // Store context in backend if authenticated
+      if (client) {
+        try {
+          await client.post('/api/v1/repository/context', {
+            path: cwd,
+            context: contextData,
+            detected_at: new Date().toISOString()
+          });
+          setStored(true);
+        } catch (err) {
+          // Silent fail - context detection still works locally
+          console.error('Failed to store context:', err);
+        }
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to detect context');
@@ -210,6 +230,13 @@ export const Context: React.FC = () => {
       )}
       
       <Text> </Text>
+      {stored && (
+        <>
+          <Text color="green">✅ Context stored in Graphyn platform</Text>
+          <Text dimColor>   Agents will use this context to understand your codebase</Text>
+          <Text> </Text>
+        </>
+      )}
       <Text dimColor>💡 Tip: Create a GRAPHYN.md file to document your project's specific patterns and conventions!</Text>
     </Box>
   );

@@ -50,6 +50,7 @@ Commands:
   graphyn auth [key]             Authenticate with API key
   graphyn doctor                 System health check
   graphyn context                Show detected repository patterns
+  graphyn test-memory            Test thread persistence
   graphyn status                 Show project status
   graphyn history                View recent interactions
   graphyn share agent            Share agent with team

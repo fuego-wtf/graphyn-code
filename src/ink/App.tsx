@@ -18,6 +18,7 @@ import { FigmaAuth } from './components/FigmaAuth.js';
 import { AgentCommands } from './components/AgentCommands.js';
 import { ThreadCommand } from './components/ThreadCommand.js';
 import { Context } from './components/Context.js';
+import { TestMemory } from './components/TestMemory.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
@@ -118,7 +119,8 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         'history': 'history',
         'whoami': 'auth',
         'logout': 'auth',
-        'context': 'context'
+        'context': 'context',
+        'test-memory': 'test-memory'
       };
       
       if (directCommands[command]) {
@@ -256,6 +258,9 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       
       case 'context':
         return <Context />;
+      
+      case 'test-memory':
+        return <TestMemory />;
       
       default:
         return null;

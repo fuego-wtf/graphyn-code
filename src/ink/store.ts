@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Agent } from '../api-client.js';
 
-export type AppMode = 'menu' | 'init' | 'agent' | 'threads' | 'auth' | 'doctor' | 'share' | 'history' | 'status' | 'sync' | 'monitor' | 'collaborate' | 'loading' | 'error' | 'figma-design' | 'figma-auth' | 'figma-logout' | 'agent-command' | 'thread' | 'context';
+export type AppMode = 'menu' | 'init' | 'agent' | 'threads' | 'auth' | 'doctor' | 'share' | 'history' | 'status' | 'sync' | 'monitor' | 'collaborate' | 'loading' | 'error' | 'figma-design' | 'figma-auth' | 'figma-logout' | 'agent-command' | 'thread' | 'context' | 'test-memory';
 
 interface Thread {
   id: string;
