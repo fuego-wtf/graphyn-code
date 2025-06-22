@@ -100,9 +100,9 @@ export const useKeyboardNavigation = ({
       setSelectedIndex(prev => 
         Math.max(prev - 5, 0)
       );
-    } else if (key.home) {
+    } else if ('home' in key && key.home) {
       setSelectedIndex(0);
-    } else if (key.end) {
+    } else if ('end' in key && key.end) {
       setSelectedIndex(items.length - 1);
     }
   });

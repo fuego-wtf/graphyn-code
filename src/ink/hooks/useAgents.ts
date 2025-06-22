@@ -100,7 +100,7 @@ export function useAgents() {
       await apiClient.initialize();
       
       // Get repository context
-      const repoContext = RepositoryDetector.getCurrentContext();
+      const repoContext = await RepositoryDetector.getCurrentContext();
       
       // Fetch available agents for this context
       const agents = await apiClient.getAvailableAgents(repoContext);

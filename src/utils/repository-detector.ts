@@ -269,9 +269,9 @@ export class RepositoryDetector {
   /**
    * Get current context based on working directory
    */
-  static getCurrentContext(): RepositoryContext {
+  static async getCurrentContext(): Promise<RepositoryContext> {
     const cwd = process.cwd();
-    const projectInfo = this.detectRepository(cwd);
+    const projectInfo = await this.detectRepository(cwd);
     
     // Find which project we're currently in
     let currentProject;

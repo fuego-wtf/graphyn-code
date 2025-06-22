@@ -30,9 +30,7 @@ else
     exit 1
 fi
 
-# 1. Build the project
-echo "📦 Building project..."
-npm run build
+# Skip build - should already be built before running this test
 
 # 2. Create a test package
 echo "📦 Creating test package..."

@@ -1,9 +1,7 @@
-import commandExistsLib from 'command-exists';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
-
-const { commandExists } = commandExistsLib as any;
+import { execSync } from 'child_process';
 
 export interface ClaudeDetectionResult {
   found: boolean;
@@ -18,7 +16,7 @@ export interface ClaudeDetectionResult {
 export async function findClaude(): Promise<ClaudeDetectionResult> {
   // First, check if 'claude' is available in PATH
   try {
-    await commandExists('claude');
+    execSync('which claude', { stdio: 'ignore' });
     return { 
       found: true, 
       path: 'claude',

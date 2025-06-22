@@ -23,7 +23,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.50');
+  console.log('0.1.51');
   process.exit(0);
 }
 
@@ -34,12 +34,19 @@ Graphyn Code - AI Development Tool for Claude Code
 
 Usage:
   graphyn                        Interactive mode
-  graphyn init                   Initialize GRAPHYN.md in your project
+  graphyn init                   Initialize with OAuth authentication
   graphyn <agent> <query>        Direct agent query
   graphyn design <figma-url>     Generate pixel-perfect components
+  graphyn thread [id]            Start or continue builder conversation
+  graphyn agent <command>        Manage your AI agents
   
 Commands:
+  graphyn agent list             List all your agents
+  graphyn agent test <id>        Test an agent
+  graphyn agent deploy <id>      Deploy agent and get API credentials
   graphyn threads                Manage conversation threads
+  graphyn design auth            Authenticate with Figma
+  graphyn design logout          Logout from Figma
   graphyn auth [key]             Authenticate with API key
   graphyn doctor                 System health check
   graphyn status                 Show project status
@@ -61,11 +68,12 @@ Options:
   -h, --help                     Show help
 
 Examples:
-  graphyn init                   Initialize project documentation
-  graphyn design figma.com/...   Extract Figma component
+  graphyn init                   OAuth authentication setup
+  graphyn thread                 Create a new agent via conversation
+  graphyn agent list             See all your agents
+  graphyn agent deploy abc123    Get API key for agent
+  graphyn design figma.com/...   Extract Figma components
   graphyn backend "add auth"     Query backend agent
-  graphyn threads                Manage active threads
-  graphyn sync pull              Get latest GRAPHYN.md template
 `);
   process.exit(0);
 }

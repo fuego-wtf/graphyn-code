@@ -58,20 +58,34 @@ export const waitForOAuthCallback = (port: number, expectedState: string): Promi
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(`
             <html>
-              <body style="font-family: system-ui; text-align: center; padding: 50px;">
-                <h1 style="color: #10b981;">Success!</h1>
-                <p>Authentication successful. You can close this window.</p>
-                <script>window.close();</script>
+              <head>
+                <title>Graphyn - Authentication Success</title>
+                <style>
+                  body {
+                    font-family: system-ui, -apple-system, sans-serif;
+                    text-align: center;
+                    padding: 50px;
+                    background: #f8fafc;
+                  }
+                  h1 { color: #10b981; }
+                  .logo { font-size: 48px; margin-bottom: 20px; }
+                </style>
+              </head>
+              <body>
+                <div class="logo">🚀</div>
+                <h1>Authentication Successful!</h1>
+                <p>You can close this window and return to your terminal.</p>
+                <p style="color: #6b7280; margin-top: 30px;">Graphyn is ready to help you build amazing AI agents!</p>
+                <script>setTimeout(() => window.close(), 3000);</script>
               </body>
             </html>
           `);
           server.close();
           
-          // TODO: Exchange code for token with backend
-          // For MVP, return mock token
+          // Return the authorization code
           resolve({
-            access_token: `mock_token_${code}`,
-            token_type: 'Bearer',
+            access_token: code, // This is actually the authorization code
+            token_type: 'authorization_code',
             scope: 'repo user'
           });
         }

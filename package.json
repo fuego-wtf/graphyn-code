@@ -1,6 +1,6 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.50-stable",
+  "version": "0.1.51",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "type": "module",
   "main": "dist/ink/cli.js",
@@ -18,7 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "test:package": "./scripts/test-package-enhanced.sh",
     "validate": "node scripts/validate-package.cjs",
-    "prepublishOnly": "npm run test:package && npm run build",
+    "prepublishOnly": "npm run build && npm run test:package",
     "postinstall": "node scripts/postinstall.js || true"
   },
   "keywords": [
@@ -62,7 +62,6 @@
     "ink-text-input": "^6.0.0",
     "meow": "^13.0.0",
     "open": "^10.0.0",
-    "ora": "^8.0.1",
     "react": "^18.2.0",
     "simple-git": "^3.20.0",
     "zustand": "^4.4.0"

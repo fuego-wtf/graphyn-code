@@ -59,10 +59,10 @@ export const Init: React.FC = () => {
 
   const handleGitHubAuth = async () => {
     try {
-      const port = await getAvailablePort();
+      const port = appConfig.oauth.port; // Use 8989
       const state = generateState();
-      const redirectUri = `http://localhost:${port}/callback`;
-      const authUrl = `${appConfig.apiBaseUrl}/api/v1/auth/github/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
+      const redirectUri = appConfig.oauth.redirectUri;
+      const authUrl = `${appConfig.apiBaseUrl}/auth/github/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
       
       // Open browser
       await open(authUrl);
@@ -70,16 +70,20 @@ export const Init: React.FC = () => {
       // Wait for callback
       const oauthData = await waitForOAuthCallback(port, state);
       
-      // Exchange OAuth token for CLI JWT
+      // Exchange OAuth code for CLI token
       const apiClient = new GraphynAPIClient();
-      const response = await apiClient.post<{token: string}>('/api/v1/cli/token', {
+      const response = await apiClient.post<{token: string, user: any}>('/cli/auth/callback', {
         provider: 'github',
-        token: oauthData.access_token
+        code: oauthData.access_token, // This is actually the code
+        state: state,
+        redirectUri: redirectUri
       });
       
-      // Store JWT token
+      // Store JWT token and user info
       const configManager = new ConfigManager();
       await configManager.setAuthToken(response.token);
+      await configManager.set('user', response.user);
+      await configManager.set('organization', response.user.organization);
       
       setState(prev => ({
         ...prev,
