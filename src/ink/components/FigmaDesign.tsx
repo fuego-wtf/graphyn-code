@@ -173,7 +173,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
         setStatusMessage('Extracting design data...');
         
         try {
-          const extractionResponse = await apiClient.post('/api/v1/design/extract', {
+          const extractionResponse = await apiClient.post('/api/design/extract', {
             figmaUrl: url,
             figmaToken: token,
             framework

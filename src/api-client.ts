@@ -82,7 +82,7 @@ export class GraphynAPIClient {
     return this.token;
   }
 
-  constructor(baseUrl: string = 'https://api.graphyn.xyz/api/v1') {
+  constructor(baseUrl: string = 'https://api.graphyn.xyz') {
     this.baseUrl = baseUrl;
     this.configManager = new ConfigManager();
   }

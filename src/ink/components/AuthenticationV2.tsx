@@ -96,7 +96,7 @@ export const AuthenticationV2: React.FC = () => {
       const port = await getAvailablePort();
       const state = generateState();
       const redirectUri = `http://localhost:${port}/callback`;
-      const authUrl = `${appConfig.apiBaseUrl}/api/v1/auth/${provider}/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
+      const authUrl = `${appConfig.apiBaseUrl}/api/connect/${provider}/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
       
       // Open browser
       await open(authUrl);
@@ -105,7 +105,7 @@ export const AuthenticationV2: React.FC = () => {
       const oauthData = await waitForOAuthCallback(port, state);
       
       // Exchange OAuth token for CLI JWT
-      const response = await api.post<{token: string}>('/api/v1/cli/token', {
+      const response = await api.post<{token: string}>('/api/cli/token', {
         provider,
         token: oauthData.access_token
       });

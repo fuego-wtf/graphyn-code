@@ -117,7 +117,7 @@ export const Init: React.FC = () => {
       const port = await getAvailablePort();
       const state = generateState();
       const redirectUri = `http://localhost:${port}/callback`;
-      const authUrl = `${appConfig.apiBaseUrl}/api/v1/auth/figma/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
+      const authUrl = `${appConfig.apiBaseUrl}/api/connect/figma/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
       
       // Open browser
       await open(authUrl);
@@ -127,7 +127,7 @@ export const Init: React.FC = () => {
       
       // Exchange OAuth token for CLI JWT
       const apiClient = new GraphynAPIClient();
-      const response = await apiClient.post<{token: string}>('/api/v1/cli/token', {
+      const response = await apiClient.post<{token: string}>('/api/cli/token', {
         provider: 'figma',
         token: oauthData.access_token
       });

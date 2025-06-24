@@ -135,13 +135,13 @@ export const useParticipants = (threadId: string | null) => {
   const api = useAPI();
   
   const { data: participants, loading, error, refetch } = useAPIQuery(
-    () => threadId ? api.get<any[]>(`/api/v1/threads/${threadId}/participants`) : Promise.resolve([]),
+    () => threadId ? api.get<any[]>(`/api/threads/${threadId}/participants`) : Promise.resolve([]),
     [threadId, api.isAuthenticated]
   );
 
   const addParticipant = useAPIMutation(
     (data: { threadId: string; type: string; agentId: string }) =>
-      api.post(`/api/v1/threads/${data.threadId}/participants`, {
+      api.post(`/api/threads/${data.threadId}/participants`, {
         type: data.type,
         agentId: data.agentId
       })
@@ -149,7 +149,7 @@ export const useParticipants = (threadId: string | null) => {
 
   const removeParticipant = useAPIMutation(
     (data: { threadId: string; participantId: string }) =>
-      api.delete(`/api/v1/threads/${data.threadId}/participants/${data.participantId}`)
+      api.delete(`/api/threads/${data.threadId}/participants/${data.participantId}`)
   );
 
   return {

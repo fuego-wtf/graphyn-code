@@ -109,7 +109,7 @@ export const AgentCollaboration: React.FC<CollaborationProps> = ({ query, agents
 
   const sendQueryToAgent = async (stream: AgentStream, query: string) => {
     try {
-      await api.post(`/api/v1/threads/${stream.threadId}/messages`, {
+      await api.post(`/api/threads/${stream.threadId}/messages`, {
         content: query,
         role: 'user',
         metadata: {

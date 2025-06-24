@@ -61,7 +61,7 @@ export const Context: React.FC = () => {
       // Store context in backend if authenticated
       if (client) {
         try {
-          await client.post('/api/v1/repository/context', {
+          await client.post('/api/repository/context', {
             path: cwd,
             context: contextData,
             detected_at: new Date().toISOString()

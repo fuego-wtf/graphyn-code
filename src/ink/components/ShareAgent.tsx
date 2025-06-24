@@ -31,7 +31,7 @@ export const ShareAgent: React.FC = () => {
     setError(null);
 
     try {
-      const response = await api.post<{shareUrl: string}>(`/api/v1/agents/${agent.id}/share`, {
+      const response = await api.post<{shareUrl: string}>(`/api/agents/${agent.id}/share`, {
         shareWith: 'organization'
       });
       setShareUrl(response.shareUrl);

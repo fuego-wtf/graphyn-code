@@ -77,7 +77,7 @@ export const ThreadStream: React.FC<ThreadStreamProps> = ({ threadId, threadName
 
   const loadMessages = async () => {
     try {
-      const response = await api.get<{ messages: Message[] }>(`/api/v1/threads/${threadId}/messages`);
+      const response = await api.get<{ messages: Message[] }>(`/api/threads/${threadId}/messages`);
       setMessages(response.messages || []);
       messagesEndRef.current = response.messages?.length || 0;
     } catch (err) {
@@ -92,7 +92,7 @@ export const ThreadStream: React.FC<ThreadStreamProps> = ({ threadId, threadName
     setError(null);
     
     try {
-      await api.post(`/api/v1/threads/${threadId}/messages`, {
+      await api.post(`/api/threads/${threadId}/messages`, {
         content: inputValue,
         role: 'user'
       });

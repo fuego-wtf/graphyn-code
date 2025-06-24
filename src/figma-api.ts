@@ -1144,18 +1144,32 @@ export class FigmaAPIClient {
           if (child.type === 'TEXT' && child.characters) {
             const translationKey = this.generateTranslationKey(component, child);
             
+            // Handle mixed styles - check if style is uniform or mixed
+            let style: TextContent['style'] = undefined;
+            
+            if (child.style) {
+              // For mixed styles, Figma returns 'figma.mixed' or an array
+              if (child.style === 'figma.mixed' || Array.isArray(child.style)) {
+                // For mixed styles, try to get the most common style or first style
+                style = this.extractMixedTextStyle(child);
+              } else {
+                // Uniform style
+                style = {
+                  fontFamily: child.style.fontFamily,
+                  fontSize: child.style.fontSize,
+                  fontWeight: child.style.fontWeight,
+                  lineHeight: child.style.lineHeightPx,
+                  letterSpacing: child.style.letterSpacing
+                };
+              }
+            }
+            
             const textContent: TextContent = {
               id: child.id,
               text: child.characters,
               key: translationKey,
               componentId: component.id,
-              style: child.style ? {
-                fontFamily: child.style.fontFamily,
-                fontSize: child.style.fontSize,
-                fontWeight: child.style.fontWeight,
-                lineHeight: child.style.lineHeightPx,
-                letterSpacing: child.style.letterSpacing
-              } : undefined
+              style
             };
             
             translations.set(translationKey, textContent);
@@ -1174,18 +1188,29 @@ export class FigmaAPIClient {
       const parentComponent = this.findParentComponent(node, components);
       const translationKey = this.generateTranslationKey(parentComponent, node);
       
+      // Handle mixed styles
+      let style: TextContent['style'] = undefined;
+      
+      if (node.style) {
+        if (node.style === 'figma.mixed' || Array.isArray(node.style)) {
+          style = this.extractMixedTextStyle(node);
+        } else {
+          style = {
+            fontFamily: node.style.fontFamily,
+            fontSize: node.style.fontSize,
+            fontWeight: node.style.fontWeight,
+            lineHeight: node.style.lineHeightPx,
+            letterSpacing: node.style.letterSpacing
+          };
+        }
+      }
+      
       const textContent: TextContent = {
         id: node.id,
         text: node.characters,
         key: translationKey,
         componentId: parentComponent?.id,
-        style: node.style ? {
-          fontFamily: node.style.fontFamily,
-          fontSize: node.style.fontSize,
-          fontWeight: node.style.fontWeight,
-          lineHeight: node.style.lineHeightPx,
-          letterSpacing: node.style.letterSpacing
-        } : undefined
+        style
       };
       
       translations.set(translationKey, textContent);
@@ -1449,6 +1474,34 @@ export class FigmaAPIClient {
            nodeBounds.y >= compBounds.y &&
            nodeBounds.x + nodeBounds.width <= compBounds.x + compBounds.width &&
            nodeBounds.y + nodeBounds.height <= compBounds.y + compBounds.height;
+  }
+  
+  private extractMixedTextStyle(node: any): TextContent['style'] {
+    // For mixed styles, we need to handle multiple style runs
+    // Figma API provides styleOverrideTable for mixed styles
+    
+    if (node.styleOverrideTable) {
+      // Get the first style override as the primary style
+      const firstOverride = Object.values(node.styleOverrideTable)[0] as any;
+      if (firstOverride) {
+        return {
+          fontFamily: firstOverride.fontFamily || 'Inter',
+          fontSize: firstOverride.fontSize || 14,
+          fontWeight: firstOverride.fontWeight || 400,
+          lineHeight: firstOverride.lineHeight?.value || 1.5,
+          letterSpacing: firstOverride.letterSpacing || 0
+        };
+      }
+    }
+    
+    // Fallback to default style if no override table
+    return {
+      fontFamily: 'Inter',
+      fontSize: 14,
+      fontWeight: 400,
+      lineHeight: 1.5,
+      letterSpacing: 0
+    };
   }
 }
 
