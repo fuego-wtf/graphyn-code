@@ -85,6 +85,12 @@ The CLI automatically understands your project:
 - **Solution**: Pass content directly: `claude "content"` - no terminal conflicts!
 - No temp files needed - direct integration achieved!
 
+### Signal Handling in Wrapper Scripts (Fixed 2025-01-24)
+- **Issue**: Claude CLI was reinitiating when stopped due to improper signal handling
+- **Root Cause**: Wrapper script's exit handler was restarting child process on signal termination
+- **Solution**: Added shutdown state tracking and proper signal forwarding
+- **Impact**: Clean process termination without unwanted restarts
+
 ### Multi-Agent Coordination
 - Threads created in parallel for performance
 - Agents added as participants to threads
