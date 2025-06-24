@@ -52,6 +52,20 @@ interface NavigationLink {
   trigger?: string;
 }
 
+interface TextContent {
+  id: string;
+  text: string;
+  key: string;
+  componentId?: string;
+  style?: {
+    fontFamily?: string;
+    fontSize?: number;
+    fontWeight?: number;
+    lineHeight?: number;
+    letterSpacing?: number;
+  };
+}
+
 interface ComponentInfo {
   id: string;
   name: string;
@@ -65,6 +79,8 @@ interface ComponentInfo {
   boundingBox?: { x: number; y: number; width: number; height: number };
   componentSetId?: string;
   description?: string;
+  texts?: TextContent[];
+  i18nKeys?: string[];
 }
 
 interface ComponentMap {
@@ -78,6 +94,14 @@ interface ComponentMap {
   organisms: ComponentInfo[];          // Headers, Sections, etc.
   templates: ComponentInfo[];          // Full layouts
   componentSets: Record<string, ComponentInfo[]>; // Grouped variants
+  translations?: {
+    extracted: Record<string, string>;     // key -> original text
+    keyMapping: Record<string, string>;    // key -> componentId
+    languages: {
+      en: Record<string, string>;          // Base language translations
+      [key: string]: Record<string, string>; // Other languages
+    };
+  };
 }
 
 export class FigmaAPIClient {
@@ -1021,6 +1045,8 @@ export class FigmaAPIClient {
     }
     
     const doc = frameNode.document || frameNode;
+    const translations = new Map<string, TextContent>();
+    
     const componentMap: ComponentMap = {
       designTokens: {
         colors: {},
@@ -1031,7 +1057,14 @@ export class FigmaAPIClient {
       molecules: [],
       organisms: [],
       templates: [],
-      componentSets: {}
+      componentSets: {},
+      translations: {
+        extracted: {},
+        keyMapping: {},
+        languages: {
+          en: {}
+        }
+      }
     };
     
     // Extract design tokens from the frame
@@ -1039,7 +1072,7 @@ export class FigmaAPIClient {
     
     // Traverse and categorize all components
     const allComponents: ComponentInfo[] = [];
-    this.extractComponentsRecursive(doc, nodeId, allComponents, progressCallback);
+    this.extractComponentsRecursive(doc, nodeId, allComponents, translations, progressCallback);
     
     // Categorize components by atomic design principles
     allComponents.forEach(component => {
@@ -1066,7 +1099,14 @@ export class FigmaAPIClient {
     // Detect reusable patterns
     this.detectReusablePatterns(allComponents, componentMap);
     
-    progressCallback?.(`✅ Extracted ${allComponents.length} components from frame`);
+    // Build translation files from extracted texts
+    translations.forEach((textContent, key) => {
+      componentMap.translations!.extracted[key] = textContent.text;
+      componentMap.translations!.languages.en[key] = textContent.text;
+      componentMap.translations!.keyMapping[key] = textContent.componentId || 'global';
+    });
+    
+    progressCallback?.(`✅ Extracted ${allComponents.length} components and ${translations.size} texts from frame`);
     
     return componentMap;
   }
@@ -1075,6 +1115,7 @@ export class FigmaAPIClient {
     node: any, 
     parentId: string,
     components: ComponentInfo[],
+    translations: Map<string, TextContent>,
     progressCallback?: (message: string) => void
   ) {
     // Check if this node is a component or instance
@@ -1089,24 +1130,80 @@ export class FigmaAPIClient {
         boundingBox: node.absoluteBoundingBox,
         componentSetId: node.componentSetId,
         description: node.description,
-        children: []
+        children: [],
+        texts: [],
+        i18nKeys: []
       };
       
-      // Extract child components
+      // Extract child components and texts
       if (node.children) {
         node.children.forEach((child: any) => {
-          this.extractComponentsRecursive(child, node.id, component.children!, progressCallback);
+          this.extractComponentsRecursive(child, node.id, component.children!, translations, progressCallback);
+          
+          // Check if child is a text node
+          if (child.type === 'TEXT' && child.characters) {
+            const translationKey = this.generateTranslationKey(component, child);
+            
+            const textContent: TextContent = {
+              id: child.id,
+              text: child.characters,
+              key: translationKey,
+              componentId: component.id,
+              style: child.style ? {
+                fontFamily: child.style.fontFamily,
+                fontSize: child.style.fontSize,
+                fontWeight: child.style.fontWeight,
+                lineHeight: child.style.lineHeightPx,
+                letterSpacing: child.style.letterSpacing
+              } : undefined
+            };
+            
+            translations.set(translationKey, textContent);
+            component.texts!.push(textContent);
+            component.i18nKeys!.push(translationKey);
+            
+            progressCallback?.(`    📝 Found text: "${child.characters.substring(0, 30)}..." → ${translationKey}`);
+          }
         });
       }
       
       components.push(component);
       progressCallback?.(`  📦 Found component: ${node.name}`);
+    } else if (node.type === 'TEXT' && node.characters) {
+      // Handle standalone text nodes not within components
+      const parentComponent = this.findParentComponent(node, components);
+      const translationKey = this.generateTranslationKey(parentComponent, node);
+      
+      const textContent: TextContent = {
+        id: node.id,
+        text: node.characters,
+        key: translationKey,
+        componentId: parentComponent?.id,
+        style: node.style ? {
+          fontFamily: node.style.fontFamily,
+          fontSize: node.style.fontSize,
+          fontWeight: node.style.fontWeight,
+          lineHeight: node.style.lineHeightPx,
+          letterSpacing: node.style.letterSpacing
+        } : undefined
+      };
+      
+      translations.set(translationKey, textContent);
+      
+      if (parentComponent) {
+        parentComponent.texts = parentComponent.texts || [];
+        parentComponent.i18nKeys = parentComponent.i18nKeys || [];
+        parentComponent.texts.push(textContent);
+        parentComponent.i18nKeys.push(translationKey);
+      }
+      
+      progressCallback?.(`    📝 Found text: "${node.characters.substring(0, 30)}..." → ${translationKey}`);
     }
     
     // Continue traversing even if not a component
     if (node.children) {
       node.children.forEach((child: any) => {
-        this.extractComponentsRecursive(child, parentId, components, progressCallback);
+        this.extractComponentsRecursive(child, parentId, components, translations, progressCallback);
       });
     }
   }
@@ -1249,6 +1346,109 @@ export class FigmaAPIClient {
         });
       }
     });
+  }
+  
+  private generateTranslationKey(component: ComponentInfo | null, textNode: any): string {
+    // Extract meaningful parts for the key
+    const componentType = this.detectComponentType(component?.name || '');
+    const componentName = this.sanitizeForKey(component?.name || 'global');
+    const textPurpose = this.inferTextPurpose(textNode.name, textNode.characters);
+    
+    // Generate hierarchical key
+    if (componentType && componentType !== 'unknown') {
+      return `${componentType}.${componentName}.${textPurpose}`;
+    }
+    return `${componentName}.${textPurpose}`;
+  }
+  
+  private detectComponentType(componentName: string): string {
+    const name = componentName.toLowerCase();
+    
+    if (name.includes('button') || name.includes('btn')) return 'button';
+    if (name.includes('card')) return 'card';
+    if (name.includes('header')) return 'header';
+    if (name.includes('footer')) return 'footer';
+    if (name.includes('nav')) return 'nav';
+    if (name.includes('menu')) return 'menu';
+    if (name.includes('modal')) return 'modal';
+    if (name.includes('dialog')) return 'dialog';
+    if (name.includes('form')) return 'form';
+    if (name.includes('input')) return 'input';
+    if (name.includes('field')) return 'field';
+    if (name.includes('list')) return 'list';
+    if (name.includes('table')) return 'table';
+    if (name.includes('tab')) return 'tab';
+    if (name.includes('sidebar')) return 'sidebar';
+    if (name.includes('hero')) return 'hero';
+    if (name.includes('section')) return 'section';
+    
+    return 'component';
+  }
+  
+  private sanitizeForKey(text: string): string {
+    // Convert to camelCase and remove special characters
+    return text
+      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special chars
+      .split(/\s+/)                    // Split by whitespace
+      .map((word, index) => 
+        index === 0 
+          ? word.toLowerCase() 
+          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      )
+      .join('');
+  }
+  
+  private inferTextPurpose(nodeName: string, text: string): string {
+    const lowerName = nodeName.toLowerCase();
+    const lowerText = text.toLowerCase();
+    
+    // Check node name hints
+    if (lowerName.includes('title') || lowerName.includes('heading')) return 'title';
+    if (lowerName.includes('subtitle')) return 'subtitle';
+    if (lowerName.includes('description') || lowerName.includes('desc')) return 'description';
+    if (lowerName.includes('button') || lowerName.includes('btn')) return 'action';
+    if (lowerName.includes('label')) return 'label';
+    if (lowerName.includes('placeholder')) return 'placeholder';
+    if (lowerName.includes('error')) return 'error';
+    if (lowerName.includes('warning')) return 'warning';
+    if (lowerName.includes('success')) return 'success';
+    if (lowerName.includes('hint') || lowerName.includes('help')) return 'hint';
+    
+    // Check text content hints
+    if (text.length <= 20) {
+      if (lowerText.includes('click') || lowerText.includes('submit') || 
+          lowerText.includes('save') || lowerText.includes('cancel')) return 'action';
+      return 'label';
+    }
+    
+    if (text.length > 100) return 'description';
+    if (text.endsWith('?')) return 'question';
+    if (text.endsWith('!')) return 'alert';
+    
+    return 'text';
+  }
+  
+  private findParentComponent(node: any, components: ComponentInfo[]): ComponentInfo | null {
+    // Find the closest parent component for this text node
+    for (const component of components) {
+      if (this.isNodeWithinComponent(node, component)) {
+        return component;
+      }
+    }
+    return null;
+  }
+  
+  private isNodeWithinComponent(node: any, component: ComponentInfo): boolean {
+    // Check if node's bounding box is within component's bounding box
+    if (!node.absoluteBoundingBox || !component.boundingBox) return false;
+    
+    const nodeBounds = node.absoluteBoundingBox;
+    const compBounds = component.boundingBox;
+    
+    return nodeBounds.x >= compBounds.x &&
+           nodeBounds.y >= compBounds.y &&
+           nodeBounds.x + nodeBounds.width <= compBounds.x + compBounds.width &&
+           nodeBounds.y + nodeBounds.height <= compBounds.y + compBounds.height;
   }
 }
 

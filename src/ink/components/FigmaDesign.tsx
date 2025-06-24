@@ -430,18 +430,36 @@ ${Object.entries(componentMap.componentSets).map(([setId, components]: [string, 
 ${components.map((c: any) => `- ${c.name}`).join('\n')}
 `).join('\n') || 'No component sets found'}
 
-## Implementation Plan
+## Extracted Translations (${Object.keys(componentMap.translations?.extracted || {}).length} texts)
 
-### 1. Setup Design System Structure
+${componentMap.translations ? `### Translation Keys by Component
+${Object.entries(componentMap.translations.keyMapping).slice(0, 10).map(([key, compId]) => 
+  `- \`${key}\` → ${compId}`
+).join('\n')}${Object.keys(componentMap.translations.keyMapping).length > 10 ? '\n... and more' : ''}
+
+### Sample Translations
+\`\`\`json
+${JSON.stringify(Object.fromEntries(Object.entries(componentMap.translations.languages.en).slice(0, 5)), null, 2)}
+\`\`\`
+` : ''}
+
+## Implementation Plan with i18n
+
+### 1. Setup Design System with i18n Support
 - Create tokens file with extracted design tokens
-- Setup component library structure
-- Configure ${framework} for component development
+- Setup i18n configuration for ${framework}
+- Create translation files from extracted texts
+- Configure component library with useTranslation hooks
 
-### 2. Build Atomic Components
-${componentMap.atomicComponents.slice(0, 5).map((c: any) => `- Implement ${c.name} using mcp__figma-dev-mode-mcp-server__get_code with node ${c.id}`).join('\n')}
+### 2. Build Atomic Components with Translations
+${componentMap.atomicComponents.slice(0, 5).map((c: any) => 
+  `- Implement ${c.name} with i18n keys: ${c.i18nKeys?.slice(0, 2).join(', ') || 'no texts'}`
+).join('\n')}
 
-### 3. Compose Molecules
-${componentMap.molecules.slice(0, 5).map((c: any) => `- Build ${c.name} using atomic components`).join('\n')}
+### 3. Compose Molecules with i18n
+${componentMap.molecules.slice(0, 5).map((c: any) => 
+  `- Build ${c.name} using atomic components${c.texts?.length ? ` (${c.texts.length} texts)` : ''}`
+).join('\n')}
 
 ### 4. Assemble Organisms
 ${componentMap.organisms.slice(0, 5).map((c: any) => `- Create ${c.name} from molecules and atoms`).join('\n')}
@@ -449,20 +467,79 @@ ${componentMap.organisms.slice(0, 5).map((c: any) => `- Create ${c.name} from mo
 ### 5. Create Templates
 ${componentMap.templates.slice(0, 3).map((c: any) => `- Implement ${c.name} layout`).join('\n')}
 
-## MCP Tool Usage
+### 6. Generate Translation Files
+- Create en.json with all extracted texts
+- Setup translation file structure
+- Export translation keys TypeScript types
+
+## MCP Tool Usage with i18n
 
 For each component, use the following workflow:
 1. \`mcp__figma-dev-mode-mcp-server__get_image\` - Get visual reference
 2. \`mcp__figma-dev-mode-mcp-server__get_code\` - Generate component code
-3. \`mcp__figma-dev-mode-mcp-server__get_variable_defs\` - Get design variables
-4. Test and refine the implementation
+3. Replace hardcoded text with translation keys from the extracted map
+4. \`mcp__figma-dev-mode-mcp-server__get_variable_defs\` - Get design variables
+5. Test component with different text lengths for i18n compatibility
+
+## Component Template Example
+
+\`\`\`${framework === 'react' ? 'jsx' : 'vue'}
+${framework === 'react' ? `import { useTranslation } from 'react-i18next';
+
+export const Button = ({ onClick }) => {
+  const { t } = useTranslation();
+  
+  return (
+    <button onClick={onClick}>
+      {t('button.primary.action')}
+    </button>
+  );
+};` : `<template>
+  <button @click="onClick">
+    {{ $t('button.primary.action') }}
+  </button>
+</template>
+
+<script>
+export default {
+  props: ['onClick']
+}
+</script>`}
+\`\`\`
+
+## Translation File Structure
+
+\`\`\`
+/locales
+  /en
+    - common.json    # Shared translations
+    - components.json # Component-specific
+  /[other-languages]
+    - common.json
+    - components.json
+\`\`\`
 
 ## Reusable Patterns Detected
 ${componentMap.atomicComponents.filter((c: any) => c.isReusable).map((c: any) => 
   `- **${c.name}**: Used in ${c.variants?.length || 0} variations`
 ).join('\n') || 'No patterns detected'}
 
-Remember: Focus on creating a scalable, maintainable design system that can grow with the product.`;
+Remember: All text content has been extracted and mapped to translation keys. Use these keys instead of hardcoding text in components.
+
+## Generated Translation File
+
+Save this as \`locales/en.json\`:
+
+\`\`\`json
+${JSON.stringify(componentMap.translations?.languages.en || {}, null, 2)}
+\`\`\`
+
+## TypeScript Types for Translation Keys
+
+\`\`\`typescript
+// Generated translation key types
+export type TranslationKeys = ${Object.keys(componentMap.translations?.extracted || {}).map(k => `'${k}'`).join(' | ') || "''"};
+\`\`\``;
 }
 
 async function saveContext(content: string, agentType: string): Promise<string> {

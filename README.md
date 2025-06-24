@@ -208,8 +208,20 @@ graphyn design auth
 
 To use Figma design extraction:
 ```bash
+# Extract and generate components from a Figma prototype
 graphyn design <figma-url>
+
+# Extract components with i18n-ready translation mapping
+graphyn design <figma-url> --extract-components
 ```
+
+The `--extract-components` flag provides:
+- Automatic text extraction from all components
+- Smart translation key generation (e.g., `button.addToCart.action`)
+- Component categorization using atomic design principles
+- Generated translation files (en.json)
+- Components with built-in i18n hooks
+- TypeScript types for translation keys
 
 **Note**: These are test credentials for local development. For production, create your own OAuth app at https://www.figma.com/developers/apps
 
