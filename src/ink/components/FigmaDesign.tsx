@@ -26,6 +26,9 @@ type DesignStep =
   | 'error';
 
 export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'react' }) => {
+  // Check if user wants component extraction
+  const cleanUrl = url.replace('--extract-components', '').trim();
+  const isComponentExtraction = url.includes('--extract-components');
   const { exit } = useApp();
   const { client: apiClient } = useAPI();
   const { launchClaude } = useClaude();
@@ -70,22 +73,66 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       const figmaClient = new FigmaAPIClient(token);
       
       // Parse URL and set file key
-      const urlParts = figmaClient.parseUrl(url);
+      const urlParts = figmaClient.parseUrl(cleanUrl);
       figmaClient.setCurrentFileKey(urlParts.fileKey);
       
-      // Step 3: Analyze prototype
+      // Step 3: Analyze prototype or extract components
       setProgress(40);
-      setStatusMessage('Analyzing Figma prototype...');
       
       let prototypeData;
-      try {
-        prototypeData = await figmaClient.analyzePrototype(url, (message: string) => {
-          setStatusMessage(message);
-        });
-      } catch (error: any) {
-        // If specific node fails, try alternative approach
-        if (error.message.includes('not found') || error.message.includes('404')) {
-          setStatusMessage('Trying alternative approach...');
+      let componentMap;
+      
+      if (isComponentExtraction && urlParts.nodeId) {
+        // Extract components from specific frame
+        setStatusMessage('Extracting components from frame...');
+        
+        try {
+          componentMap = await figmaClient.extractComponentsFromFrame(
+            urlParts.fileKey,
+            urlParts.nodeId,
+            (message: string) => setStatusMessage(message)
+          );
+          
+          // Create a special prototype structure for component extraction
+          prototypeData = {
+            fileKey: urlParts.fileKey,
+            fileName: 'Component Extraction',
+            screens: [{
+              id: urlParts.nodeId,
+              name: 'Extracted Components',
+              frameId: urlParts.nodeId,
+              components: [],
+              navigatesTo: []
+            }],
+            navigation: [],
+            components: [
+              ...componentMap.atomicComponents,
+              ...componentMap.molecules,
+              ...componentMap.organisms,
+              ...componentMap.templates
+            ],
+            componentMap,
+            totalScreens: 1,
+            totalComponents: componentMap.atomicComponents.length + 
+                            componentMap.molecules.length + 
+                            componentMap.organisms.length + 
+                            componentMap.templates.length
+          };
+        } catch (error: any) {
+          throw new Error(`Component extraction failed: ${error.message}`);
+        }
+      } else {
+        // Normal prototype analysis
+        setStatusMessage('Analyzing Figma prototype...');
+        
+        try {
+          prototypeData = await figmaClient.analyzePrototype(cleanUrl, (message: string) => {
+            setStatusMessage(message);
+          });
+        } catch (error: any) {
+          // If specific node fails, try alternative approach
+          if (error.message.includes('not found') || error.message.includes('404')) {
+            setStatusMessage('Trying alternative approach...');
           
           try {
             const fileData = await figmaClient.getFile(urlParts.fileKey, { geometry: 'paths', depth: 1 });
@@ -105,8 +152,9 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
           } catch (fileError: any) {
             throw new Error(`Cannot access Figma file: ${fileError.message}`);
           }
-        } else {
-          throw error;
+          } else {
+            throw error;
+          }
         }
       }
       
@@ -147,7 +195,9 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       setProgress(90);
       setStatusMessage('Preparing design context...');
       
-      const context = generateDesignContext(url, prototypeData, plan, framework);
+      const context = isComponentExtraction && componentMap
+        ? generateComponentMapContext(cleanUrl, prototypeData, componentMap, framework)
+        : generateDesignContext(cleanUrl, prototypeData, plan, framework);
       
       // Log interaction
       const logger = new GraphynLogger();
@@ -332,6 +382,87 @@ ${task.subtasks.map((st: any) => `- ${st.title}`).join('\n')}` : ''}
 4. Test each component as you build
 
 Remember: The goal is pixel-perfect implementation matching the Figma designs exactly.`;
+}
+
+function generateComponentMapContext(url: string, prototype: any, componentMap: any, framework: string): string {
+  const timestamp = new Date().toISOString();
+  
+  return `# Design System Component Extraction
+
+Generated by Graphyn Code at ${timestamp}
+
+## Frame Analysis
+
+- **Figma URL**: ${url}
+- **Total Components Extracted**: ${prototype.totalComponents}
+- **Framework**: ${framework}
+
+## Design Tokens
+
+### Colors
+${Object.entries(componentMap.designTokens.colors).map(([name, value]) => `- **${name}**: ${value}`).join('\n') || '- No colors found'}
+
+### Typography
+${Object.entries(componentMap.designTokens.typography).map(([key, value]: [string, any]) => 
+  `- **${key}**: ${value.fontFamily} ${value.fontSize}px (weight: ${value.fontWeight})`
+).join('\n') || '- No typography tokens found'}
+
+### Spacing
+${Object.entries(componentMap.designTokens.spacing).map(([key, value]) => `- **${key}**: ${value}px`).join('\n') || '- No spacing tokens found'}
+
+## Component Architecture
+
+### Atomic Components (${componentMap.atomicComponents.length})
+${componentMap.atomicComponents.map((c: any) => `- **${c.name}** (${c.id})${c.isReusable ? ' 🔄 Reusable' : ''}`).join('\n') || 'None found'}
+
+### Molecules (${componentMap.molecules.length})
+${componentMap.molecules.map((c: any) => `- **${c.name}** (${c.id})${c.isReusable ? ' 🔄 Reusable' : ''}`).join('\n') || 'None found'}
+
+### Organisms (${componentMap.organisms.length})
+${componentMap.organisms.map((c: any) => `- **${c.name}** (${c.id})${c.isReusable ? ' 🔄 Reusable' : ''}`).join('\n') || 'None found'}
+
+### Templates (${componentMap.templates.length})
+${componentMap.templates.map((c: any) => `- **${c.name}** (${c.id})`).join('\n') || 'None found'}
+
+## Component Sets & Variants
+${Object.entries(componentMap.componentSets).map(([setId, components]: [string, any]) => `
+### Component Set: ${setId}
+${components.map((c: any) => `- ${c.name}`).join('\n')}
+`).join('\n') || 'No component sets found'}
+
+## Implementation Plan
+
+### 1. Setup Design System Structure
+- Create tokens file with extracted design tokens
+- Setup component library structure
+- Configure ${framework} for component development
+
+### 2. Build Atomic Components
+${componentMap.atomicComponents.slice(0, 5).map((c: any) => `- Implement ${c.name} using mcp__figma-dev-mode-mcp-server__get_code with node ${c.id}`).join('\n')}
+
+### 3. Compose Molecules
+${componentMap.molecules.slice(0, 5).map((c: any) => `- Build ${c.name} using atomic components`).join('\n')}
+
+### 4. Assemble Organisms
+${componentMap.organisms.slice(0, 5).map((c: any) => `- Create ${c.name} from molecules and atoms`).join('\n')}
+
+### 5. Create Templates
+${componentMap.templates.slice(0, 3).map((c: any) => `- Implement ${c.name} layout`).join('\n')}
+
+## MCP Tool Usage
+
+For each component, use the following workflow:
+1. \`mcp__figma-dev-mode-mcp-server__get_image\` - Get visual reference
+2. \`mcp__figma-dev-mode-mcp-server__get_code\` - Generate component code
+3. \`mcp__figma-dev-mode-mcp-server__get_variable_defs\` - Get design variables
+4. Test and refine the implementation
+
+## Reusable Patterns Detected
+${componentMap.atomicComponents.filter((c: any) => c.isReusable).map((c: any) => 
+  `- **${c.name}**: Used in ${c.variants?.length || 0} variations`
+).join('\n') || 'No patterns detected'}
+
+Remember: Focus on creating a scalable, maintainable design system that can grow with the product.`;
 }
 
 async function saveContext(content: string, agentType: string): Promise<string> {

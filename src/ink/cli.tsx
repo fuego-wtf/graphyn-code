@@ -37,6 +37,7 @@ Usage:
   graphyn init                   Initialize with OAuth authentication
   graphyn <agent> <query>        Direct agent query
   graphyn design <figma-url>     Generate pixel-perfect components
+  graphyn design <url> --extract-components  Extract design system from frame
   graphyn thread [id]            Start or continue builder conversation
   graphyn agent <command>        Manage your AI agents
   

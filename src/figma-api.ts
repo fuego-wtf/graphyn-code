@@ -58,6 +58,26 @@ interface ComponentInfo {
   type: string;
   parentScreen: string;
   instances: number;
+  properties?: Record<string, any>;
+  children?: ComponentInfo[];
+  isReusable?: boolean;
+  variants?: string[];
+  boundingBox?: { x: number; y: number; width: number; height: number };
+  componentSetId?: string;
+  description?: string;
+}
+
+interface ComponentMap {
+  designTokens: {
+    colors: Record<string, string>;
+    typography: Record<string, any>;
+    spacing: Record<string, number>;
+  };
+  atomicComponents: ComponentInfo[];  // Buttons, Icons, etc.
+  molecules: ComponentInfo[];          // Cards, Form fields, etc.
+  organisms: ComponentInfo[];          // Headers, Sections, etc.
+  templates: ComponentInfo[];          // Full layouts
+  componentSets: Record<string, ComponentInfo[]>; // Grouped variants
 }
 
 export class FigmaAPIClient {
@@ -977,6 +997,256 @@ export class FigmaAPIClient {
       
       if (child.children) {
         this.findConnectionsInChildren(child.children, connections);
+      }
+    });
+  }
+
+  /**
+   * Systematically extract components from a frame using the nodes API
+   * This provides a complete component map for design system generation
+   */
+  async extractComponentsFromFrame(
+    fileKey: string, 
+    nodeId: string,
+    progressCallback?: (message: string) => void
+  ): Promise<ComponentMap> {
+    progressCallback?.('🔍 Extracting components from frame...');
+    
+    // Get detailed node data including all children
+    const nodeData = await this.getNodes(fileKey, [nodeId]);
+    const frameNode = nodeData.nodes[nodeId];
+    
+    if (!frameNode) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
+    
+    const doc = frameNode.document || frameNode;
+    const componentMap: ComponentMap = {
+      designTokens: {
+        colors: {},
+        typography: {},
+        spacing: {}
+      },
+      atomicComponents: [],
+      molecules: [],
+      organisms: [],
+      templates: [],
+      componentSets: {}
+    };
+    
+    // Extract design tokens from the frame
+    this.extractDesignTokens(doc, componentMap.designTokens);
+    
+    // Traverse and categorize all components
+    const allComponents: ComponentInfo[] = [];
+    this.extractComponentsRecursive(doc, nodeId, allComponents, progressCallback);
+    
+    // Categorize components by atomic design principles
+    allComponents.forEach(component => {
+      // Detect component category based on complexity and naming
+      if (this.isAtomicComponent(component)) {
+        componentMap.atomicComponents.push(component);
+      } else if (this.isMolecule(component)) {
+        componentMap.molecules.push(component);
+      } else if (this.isOrganism(component)) {
+        componentMap.organisms.push(component);
+      } else if (this.isTemplate(component)) {
+        componentMap.templates.push(component);
+      }
+      
+      // Group variants by component set
+      if (component.componentSetId) {
+        if (!componentMap.componentSets[component.componentSetId]) {
+          componentMap.componentSets[component.componentSetId] = [];
+        }
+        componentMap.componentSets[component.componentSetId].push(component);
+      }
+    });
+    
+    // Detect reusable patterns
+    this.detectReusablePatterns(allComponents, componentMap);
+    
+    progressCallback?.(`✅ Extracted ${allComponents.length} components from frame`);
+    
+    return componentMap;
+  }
+  
+  private extractComponentsRecursive(
+    node: any, 
+    parentId: string,
+    components: ComponentInfo[],
+    progressCallback?: (message: string) => void
+  ) {
+    // Check if this node is a component or instance
+    if (node.type === 'COMPONENT' || node.type === 'INSTANCE' || this.looksLikeComponent(node)) {
+      const component: ComponentInfo = {
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        parentScreen: parentId,
+        instances: 1,
+        properties: this.extractNodeProperties(node),
+        boundingBox: node.absoluteBoundingBox,
+        componentSetId: node.componentSetId,
+        description: node.description,
+        children: []
+      };
+      
+      // Extract child components
+      if (node.children) {
+        node.children.forEach((child: any) => {
+          this.extractComponentsRecursive(child, node.id, component.children!, progressCallback);
+        });
+      }
+      
+      components.push(component);
+      progressCallback?.(`  📦 Found component: ${node.name}`);
+    }
+    
+    // Continue traversing even if not a component
+    if (node.children) {
+      node.children.forEach((child: any) => {
+        this.extractComponentsRecursive(child, parentId, components, progressCallback);
+      });
+    }
+  }
+  
+  private looksLikeComponent(node: any): boolean {
+    // Heuristics to detect potential components that aren't marked as such
+    const componentPatterns = [
+      /button/i, /btn/i, /card/i, /header/i, /footer/i,
+      /nav/i, /menu/i, /modal/i, /dialog/i, /form/i,
+      /input/i, /field/i, /icon/i, /avatar/i, /badge/i,
+      /tab/i, /accordion/i, /dropdown/i, /toggle/i
+    ];
+    
+    // Check name patterns
+    if (componentPatterns.some(pattern => pattern.test(node.name))) {
+      return true;
+    }
+    
+    // Check for auto-layout (common in components)
+    if (node.layoutMode && node.layoutMode !== 'NONE') {
+      return true;
+    }
+    
+    // Check for consistent sizing (common in reusable components)
+    if (node.constraints && (node.constraints.horizontal === 'FIXED' || node.constraints.vertical === 'FIXED')) {
+      return true;
+    }
+    
+    return false;
+  }
+  
+  private extractNodeProperties(node: any): Record<string, any> {
+    return {
+      fills: node.fills,
+      strokes: node.strokes,
+      effects: node.effects,
+      cornerRadius: node.cornerRadius,
+      layoutMode: node.layoutMode,
+      padding: node.paddingLeft ? {
+        left: node.paddingLeft,
+        right: node.paddingRight,
+        top: node.paddingTop,
+        bottom: node.paddingBottom
+      } : undefined,
+      spacing: node.itemSpacing,
+      constraints: node.constraints
+    };
+  }
+  
+  private extractDesignTokens(node: any, tokens: ComponentMap['designTokens']) {
+    // Extract colors from fills
+    if (node.fills) {
+      node.fills.forEach((fill: any) => {
+        if (fill.type === 'SOLID' && fill.color) {
+          const colorKey = this.rgbToHex(fill.color);
+          tokens.colors[node.name || colorKey] = colorKey;
+        }
+      });
+    }
+    
+    // Extract typography
+    if (node.type === 'TEXT' && node.style) {
+      const fontKey = `${node.style.fontFamily}-${node.style.fontSize}`;
+      tokens.typography[fontKey] = {
+        fontFamily: node.style.fontFamily,
+        fontSize: node.style.fontSize,
+        fontWeight: node.style.fontWeight,
+        lineHeight: node.style.lineHeightPx,
+        letterSpacing: node.style.letterSpacing
+      };
+    }
+    
+    // Extract spacing from auto-layout
+    if (node.layoutMode && node.itemSpacing) {
+      tokens.spacing[`spacing-${node.itemSpacing}`] = node.itemSpacing;
+    }
+    
+    // Recursively extract from children
+    if (node.children) {
+      node.children.forEach((child: any) => {
+        this.extractDesignTokens(child, tokens);
+      });
+    }
+  }
+  
+  private rgbToHex(color: { r: number; g: number; b: number }): string {
+    const toHex = (n: number) => {
+      const hex = Math.round(n * 255).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    };
+    return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
+  }
+  
+  private isAtomicComponent(component: ComponentInfo): boolean {
+    const atomicPatterns = /^(button|icon|input|label|badge|avatar|checkbox|radio|toggle|chip)$/i;
+    return atomicPatterns.test(component.name) || (component.children?.length || 0) <= 2;
+  }
+  
+  private isMolecule(component: ComponentInfo): boolean {
+    const moleculePatterns = /^(card|form-field|search-bar|navigation-item|list-item|dropdown|tooltip)$/i;
+    return moleculePatterns.test(component.name) || 
+           ((component.children?.length || 0) > 2 && (component.children?.length || 0) <= 5);
+  }
+  
+  private isOrganism(component: ComponentInfo): boolean {
+    const organismPatterns = /^(header|footer|sidebar|navigation|form|section|hero|feature)$/i;
+    return organismPatterns.test(component.name) || (component.children?.length || 0) > 5;
+  }
+  
+  private isTemplate(component: ComponentInfo): boolean {
+    const templatePatterns = /^(page|layout|template|view|screen)$/i;
+    return templatePatterns.test(component.name) || component.type === 'FRAME';
+  }
+  
+  private detectReusablePatterns(components: ComponentInfo[], componentMap: ComponentMap) {
+    // Group components by similar properties
+    const propertyGroups = new Map<string, ComponentInfo[]>();
+    
+    components.forEach(component => {
+      if (component.properties) {
+        const propKey = JSON.stringify({
+          fills: component.properties.fills,
+          cornerRadius: component.properties.cornerRadius,
+          layoutMode: component.properties.layoutMode
+        });
+        
+        if (!propertyGroups.has(propKey)) {
+          propertyGroups.set(propKey, []);
+        }
+        propertyGroups.get(propKey)!.push(component);
+      }
+    });
+    
+    // Mark components that appear multiple times with similar properties as reusable
+    propertyGroups.forEach(group => {
+      if (group.length > 1) {
+        group.forEach(component => {
+          component.isReusable = true;
+          component.variants = group.map(c => c.name);
+        });
       }
     });
   }
