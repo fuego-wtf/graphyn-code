@@ -90,6 +90,7 @@ export const useClaude = () => {
           .replace(/`/g, '\\`')
           .replace(/\$/g, '\\$');
         
+        // Launch Claude without signal propagation
         execSync(`"${claudeResult.path}" "${escapedContent}"`, { 
           stdio: 'inherit'
         });

@@ -19,6 +19,7 @@ import { AgentCommands } from './components/AgentCommands.js';
 import { ThreadCommand } from './components/ThreadCommand.js';
 import { Context } from './components/Context.js';
 import { TestMemory } from './components/TestMemory.js';
+import { DiagnoseAgents } from './components/DiagnoseAgents.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
@@ -120,7 +121,8 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         'whoami': 'auth',
         'logout': 'auth',
         'context': 'context',
-        'test-memory': 'test-memory'
+        'test-memory': 'test-memory',
+        'diagnose-agents': 'diagnose-agents'
       };
       
       if (directCommands[command]) {
@@ -261,6 +263,9 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       
       case 'test-memory':
         return <TestMemory />;
+      
+      case 'diagnose-agents':
+        return <DiagnoseAgents />;
       
       default:
         return null;
