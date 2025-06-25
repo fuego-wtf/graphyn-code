@@ -125,9 +125,21 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
             }
           };
           
+          // Limit the number of screens to process to prevent memory overflow
+          const MAX_SCREENS_TO_PROCESS = 10;
+          const screensToProcess = prototypeData.screens.slice(0, MAX_SCREENS_TO_PROCESS);
+          
+          if (prototypeData.screens.length > MAX_SCREENS_TO_PROCESS) {
+            setStatusMessage(`⚠️  Processing first ${MAX_SCREENS_TO_PROCESS} screens out of ${prototypeData.totalScreens} to prevent memory overflow`);
+          }
+          
+          // Track unique components across all screens
+          const globalComponentMap = new Map<string, any>();
+          
           // Extract components from each screen
-          for (const screen of prototypeData.screens) {
-            setStatusMessage(`Extracting from ${screen.name}...`);
+          for (let i = 0; i < screensToProcess.length; i++) {
+            const screen = screensToProcess[i];
+            setStatusMessage(`Extracting from ${screen.name} (${i + 1}/${screensToProcess.length})...`);
             
             try {
               const screenComponentMap = await figmaClient.extractComponentsFromFrame(
@@ -136,21 +148,43 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
                 (message: string) => setStatusMessage(message)
               );
               
-              // Merge results
+              // Merge design tokens (these are usually consistent across screens)
               Object.assign(combinedMap.designTokens.colors, screenComponentMap.designTokens.colors);
               Object.assign(combinedMap.designTokens.typography, screenComponentMap.designTokens.typography);
               Object.assign(combinedMap.designTokens.spacing, screenComponentMap.designTokens.spacing);
               
-              combinedMap.atomicComponents.push(...screenComponentMap.atomicComponents);
-              combinedMap.molecules.push(...screenComponentMap.molecules);
-              combinedMap.organisms.push(...screenComponentMap.organisms);
-              combinedMap.templates.push(...screenComponentMap.templates);
+              // Deduplicate components before adding to combined map
+              const dedupeAndAdd = (components: any[], targetArray: any[]) => {
+                components.forEach(comp => {
+                  const key = `${comp.name}_${comp.type}`;
+                  if (!globalComponentMap.has(key)) {
+                    globalComponentMap.set(key, comp);
+                    targetArray.push(comp);
+                  } else {
+                    // Update instance count
+                    const existing = globalComponentMap.get(key);
+                    existing.instances = (existing.instances || 1) + 1;
+                  }
+                });
+              };
               
+              dedupeAndAdd(screenComponentMap.atomicComponents, combinedMap.atomicComponents);
+              dedupeAndAdd(screenComponentMap.molecules, combinedMap.molecules);
+              dedupeAndAdd(screenComponentMap.organisms, combinedMap.organisms);
+              dedupeAndAdd(screenComponentMap.templates, combinedMap.templates);
+              
+              // Merge translations
               Object.assign(combinedMap.translations.extracted, screenComponentMap.translations?.extracted || {});
               Object.assign(combinedMap.translations.keyMapping, screenComponentMap.translations?.keyMapping || {});
               Object.assign(combinedMap.translations.languages.en, screenComponentMap.translations?.languages.en || {});
+              
+              // Add a small delay between screens to prevent overwhelming the API
+              if (i < screensToProcess.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
             } catch (error: any) {
               console.error(`Failed to extract from screen ${screen.name}: ${error.message}`);
+              setStatusMessage(`⚠️  Skipped ${screen.name}: ${error.message}`);
             }
           }
           

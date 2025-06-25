@@ -206,6 +206,43 @@ export class FigmaAPIClient {
    */
   async getNodes(fileKey: string, nodeIds: string[]): Promise<any> {
     try {
+      // Figma API has a limit on URL length, so batch large requests
+      const MAX_NODES_PER_REQUEST = 50;
+      
+      if (nodeIds.length > MAX_NODES_PER_REQUEST) {
+        console.log(`Batching ${nodeIds.length} nodes into multiple requests...`);
+        
+        const results: any = { nodes: {} };
+        
+        for (let i = 0; i < nodeIds.length; i += MAX_NODES_PER_REQUEST) {
+          const batch = nodeIds.slice(i, i + MAX_NODES_PER_REQUEST);
+          const idsParam = batch.join(',');
+          const url = `/files/${fileKey}/nodes?ids=${idsParam}`;
+          
+          console.log(`Fetching batch ${Math.floor(i / MAX_NODES_PER_REQUEST) + 1}/${Math.ceil(nodeIds.length / MAX_NODES_PER_REQUEST)}...`);
+          
+          const response = await this.client.get(url);
+          
+          if (response.data.err) {
+            console.error(`Figma API error: ${response.data.err}`);
+            throw new Error(`Figma API error: ${response.data.err}`);
+          }
+          
+          if (response.data.nodes) {
+            Object.assign(results.nodes, response.data.nodes);
+          }
+          
+          // Add delay between batches to avoid rate limiting
+          if (i + MAX_NODES_PER_REQUEST < nodeIds.length) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+        
+        console.log(`Fetched ${Object.keys(results.nodes).length} nodes in total`);
+        return results;
+      }
+      
+      // For small requests, use original logic
       const idsParam = nodeIds.join(',');
       const url = `/files/${fileKey}/nodes?ids=${idsParam}`;
       console.log(`Fetching nodes: ${url}`);
@@ -1128,10 +1165,16 @@ export class FigmaAPIClient {
     
     // Traverse and categorize all components
     const allComponents: ComponentInfo[] = [];
-    this.extractComponentsRecursive(doc, nodeId, allComponents, translations, progressCallback);
+    const componentDedupeMap = new Map<string, ComponentInfo>(); // Dedupe by component ID
+    const processedVariants = new Set<string>(); // Track processed variant sets
+    
+    this.extractComponentsRecursive(doc, nodeId, allComponents, translations, progressCallback, componentDedupeMap, processedVariants);
+    
+    // Use deduplicated components
+    const deduplicatedComponents = Array.from(componentDedupeMap.values());
     
     // Categorize components by atomic design principles
-    allComponents.forEach(component => {
+    deduplicatedComponents.forEach(component => {
       // Detect component category based on complexity and naming
       if (this.isAtomicComponent(component)) {
         componentMap.atomicComponents.push(component);
@@ -1153,7 +1196,7 @@ export class FigmaAPIClient {
     });
     
     // Detect reusable patterns
-    this.detectReusablePatterns(allComponents, componentMap);
+    this.detectReusablePatterns(deduplicatedComponents, componentMap);
     
     // Build translation files from extracted texts
     translations.forEach((textContent, key) => {
@@ -1162,7 +1205,7 @@ export class FigmaAPIClient {
       componentMap.translations!.keyMapping[key] = textContent.componentId || 'global';
     });
     
-    progressCallback?.(`✅ Extracted ${allComponents.length} components and ${translations.size} texts from frame`);
+    progressCallback?.(`✅ Extracted ${deduplicatedComponents.length} unique components and ${translations.size} texts from frame`);
     
     return componentMap;
   }
@@ -1172,10 +1215,29 @@ export class FigmaAPIClient {
     parentId: string,
     components: ComponentInfo[],
     translations: Map<string, TextContent>,
-    progressCallback?: (message: string) => void
+    progressCallback?: (message: string) => void,
+    componentDedupeMap?: Map<string, ComponentInfo>,
+    processedVariants?: Set<string>
   ) {
+    // Skip if this is a variant and we've already processed the component set
+    if (node.componentSetId && processedVariants?.has(node.componentSetId)) {
+      progressCallback?.(`  ⏭️  Skipping variant: ${node.name} (already processed component set)`);
+      return;
+    }
+    
     // Check if this node is a component or instance
     if (node.type === 'COMPONENT' || node.type === 'INSTANCE' || this.looksLikeComponent(node)) {
+      // For instances, use the component ID if available
+      const componentKey = node.componentId || node.id;
+      
+      // Check if we've already processed this component
+      if (componentDedupeMap?.has(componentKey)) {
+        const existing = componentDedupeMap.get(componentKey)!;
+        existing.instances = (existing.instances || 1) + 1;
+        progressCallback?.(`  ♻️  Reusing component: ${node.name} (${existing.instances} instances)`);
+        return;
+      }
+      
       const component: ComponentInfo = {
         id: node.id,
         name: node.name,
@@ -1191,10 +1253,15 @@ export class FigmaAPIClient {
         i18nKeys: []
       };
       
-      // Extract child components and texts
-      if (node.children) {
+      // If this is part of a component set, mark it as processed
+      if (node.componentSetId && processedVariants) {
+        processedVariants.add(node.componentSetId);
+      }
+      
+      // Extract child components and texts (but limit depth to prevent memory issues)
+      if (node.children && node.children.length < 100) { // Limit children to prevent memory overflow
         node.children.forEach((child: any) => {
-          this.extractComponentsRecursive(child, node.id, component.children!, translations, progressCallback);
+          this.extractComponentsRecursive(child, node.id, component.children!, translations, progressCallback, componentDedupeMap, processedVariants);
           
           // Check if child is a text node
           if (child.type === 'TEXT' && child.characters) {
@@ -1235,9 +1302,14 @@ export class FigmaAPIClient {
             progressCallback?.(`    📝 Found text: "${child.characters.substring(0, 30)}..." → ${translationKey}`);
           }
         });
+      } else if (node.children && node.children.length >= 100) {
+        progressCallback?.(`  ⚠️  Skipping deep traversal of ${node.name} (${node.children.length} children)`);
       }
       
       components.push(component);
+      if (componentDedupeMap) {
+        componentDedupeMap.set(componentKey, component);
+      }
       progressCallback?.(`  📦 Found component: ${node.name}`);
     } else if (node.type === 'TEXT' && node.characters) {
       // Handle standalone text nodes not within components
@@ -1281,10 +1353,10 @@ export class FigmaAPIClient {
       progressCallback?.(`    📝 Found text: "${node.characters.substring(0, 30)}..." → ${translationKey}`);
     }
     
-    // Continue traversing even if not a component
-    if (node.children) {
+    // Continue traversing even if not a component (but limit depth)
+    if (node.children && node.children.length < 100) {
       node.children.forEach((child: any) => {
-        this.extractComponentsRecursive(child, parentId, components, translations, progressCallback);
+        this.extractComponentsRecursive(child, parentId, components, translations, progressCallback, componentDedupeMap, processedVariants);
       });
     }
   }
