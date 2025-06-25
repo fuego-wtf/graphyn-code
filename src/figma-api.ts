@@ -50,6 +50,10 @@ interface NavigationLink {
   from: string;
   to: string;
   trigger?: string;
+  action?: string;           // NAVIGATE, SWAP, OVERLAY, etc.
+  transition?: string;       // DISSOLVE, SLIDE_IN, etc.
+  duration?: number;         // Animation duration
+  preserveScrollPosition?: boolean;
 }
 
 interface TextContent {
@@ -294,7 +298,8 @@ export class FigmaAPIClient {
             navigation.push({
               from: currentNodeId,
               to: doc.transitionNodeID,
-              trigger: 'click'
+              trigger: 'click',
+              action: 'NAVIGATE'
             });
           }
           
@@ -314,7 +319,11 @@ export class FigmaAPIClient {
                     navigation.push({
                       from: currentNodeId,
                       to: action.destinationId,
-                      trigger: interaction.trigger?.type || 'click'
+                      trigger: interaction.trigger?.type || 'click',
+                      action: action.navigation || 'NAVIGATE',
+                      transition: action.transition?.type,
+                      duration: action.transition?.duration,
+                      preserveScrollPosition: action.preserveScrollPosition
                     });
                   }
                 });
@@ -1037,11 +1046,40 @@ export class FigmaAPIClient {
     progressCallback?.('🔍 Extracting components from frame...');
     
     // Get detailed node data including all children
-    const nodeData = await this.getNodes(fileKey, [nodeId]);
-    const frameNode = nodeData.nodes[nodeId];
-    
-    if (!frameNode) {
-      throw new Error(`Node ${nodeId} not found`);
+    let frameNode;
+    try {
+      const nodeData = await this.getNodes(fileKey, [nodeId]);
+      frameNode = nodeData.nodes[nodeId];
+      
+      if (!frameNode) {
+        throw new Error(`Node ${nodeId} not found`);
+      }
+    } catch (error: any) {
+      // If specific node fails, try getting the whole file
+      progressCallback?.('⚠️  Specific node not accessible, trying full file...');
+      
+      try {
+        const fileData = await this.getFile(fileKey, { depth: 2 });
+        
+        // Try to find the node in the document
+        frameNode = this.findNodeById(fileData.document, nodeId);
+        
+        if (!frameNode) {
+          // Use the first page or canvas as fallback
+          const firstPage = fileData.document.children?.find((child: any) => 
+            child.type === 'CANVAS' || child.type === 'PAGE'
+          );
+          
+          if (firstPage && firstPage.children?.length > 0) {
+            frameNode = firstPage.children[0];
+            progressCallback?.(`📄 Using first frame: ${frameNode.name}`);
+          } else {
+            throw new Error('No accessible frames found in file');
+          }
+        }
+      } catch (fileError: any) {
+        throw new Error(`Figma file or node not found`);
+      }
     }
     
     const doc = frameNode.document || frameNode;
