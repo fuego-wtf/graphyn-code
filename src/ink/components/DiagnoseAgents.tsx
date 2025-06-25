@@ -1,199 +1,153 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { Loading } from './Loading.js';
-import { useAPI } from '../hooks/useAPI.js';
+import Spinner from 'ink-spinner';
+import { figmaApi } from '../services/figmaApi.js';
+import { figmaAuth } from '../services/figmaAuth.js';
+
+interface DiagnosticResult {
+  check: string;
+  status: 'pending' | 'success' | 'error';
+  details?: string;
+}
 
 export const DiagnoseAgents: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [diagnosis, setDiagnosis] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const { client } = useAPI();
+  const [results, setResults] = useState<DiagnosticResult[]>([
+    { check: 'Checking OAuth tokens...', status: 'pending' },
+    { check: 'Testing Figma API connection...', status: 'pending' },
+    { check: 'Fetching user profile...', status: 'pending' }
+  ]);
 
   useEffect(() => {
-    runDiagnosis();
+    runDiagnostics();
   }, []);
 
-  const runDiagnosis = async () => {
-    if (!client) {
-      setError('Not authenticated. Please run "graphyn auth" first.');
-      setLoading(false);
+  const updateResult = (index: number, update: Partial<DiagnosticResult>) => {
+    setResults(prev => {
+      const newResults = [...prev];
+      newResults[index] = { ...newResults[index], ...update };
+      return newResults;
+    });
+  };
+
+  const runDiagnostics = async () => {
+    // Check 1: OAuth tokens
+    try {
+      const tokens = figmaAuth.getTokens();
+      if (tokens) {
+        updateResult(0, {
+          status: 'success',
+          details: `Access token: ${tokens.access_token.substring(0, 20)}... (expires: ${new Date(tokens.expires_at).toLocaleString()})`
+        });
+      } else {
+        updateResult(0, {
+          status: 'error',
+          details: 'No tokens found in storage'
+        });
+        return;
+      }
+    } catch (error) {
+      updateResult(0, {
+        status: 'error',
+        details: `Error checking tokens: ${error instanceof Error ? error.message : String(error)}`
+      });
       return;
     }
 
+    // Check 2: Test API connection
     try {
-      const results: any = {
-        apiEndpoints: {},
-        agentData: {},
-        lettaIntegration: {}
-      };
-
-      // Check available agents endpoint
+      const response = await fetch('https://api.figma.com/v1/me', {
+        headers: {
+          'Authorization': `Bearer ${figmaAuth.getTokens()?.access_token}`
+        }
+      });
+      
+      const responseText = await response.text();
+      let responseData;
       try {
-        const availableAgents = await client.get<any>('/api/agents/available');
-        results.apiEndpoints.available = {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = responseText;
+      }
+
+      if (response.ok) {
+        updateResult(1, {
           status: 'success',
-          count: availableAgents.agents?.length || 0,
-          agents: availableAgents.agents?.map((a: any) => ({
-            id: a.id,
-            name: a.name,
-            hasPrompt: !!a.configuration?.prompt,
-            hasTools: !!(a.configuration?.tools?.length > 0),
-            created_by: a.created_by
-          }))
-        };
-      } catch (err) {
-        results.apiEndpoints.available = {
+          details: `API connection successful (${response.status})`
+        });
+      } else {
+        updateResult(1, {
           status: 'error',
-          error: err instanceof Error ? err.message : 'Failed'
-        };
+          details: `API error (${response.status}): ${JSON.stringify(responseData, null, 2)}`
+        });
+        return;
       }
+    } catch (error) {
+      updateResult(1, {
+        status: 'error',
+        details: `Network error: ${error instanceof Error ? error.message : String(error)}`
+      });
+      return;
+    }
 
-      // Check regular agents endpoint
-      try {
-        const agents = await client.get<any>('/api/agents');
-        results.apiEndpoints.list = {
-          status: 'success',
-          count: agents.agents?.length || 0
-        };
-      } catch (err) {
-        results.apiEndpoints.list = {
-          status: 'error',
-          error: err instanceof Error ? err.message : 'Failed'
-        };
-      }
-
-      // Check Letta agents endpoint
-      try {
-        const lettaAgents = await client.get<any>('/api/letta/agents');
-        results.lettaIntegration = {
-          status: 'success',
-          count: lettaAgents.agents?.length || 0,
-          hasRealAgents: lettaAgents.agents?.length > 0,
-          agents: lettaAgents.agents?.slice(0, 3).map((a: any) => ({
-            id: a.id,
-            name: a.name,
-            model: a.model,
-            hasMemory: !!a.memory
-          }))
-        };
-      } catch (err) {
-        results.lettaIntegration = {
-          status: 'error',
-          error: err instanceof Error ? err.message : 'Failed'
-        };
-      }
-
-      // Analyze results
-      const availableAgents = results.apiEndpoints.available?.agents || [];
-      const hasRealPrompts = availableAgents.some((a: any) => a.hasPrompt);
-      const hasRealTools = availableAgents.some((a: any) => a.hasTools);
-      const allSystemCreated = availableAgents.every((a: any) => a.created_by === 'system');
-
-      results.diagnosis = {
-        usingMockData: !hasRealPrompts && !hasRealTools && allSystemCreated,
-        hasLettaIntegration: results.lettaIntegration.hasRealAgents,
-        recommendations: []
-      };
-
-      if (results.diagnosis.usingMockData) {
-        results.diagnosis.recommendations.push(
-          'Agents appear to be using fallback/mock data',
-          'No real prompts or tools configured',
-          'Backend may need to implement real agent storage'
-        );
-      }
-
-      if (!results.lettaIntegration.hasRealAgents) {
-        results.diagnosis.recommendations.push(
-          'No Letta agents found',
-          'Letta integration may not be configured'
-        );
-      }
-
-      setDiagnosis(results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Diagnosis failed');
-    } finally {
-      setLoading(false);
+    // Check 3: Get user profile
+    try {
+      const user = await figmaApi.getUser();
+      updateResult(2, {
+        status: 'success',
+        details: `User: ${user.email} (${user.handle})`
+      });
+    } catch (error) {
+      updateResult(2, {
+        status: 'error',
+        details: `Failed to get user: ${error instanceof Error ? error.message : String(error)}`
+      });
     }
   };
 
-  if (loading) {
-    return <Loading message="Diagnosing agent system..." />;
-  }
-
-  if (error) {
-    return (
-      <Box flexDirection="column" marginY={1}>
-        <Text color="red">❌ Error: {error}</Text>
-      </Box>
-    );
-  }
-
-  if (!diagnosis) return null;
-
-  const { usingMockData, hasLettaIntegration } = diagnosis.diagnosis;
-
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Text bold color="cyan">🔍 Agent System Diagnosis</Text>
-      <Text> </Text>
-      
-      <Text bold>API Endpoints:</Text>
-      <Box flexDirection="column" marginLeft={2}>
-        <Text>
-          /api/agents/available: {diagnosis.apiEndpoints.available.status === 'success' 
-            ? `✅ ${diagnosis.apiEndpoints.available.count} agents` 
-            : `❌ ${diagnosis.apiEndpoints.available.error}`}
-        </Text>
-        <Text>
-          /api/agents: {diagnosis.apiEndpoints.list.status === 'success'
-            ? `✅ ${diagnosis.apiEndpoints.list.count} agents`
-            : `❌ ${diagnosis.apiEndpoints.list.error}`}
-        </Text>
-        <Text>
-          /api/letta/agents: {diagnosis.lettaIntegration.status === 'success'
-            ? `✅ ${diagnosis.lettaIntegration.count} agents`
-            : `❌ ${diagnosis.lettaIntegration.error}`}
-        </Text>
+    <Box flexDirection="column" paddingTop={1}>
+      <Box marginBottom={1}>
+        <Text bold color="cyan">🔍 Figma Agent Diagnostics</Text>
       </Box>
-
-      <Text> </Text>
-      <Text bold>Available Agents Analysis:</Text>
-      {diagnosis.apiEndpoints.available.agents?.map((agent: any, i: number) => (
-        <Box key={i} flexDirection="column" marginLeft={2}>
-          <Text>
-            • {agent.name} ({agent.id})
-            {agent.hasPrompt ? ' ✅ Has prompt' : ' ❌ No prompt'}
-            {agent.hasTools ? ' ✅ Has tools' : ' ❌ No tools'}
-          </Text>
+      
+      {results.map((result, index) => (
+        <Box key={index} marginBottom={1}>
+          <Box width={30}>
+            <Text>{result.check}</Text>
+          </Box>
+          <Box marginLeft={2}>
+            {result.status === 'pending' && (
+              <Text color="yellow">
+                <Spinner type="dots" /> Checking...
+              </Text>
+            )}
+            {result.status === 'success' && (
+              <Text color="green">✓ Success</Text>
+            )}
+            {result.status === 'error' && (
+              <Text color="red">✗ Failed</Text>
+            )}
+          </Box>
         </Box>
       ))}
-
-      <Text> </Text>
-      <Text bold color={usingMockData ? 'yellow' : 'green'}>
-        Status: {usingMockData ? '⚠️  Using Mock/Fallback Agents' : '✅ Using Real Agents'}
-      </Text>
       
-      {diagnosis.diagnosis.recommendations.length > 0 && (
-        <>
-          <Text> </Text>
-          <Text bold>Recommendations:</Text>
-          {diagnosis.diagnosis.recommendations.map((rec: string, i: number) => (
-            <Box key={i} marginLeft={2}>
-              <Text>• {rec}</Text>
-            </Box>
-          ))}
-        </>
+      {results.some(r => r.details) && (
+        <Box flexDirection="column" marginTop={1} borderStyle="single" paddingX={1}>
+          <Text bold>Details:</Text>
+          {results.map((result, index) => 
+            result.details && (
+              <Box key={index} marginTop={1}>
+                <Text dimColor>{result.check}:</Text>
+                <Box marginLeft={2}>
+                  <Text color={result.status === 'error' ? 'red' : 'gray'}>
+                    {result.details}
+                  </Text>
+                </Box>
+              </Box>
+            )
+          )}
+        </Box>
       )}
-
-      <Text> </Text>
-      <Text dimColor>
-        💡 For real agent functionality, ensure:
-        {'\n'}   - Backend has implemented agent storage
-        {'\n'}   - Letta is properly integrated
-        {'\n'}   - Agent configurations include prompts and tools
-      </Text>
     </Box>
   );
 };

@@ -163,6 +163,27 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       case 'doctor':
         setMode('doctor');
         break;
+      case 'diagnose':
+        setMode('diagnose-agents');
+        break;
+      case 'share':
+        setMode('share');
+        break;
+      case 'history':
+        setMode('history');
+        break;
+      case 'status':
+        setMode('status');
+        break;
+      case 'sync':
+        setMode('sync');
+        break;
+      case 'monitor':
+        setMode('monitor');
+        break;
+      case 'collaborate':
+        setMode('collaborate');
+        break;
     }
   };
 

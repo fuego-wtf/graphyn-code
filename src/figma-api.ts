@@ -110,12 +110,17 @@ interface ComponentMap {
 
 export class FigmaAPIClient {
   private client: AxiosInstance;
+  private usePersonalToken: boolean = false;
 
   constructor(token: string) {
+    // Check if this is a personal access token (starts with specific prefix)
+    // or if we should use it as a fallback
+    this.usePersonalToken = process.env.FIGMA_PERSONAL_TOKEN ? true : false;
+    
     this.client = axios.create({
       baseURL: 'https://api.figma.com/v1',
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${this.usePersonalToken && process.env.FIGMA_PERSONAL_TOKEN ? process.env.FIGMA_PERSONAL_TOKEN : token}`
       }
     });
   }
@@ -1078,7 +1083,20 @@ export class FigmaAPIClient {
           }
         }
       } catch (fileError: any) {
-        throw new Error(`Figma file or node not found`);
+        console.error('Figma API Error:', {
+          status: fileError.response?.status,
+          statusText: fileError.response?.statusText,
+          data: fileError.response?.data,
+          message: fileError.message
+        });
+        
+        if (fileError.response?.status === 403) {
+          throw new Error(`Figma access denied. Please ensure:\n1. You're authenticated: graphyn design auth\n2. You have access to this file\n3. The file allows API access`);
+        } else if (fileError.response?.status === 404) {
+          throw new Error(`Figma file not found. The file might be:\n1. Deleted or moved\n2. In a team you don't have access to\n3. Set to view-only without API access`);
+        }
+        
+        throw new Error(`Figma API error: ${fileError.response?.data?.message || fileError.message}`);
       }
     }
     

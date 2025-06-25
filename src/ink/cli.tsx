@@ -58,6 +58,7 @@ Commands:
   graphyn sync <action>          Sync GRAPHYN.md (pull|push|edit)
   graphyn whoami                 Show authentication status
   graphyn logout                 Remove authentication
+  graphyn diagnose-agents        Diagnose Figma agent connectivity
 
 Agents:
   backend (b)                    Backend development agent

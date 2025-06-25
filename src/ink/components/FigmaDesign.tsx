@@ -51,16 +51,27 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       setProgress(10);
       
       const config = new ConfigManager();
-      const tokens = await config.get('figma.oauth') as any;
+      let token: string;
       
-      if (!tokens || !tokens.access_token || tokens.expires_at < Date.now()) {
-        setStep('error');
-        setErrorMessage('Figma authentication required');
-        setAuthInstructions(true);
-        return;
+      // Check for dev token first (for local development)
+      const devToken = process.env.FIGMA_ACCESS_TOKEN || (await config.get('figma.devToken') as string);
+      
+      if (devToken) {
+        token = devToken;
+        setStatusMessage('✅ Using Figma dev token');
+      } else {
+        // Fall back to OAuth
+        const tokens = await config.get('figma.oauth') as any;
+        
+        if (!tokens || !tokens.access_token || tokens.expires_at < Date.now()) {
+          setStep('error');
+          setErrorMessage('Figma authentication required');
+          setAuthInstructions(true);
+          return;
+        }
+        
+        token = tokens.access_token;
       }
-      
-      const token = tokens.access_token;
       
       setProgress(20);
       setStatusMessage('✅ Figma authenticated');
@@ -82,42 +93,78 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       let prototypeData;
       let componentMap;
       
-      if (isComponentExtraction && urlParts.nodeId) {
-        // Extract components from specific frame
-        setStatusMessage('Extracting components from frame...');
+      if (isComponentExtraction) {
+        // First analyze the prototype to get all screens
+        setStatusMessage('Analyzing prototype structure...');
         
         try {
-          componentMap = await figmaClient.extractComponentsFromFrame(
-            urlParts.fileKey,
-            urlParts.nodeId,
-            (message: string) => setStatusMessage(message)
-          );
+          // Get prototype data with all screens
+          prototypeData = await figmaClient.analyzePrototype(cleanUrl, (message: string) => {
+            setStatusMessage(message);
+          });
           
-          // Create a special prototype structure for component extraction
-          prototypeData = {
-            fileKey: urlParts.fileKey,
-            fileName: 'Component Extraction',
-            screens: [{
-              id: urlParts.nodeId,
-              name: 'Extracted Components',
-              frameId: urlParts.nodeId,
-              components: [],
-              navigatesTo: []
-            }],
-            navigation: [],
-            components: [
-              ...componentMap.atomicComponents,
-              ...componentMap.molecules,
-              ...componentMap.organisms,
-              ...componentMap.templates
-            ],
-            componentMap,
-            totalScreens: 1,
-            totalComponents: componentMap.atomicComponents.length + 
-                            componentMap.molecules.length + 
-                            componentMap.organisms.length + 
-                            componentMap.templates.length
+          // Now extract components from all discovered screens
+          setStatusMessage(`Extracting components from ${prototypeData.totalScreens} screens...`);
+          
+          // Initialize combined component map
+          const combinedMap: any = {
+            designTokens: {
+              colors: {},
+              typography: {},
+              spacing: {}
+            },
+            atomicComponents: [],
+            molecules: [],
+            organisms: [],
+            templates: [],
+            componentSets: {},
+            translations: {
+              extracted: {},
+              keyMapping: {},
+              languages: { en: {} }
+            }
           };
+          
+          // Extract components from each screen
+          for (const screen of prototypeData.screens) {
+            setStatusMessage(`Extracting from ${screen.name}...`);
+            
+            try {
+              const screenComponentMap = await figmaClient.extractComponentsFromFrame(
+                urlParts.fileKey,
+                screen.frameId,
+                (message: string) => setStatusMessage(message)
+              );
+              
+              // Merge results
+              Object.assign(combinedMap.designTokens.colors, screenComponentMap.designTokens.colors);
+              Object.assign(combinedMap.designTokens.typography, screenComponentMap.designTokens.typography);
+              Object.assign(combinedMap.designTokens.spacing, screenComponentMap.designTokens.spacing);
+              
+              combinedMap.atomicComponents.push(...screenComponentMap.atomicComponents);
+              combinedMap.molecules.push(...screenComponentMap.molecules);
+              combinedMap.organisms.push(...screenComponentMap.organisms);
+              combinedMap.templates.push(...screenComponentMap.templates);
+              
+              Object.assign(combinedMap.translations.extracted, screenComponentMap.translations?.extracted || {});
+              Object.assign(combinedMap.translations.keyMapping, screenComponentMap.translations?.keyMapping || {});
+              Object.assign(combinedMap.translations.languages.en, screenComponentMap.translations?.languages.en || {});
+            } catch (error: any) {
+              console.error(`Failed to extract from screen ${screen.name}: ${error.message}`);
+            }
+          }
+          
+          // Update prototype data with combined components
+          prototypeData.components = [
+            ...combinedMap.atomicComponents,
+            ...combinedMap.molecules,
+            ...combinedMap.organisms,
+            ...combinedMap.templates
+          ];
+          prototypeData.componentMap = combinedMap;
+          prototypeData.totalComponents = prototypeData.components.length;
+          
+          componentMap = combinedMap;
         } catch (error: any) {
           throw new Error(`Component extraction failed: ${error.message}`);
         }
@@ -295,6 +342,10 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
               <Text color="cyan">2. Run: graphyn design auth</Text>
               <Text color="cyan">3. Complete OAuth in your browser</Text>
               <Text color="cyan">4. Try again: graphyn design {url}</Text>
+              <Text> </Text>
+              <Text dimColor>Alternative for restricted files:</Text>
+              <Text dimColor>FIGMA_ACCESS_TOKEN=your-token graphyn design ...</Text>
+              <Text dimColor>Get token: https://www.figma.com/developers/api#access-tokens</Text>
             </Box>
           )}
         </Box>

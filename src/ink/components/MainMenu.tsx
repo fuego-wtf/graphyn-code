@@ -19,6 +19,7 @@ const menuItems = [
   { label: '🔐 Authentication', value: 'auth' },
   { label: '🩺 Doctor', value: 'doctor' },
   { label: '📊 Monitor', value: 'monitor' },
+  { label: '🔍 Diagnose Agents', value: 'diagnose' },
   { label: '─────────────────', value: 'separator2' },
   { label: '📊 Project Status', value: 'status' },
   { label: '🔄 Sync GRAPHYN.md', value: 'sync' },

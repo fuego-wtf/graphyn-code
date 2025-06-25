@@ -44,6 +44,9 @@ process.on('SIGHUP', () => handleShutdown('SIGHUP'));
 
 child.on('exit', (code) => {
   if (!isShuttingDown) {
-    process.exit(code || 0);
+    // Clean exit after a small delay to ensure all cleanup is done
+    setTimeout(() => {
+      process.exit(code || 0);
+    }, 100);
   }
 });
