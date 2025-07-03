@@ -113,17 +113,12 @@ interface ComponentMap {
 
 export class FigmaAPIClient {
   private client: AxiosInstance;
-  private usePersonalToken: boolean = false;
 
   constructor(token: string) {
-    // Check if this is a personal access token (starts with specific prefix)
-    // or if we should use it as a fallback
-    this.usePersonalToken = process.env.FIGMA_PERSONAL_TOKEN ? true : false;
-    
     this.client = axios.create({
       baseURL: 'https://api.figma.com/v1',
       headers: {
-        'Authorization': `Bearer ${this.usePersonalToken && process.env.FIGMA_PERSONAL_TOKEN ? process.env.FIGMA_PERSONAL_TOKEN : token}`
+        'Authorization': `Bearer ${token}`
       }
     });
   }

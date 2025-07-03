@@ -1,3 +1,10 @@
+# Debug and test files with tokens
+debug-*.js
+test-*.js
+test-node.js
+test-real-prototype.js
+
+# Keep the rest of gitignore
 # User data
 .fuego/
 history/

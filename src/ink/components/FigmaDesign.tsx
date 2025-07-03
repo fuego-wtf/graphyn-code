@@ -53,25 +53,17 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       const config = new ConfigManager();
       let token: string;
       
-      // Check for dev token first (for local development)
-      const devToken = process.env.FIGMA_ACCESS_TOKEN || (await config.get('figma.devToken') as string);
+      // Use OAuth authentication
+      const tokens = await config.get('figma.oauth') as any;
       
-      if (devToken) {
-        token = devToken;
-        setStatusMessage('✅ Using Figma dev token');
-      } else {
-        // Fall back to OAuth
-        const tokens = await config.get('figma.oauth') as any;
-        
-        if (!tokens || !tokens.access_token || tokens.expires_at < Date.now()) {
-          setStep('error');
-          setErrorMessage('Figma authentication required');
-          setAuthInstructions(true);
-          return;
-        }
-        
-        token = tokens.access_token;
+      if (!tokens || !tokens.access_token || tokens.expires_at < Date.now()) {
+        setStep('error');
+        setErrorMessage('Figma authentication required');
+        setAuthInstructions(true);
+        return;
       }
+      
+      token = tokens.access_token;
       
       setProgress(20);
       setStatusMessage('✅ Figma authenticated');
@@ -352,10 +344,6 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
               <Text color="cyan">2. Run: graphyn design auth</Text>
               <Text color="cyan">3. Complete OAuth in your browser</Text>
               <Text color="cyan">4. Try again: graphyn design {url}</Text>
-              <Text> </Text>
-              <Text dimColor>Alternative for restricted files:</Text>
-              <Text dimColor>FIGMA_ACCESS_TOKEN=your-token graphyn design ...</Text>
-              <Text dimColor>Get token: https://www.figma.com/developers/api#access-tokens</Text>
             </Box>
           )}
         </Box>
