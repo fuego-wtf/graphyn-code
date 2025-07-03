@@ -10,27 +10,21 @@ import {
   agentThemes
 } from './ui';
 import { findClaude } from './utils/claude-detector';
+import { AgentPromptService } from './services/agent-prompt-service.js';
 
 export class AgentManager {
   private authManager: AuthManager;
+  private promptService: AgentPromptService;
 
   constructor() {
     this.authManager = new AuthManager();
+    this.promptService = new AgentPromptService();
   }
 
   async startInteractiveSession(type: string): Promise<void> {
-    // Get the prompt file path
-    const promptsDir = path.join(__dirname, '..', 'prompts');
-    const promptFile = path.join(promptsDir, `${type}.md`);
-    
-    if (!fs.existsSync(promptFile)) {
-      console.log(colors.error(`Prompt file not found: ${promptFile}`));
-      return;
-    }
-    
     try {
-      // Read the prompt content
-      const promptContent = fs.readFileSync(promptFile, 'utf8');
+      // Get prompt content (dynamic or local)
+      const promptContent = await this.promptService.getAgentPrompt(type);
       
       // Use claude detector instead of hardcoded path
       const claudeResult = await findClaude();
@@ -61,7 +55,7 @@ export class AgentManager {
       }
       
     } catch (error) {
-      console.error(colors.error(`Failed to read prompt file: ${error instanceof Error ? error.message : String(error)}`));
+      console.error(colors.error(`Failed to get agent prompt: ${error instanceof Error ? error.message : String(error)}`));
     }
   }
 
@@ -105,15 +99,13 @@ export class AgentManager {
     // Find Claude using detector
     const claudeResult = await findClaude();
     
-    // Read the agent prompt
-    const promptsDir = path.join(__dirname, '..', 'prompts');
-    const promptFile = path.join(promptsDir, `${type}.md`);
-    
-    if (!fs.existsSync(promptFile)) {
+    // Get agent prompt (dynamic or local)
+    let promptContent: string;
+    try {
+      promptContent = await this.promptService.getAgentPrompt(type);
+    } catch (error) {
       return this.getFallbackResponse(type, query);
     }
-    
-    const promptContent = fs.readFileSync(promptFile, 'utf8');
     
     // Check for GRAPHYN.md in current directory
     let projectContext = '';

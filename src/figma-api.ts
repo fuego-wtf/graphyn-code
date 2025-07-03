@@ -1,4 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
+import fs from 'fs';
+import path from 'path';
+import https from 'https';
 
 interface FigmaFile {
   name: string;
@@ -1077,68 +1080,15 @@ export class FigmaAPIClient {
   }
 
   /**
-   * Systematically extract components from a frame using the nodes API
-   * This provides a complete component map for design system generation
+   * Extract component structure and variables from file
+   * Lightweight approach that only gets component names and variables
    */
   async extractComponentsFromFrame(
     fileKey: string, 
     nodeId: string,
     progressCallback?: (message: string) => void
   ): Promise<ComponentMap> {
-    progressCallback?.('🔍 Extracting components from frame...');
-    
-    // Get detailed node data including all children
-    let frameNode;
-    try {
-      const nodeData = await this.getNodes(fileKey, [nodeId]);
-      frameNode = nodeData.nodes[nodeId];
-      
-      if (!frameNode) {
-        throw new Error(`Node ${nodeId} not found`);
-      }
-    } catch (error: any) {
-      // If specific node fails, try getting the whole file
-      progressCallback?.('⚠️  Specific node not accessible, trying full file...');
-      
-      try {
-        const fileData = await this.getFile(fileKey, { depth: 2 });
-        
-        // Try to find the node in the document
-        frameNode = this.findNodeById(fileData.document, nodeId);
-        
-        if (!frameNode) {
-          // Use the first page or canvas as fallback
-          const firstPage = fileData.document.children?.find((child: any) => 
-            child.type === 'CANVAS' || child.type === 'PAGE'
-          );
-          
-          if (firstPage && firstPage.children?.length > 0) {
-            frameNode = firstPage.children[0];
-            progressCallback?.(`📄 Using first frame: ${frameNode.name}`);
-          } else {
-            throw new Error('No accessible frames found in file');
-          }
-        }
-      } catch (fileError: any) {
-        console.error('Figma API Error:', {
-          status: fileError.response?.status,
-          statusText: fileError.response?.statusText,
-          data: fileError.response?.data,
-          message: fileError.message
-        });
-        
-        if (fileError.response?.status === 403) {
-          throw new Error(`Figma access denied. Please ensure:\n1. You're authenticated: graphyn design auth\n2. You have access to this file\n3. The file allows API access`);
-        } else if (fileError.response?.status === 404) {
-          throw new Error(`Figma file not found. The file might be:\n1. Deleted or moved\n2. In a team you don't have access to\n3. Set to view-only without API access`);
-        }
-        
-        throw new Error(`Figma API error: ${fileError.response?.data?.message || fileError.message}`);
-      }
-    }
-    
-    const doc = frameNode.document || frameNode;
-    const translations = new Map<string, TextContent>();
+    progressCallback?.('📐 Getting component structure and variables...');
     
     const componentMap: ComponentMap = {
       designTokens: {
@@ -1160,286 +1110,111 @@ export class FigmaAPIClient {
       }
     };
     
-    // Extract design tokens from the frame
-    this.extractDesignTokens(doc, componentMap.designTokens);
-    
-    // Traverse and categorize all components
-    const allComponents: ComponentInfo[] = [];
-    const componentDedupeMap = new Map<string, ComponentInfo>(); // Dedupe by component ID
-    const processedVariants = new Set<string>(); // Track processed variant sets
-    
-    this.extractComponentsRecursive(doc, nodeId, allComponents, translations, progressCallback, componentDedupeMap, processedVariants);
-    
-    // Use deduplicated components
-    const deduplicatedComponents = Array.from(componentDedupeMap.values());
-    
-    // Categorize components by atomic design principles
-    deduplicatedComponents.forEach(component => {
-      // Detect component category based on complexity and naming
-      if (this.isAtomicComponent(component)) {
-        componentMap.atomicComponents.push(component);
-      } else if (this.isMolecule(component)) {
-        componentMap.molecules.push(component);
-      } else if (this.isOrganism(component)) {
-        componentMap.organisms.push(component);
-      } else if (this.isTemplate(component)) {
-        componentMap.templates.push(component);
+    try {
+      // Step 1: Get file variables (colors, typography, spacing)
+      progressCallback?.('🎨 Fetching design variables...');
+      const variablesResponse = await this.getFileVariables(fileKey, progressCallback);
+      componentMap.designTokens = variablesResponse;
+      
+      // Step 2: Get component library structure
+      progressCallback?.('🧩 Mapping component library...');
+      const componentMapping = await this.getComponentMapping(fileKey, nodeId, progressCallback);
+      
+      // Assign components to categories
+      componentMap.atomicComponents = componentMapping.atoms;
+      componentMap.molecules = componentMapping.molecules;
+      componentMap.organisms = componentMapping.organisms;
+      componentMap.templates = componentMapping.templates;
+      componentMap.componentSets = componentMapping.sets;
+      
+      // Step 3: Get frame structure for context (shallow, no deep traversal)
+      progressCallback?.('📄 Getting frame context...');
+      try {
+        const frameData = await this.client.get(`/files/${fileKey}/nodes?ids=${nodeId}&depth=2`);
+        if (frameData.data.nodes?.[nodeId]) {
+          const frameNode = frameData.data.nodes[nodeId];
+          const frameName = frameNode.document?.name || frameNode.name || 'Frame';
+          progressCallback?.(`✅ Frame context: ${frameName}`);
+        }
+      } catch (err) {
+        progressCallback?.('⚠️  Could not get frame context');
       }
       
-      // Group variants by component set
-      if (component.componentSetId) {
-        if (!componentMap.componentSets[component.componentSetId]) {
-          componentMap.componentSets[component.componentSetId] = [];
-        }
-        componentMap.componentSets[component.componentSetId].push(component);
-      }
-    });
-    
-    // Detect reusable patterns
-    this.detectReusablePatterns(deduplicatedComponents, componentMap);
-    
-    // Build translation files from extracted texts
-    translations.forEach((textContent, key) => {
-      componentMap.translations!.extracted[key] = textContent.text;
-      componentMap.translations!.languages.en[key] = textContent.text;
-      componentMap.translations!.keyMapping[key] = textContent.componentId || 'global';
-    });
-    
-    progressCallback?.(`✅ Extracted ${deduplicatedComponents.length} unique components and ${translations.size} texts from frame`);
+      const totalComponents = 
+        componentMap.atomicComponents.length + 
+        componentMap.molecules.length + 
+        componentMap.organisms.length + 
+        componentMap.templates.length;
+      
+      progressCallback?.(`✅ Mapped ${totalComponents} components with ${Object.keys(componentMap.designTokens.colors).length} design tokens`);
+      
+    } catch (error: any) {
+      progressCallback?.(`❌ Error: ${error.message}`);
+      throw error;
+    }
     
     return componentMap;
   }
-  
-  private extractComponentsRecursive(
-    node: any, 
-    parentId: string,
-    components: ComponentInfo[],
-    translations: Map<string, TextContent>,
-    progressCallback?: (message: string) => void,
-    componentDedupeMap?: Map<string, ComponentInfo>,
-    processedVariants?: Set<string>
-  ) {
-    // Skip if this is a variant and we've already processed the component set
-    if (node.componentSetId && processedVariants?.has(node.componentSetId)) {
-      progressCallback?.(`  ⏭️  Skipping variant: ${node.name} (already processed component set)`);
-      return;
-    }
+  /**
+   * Extract components from entire file (lightweight version)
+   */
+  async extractComponentsFromFile(
+    fileKey: string,
+    progressCallback?: (message: string) => void
+  ): Promise<ComponentMap> {
+    progressCallback?.('📐 Getting design system from file...');
     
-    // Check if this node is a component or instance
-    if (node.type === 'COMPONENT' || node.type === 'INSTANCE' || this.looksLikeComponent(node)) {
-      // For instances, use the component ID if available
-      const componentKey = node.componentId || node.id;
-      
-      // Check if we've already processed this component
-      if (componentDedupeMap?.has(componentKey)) {
-        const existing = componentDedupeMap.get(componentKey)!;
-        existing.instances = (existing.instances || 1) + 1;
-        progressCallback?.(`  ♻️  Reusing component: ${node.name} (${existing.instances} instances)`);
-        return;
-      }
-      
-      const component: ComponentInfo = {
-        id: node.id,
-        name: node.name,
-        type: node.type,
-        parentScreen: parentId,
-        instances: 1,
-        properties: this.extractNodeProperties(node),
-        boundingBox: node.absoluteBoundingBox,
-        componentSetId: node.componentSetId,
-        description: node.description,
-        children: [],
-        texts: [],
-        i18nKeys: []
-      };
-      
-      // If this is part of a component set, mark it as processed
-      if (node.componentSetId && processedVariants) {
-        processedVariants.add(node.componentSetId);
-      }
-      
-      // Extract child components and texts (but limit depth to prevent memory issues)
-      if (node.children && node.children.length < 100) { // Limit children to prevent memory overflow
-        node.children.forEach((child: any) => {
-          this.extractComponentsRecursive(child, node.id, component.children!, translations, progressCallback, componentDedupeMap, processedVariants);
-          
-          // Check if child is a text node
-          if (child.type === 'TEXT' && child.characters) {
-            const translationKey = this.generateTranslationKey(component, child);
-            
-            // Handle mixed styles - check if style is uniform or mixed
-            let style: TextContent['style'] = undefined;
-            
-            if (child.style) {
-              // For mixed styles, Figma returns 'figma.mixed' or an array
-              if (child.style === 'figma.mixed' || Array.isArray(child.style)) {
-                // For mixed styles, try to get the most common style or first style
-                style = this.extractMixedTextStyle(child);
-              } else {
-                // Uniform style
-                style = {
-                  fontFamily: child.style.fontFamily,
-                  fontSize: child.style.fontSize,
-                  fontWeight: child.style.fontWeight,
-                  lineHeight: child.style.lineHeightPx,
-                  letterSpacing: child.style.letterSpacing
-                };
-              }
-            }
-            
-            const textContent: TextContent = {
-              id: child.id,
-              text: child.characters,
-              key: translationKey,
-              componentId: component.id,
-              style
-            };
-            
-            translations.set(translationKey, textContent);
-            component.texts!.push(textContent);
-            component.i18nKeys!.push(translationKey);
-            
-            progressCallback?.(`    📝 Found text: "${child.characters.substring(0, 30)}..." → ${translationKey}`);
-          }
-        });
-      } else if (node.children && node.children.length >= 100) {
-        progressCallback?.(`  ⚠️  Skipping deep traversal of ${node.name} (${node.children.length} children)`);
-      }
-      
-      components.push(component);
-      if (componentDedupeMap) {
-        componentDedupeMap.set(componentKey, component);
-      }
-      progressCallback?.(`  📦 Found component: ${node.name}`);
-    } else if (node.type === 'TEXT' && node.characters) {
-      // Handle standalone text nodes not within components
-      const parentComponent = this.findParentComponent(node, components);
-      const translationKey = this.generateTranslationKey(parentComponent, node);
-      
-      // Handle mixed styles
-      let style: TextContent['style'] = undefined;
-      
-      if (node.style) {
-        if (node.style === 'figma.mixed' || Array.isArray(node.style)) {
-          style = this.extractMixedTextStyle(node);
-        } else {
-          style = {
-            fontFamily: node.style.fontFamily,
-            fontSize: node.style.fontSize,
-            fontWeight: node.style.fontWeight,
-            lineHeight: node.style.lineHeightPx,
-            letterSpacing: node.style.letterSpacing
-          };
+    const componentMap: ComponentMap = {
+      designTokens: {
+        colors: {},
+        typography: {},
+        spacing: {}
+      },
+      atomicComponents: [],
+      molecules: [],
+      organisms: [],
+      templates: [],
+      componentSets: {},
+      translations: {
+        extracted: {},
+        keyMapping: {},
+        languages: {
+          en: {}
         }
       }
-      
-      const textContent: TextContent = {
-        id: node.id,
-        text: node.characters,
-        key: translationKey,
-        componentId: parentComponent?.id,
-        style
-      };
-      
-      translations.set(translationKey, textContent);
-      
-      if (parentComponent) {
-        parentComponent.texts = parentComponent.texts || [];
-        parentComponent.i18nKeys = parentComponent.i18nKeys || [];
-        parentComponent.texts.push(textContent);
-        parentComponent.i18nKeys.push(translationKey);
-      }
-      
-      progressCallback?.(`    📝 Found text: "${node.characters.substring(0, 30)}..." → ${translationKey}`);
-    }
-    
-    // Continue traversing even if not a component (but limit depth)
-    if (node.children && node.children.length < 100) {
-      node.children.forEach((child: any) => {
-        this.extractComponentsRecursive(child, parentId, components, translations, progressCallback, componentDedupeMap, processedVariants);
-      });
-    }
-  }
-  
-  private looksLikeComponent(node: any): boolean {
-    // Heuristics to detect potential components that aren't marked as such
-    const componentPatterns = [
-      /button/i, /btn/i, /card/i, /header/i, /footer/i,
-      /nav/i, /menu/i, /modal/i, /dialog/i, /form/i,
-      /input/i, /field/i, /icon/i, /avatar/i, /badge/i,
-      /tab/i, /accordion/i, /dropdown/i, /toggle/i
-    ];
-    
-    // Check name patterns
-    if (componentPatterns.some(pattern => pattern.test(node.name))) {
-      return true;
-    }
-    
-    // Check for auto-layout (common in components)
-    if (node.layoutMode && node.layoutMode !== 'NONE') {
-      return true;
-    }
-    
-    // Check for consistent sizing (common in reusable components)
-    if (node.constraints && (node.constraints.horizontal === 'FIXED' || node.constraints.vertical === 'FIXED')) {
-      return true;
-    }
-    
-    return false;
-  }
-  
-  private extractNodeProperties(node: any): Record<string, any> {
-    return {
-      fills: node.fills,
-      strokes: node.strokes,
-      effects: node.effects,
-      cornerRadius: node.cornerRadius,
-      layoutMode: node.layoutMode,
-      padding: node.paddingLeft ? {
-        left: node.paddingLeft,
-        right: node.paddingRight,
-        top: node.paddingTop,
-        bottom: node.paddingBottom
-      } : undefined,
-      spacing: node.itemSpacing,
-      constraints: node.constraints
     };
-  }
-  
-  private extractDesignTokens(node: any, tokens: ComponentMap['designTokens']) {
-    // Extract colors from fills
-    if (node.fills) {
-      node.fills.forEach((fill: any) => {
-        if (fill.type === 'SOLID' && fill.color) {
-          const colorKey = this.rgbToHex(fill.color);
-          tokens.colors[node.name || colorKey] = colorKey;
-        }
-      });
+    
+    try {
+      // Step 1: Get file variables (colors, typography, spacing)
+      progressCallback?.('🎨 Fetching design variables...');
+      const variablesResponse = await this.getFileVariables(fileKey, progressCallback);
+      componentMap.designTokens = variablesResponse;
+      
+      // Step 2: Get component library structure for entire file
+      progressCallback?.('🧩 Mapping component library...');
+      const componentMapping = await this.getComponentMapping(fileKey, '', progressCallback);
+      
+      // Assign components to categories
+      componentMap.atomicComponents = componentMapping.atoms;
+      componentMap.molecules = componentMapping.molecules;
+      componentMap.organisms = componentMapping.organisms;
+      componentMap.templates = componentMapping.templates;
+      componentMap.componentSets = componentMapping.sets;
+      
+      const totalComponents = 
+        componentMap.atomicComponents.length + 
+        componentMap.molecules.length + 
+        componentMap.organisms.length + 
+        componentMap.templates.length;
+      
+      progressCallback?.(`✅ Extracted ${totalComponents} components with ${Object.keys(componentMap.designTokens.colors).length} design tokens`);
+      
+    } catch (error: any) {
+      progressCallback?.(`❌ Error: ${error.message}`);
+      throw error;
     }
     
-    // Extract typography
-    if (node.type === 'TEXT' && node.style) {
-      const fontKey = `${node.style.fontFamily}-${node.style.fontSize}`;
-      tokens.typography[fontKey] = {
-        fontFamily: node.style.fontFamily,
-        fontSize: node.style.fontSize,
-        fontWeight: node.style.fontWeight,
-        lineHeight: node.style.lineHeightPx,
-        letterSpacing: node.style.letterSpacing
-      };
-    }
-    
-    // Extract spacing from auto-layout
-    if (node.layoutMode && node.itemSpacing) {
-      tokens.spacing[`spacing-${node.itemSpacing}`] = node.itemSpacing;
-    }
-    
-    // Recursively extract from children
-    if (node.children) {
-      node.children.forEach((child: any) => {
-        this.extractDesignTokens(child, tokens);
-      });
-    }
+    return componentMap;
   }
   
   private rgbToHex(color: { r: number; g: number; b: number }): string {
@@ -1448,6 +1223,205 @@ export class FigmaAPIClient {
       return hex.length === 1 ? '0' + hex : hex;
     };
     return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
+  }
+  
+  /**
+   * Get file variables (design tokens) efficiently
+   */
+  private async getFileVariables(fileKey: string, progressCallback?: (message: string) => void): Promise<ComponentMap['designTokens']> {
+    const tokens: ComponentMap['designTokens'] = {
+      colors: {},
+      typography: {},
+      spacing: {}
+    };
+    
+    try {
+      // Try to get variables if available
+      const variablesResponse = await this.client.get(`/files/${fileKey}/variables/local`);
+      
+      if (variablesResponse.data?.meta?.variables) {
+        Object.entries(variablesResponse.data.meta.variables).forEach(([id, variable]: [string, any]) => {
+          if (variable.resolvedType === 'COLOR') {
+            tokens.colors[variable.name] = this.rgbToHex(variable.valuesByMode?.default?.color || { r: 0, g: 0, b: 0 });
+          } else if (variable.resolvedType === 'FLOAT') {
+            tokens.spacing[variable.name] = variable.valuesByMode?.default;
+          }
+        });
+      }
+    } catch (error) {
+      // Variables API might not be available, fallback to styles
+      try {
+        const stylesResponse = await this.client.get(`/files/${fileKey}/styles`);
+        
+        if (stylesResponse.data?.meta?.styles) {
+          stylesResponse.data.meta.styles.forEach((style: any) => {
+            if (style.style_type === 'FILL' && style.name) {
+              tokens.colors[style.name] = '#000000'; // Placeholder
+            } else if (style.style_type === 'TEXT' && style.name) {
+              tokens.typography[style.name] = {
+                fontFamily: 'Inter',
+                fontSize: 16,
+                fontWeight: 400,
+                lineHeight: 24,
+                letterSpacing: 0
+              };
+            }
+          });
+        }
+      } catch (styleError) {
+        // Silently continue with empty tokens
+      }
+    }
+    
+    return tokens;
+  }
+  
+  /**
+   * Get lightweight component mapping without deep traversal
+   */
+  private async getComponentMapping(fileKey: string, startNodeId: string, progressCallback?: (message: string) => void) {
+    const mapping = {
+      atoms: [] as ComponentInfo[],
+      molecules: [] as ComponentInfo[],
+      organisms: [] as ComponentInfo[],
+      templates: [] as ComponentInfo[],
+      sets: {} as Record<string, ComponentInfo[]>
+    };
+    
+    try {
+      // First try components API (requires library_content:read scope)
+      try {
+        const componentsResponse = await this.client.get(`/files/${fileKey}/components`);
+        
+        if (componentsResponse.data?.meta?.components) {
+          const componentList = componentsResponse.data.meta.components;
+          progressCallback?.(`Found ${componentList.length} components via API`);
+          
+          // Create lightweight component info for each
+          componentList.forEach((comp: any) => {
+            const componentInfo: ComponentInfo = {
+              id: comp.node_id,
+              name: comp.name,
+              type: 'COMPONENT',
+              parentScreen: startNodeId,
+              properties: {
+                description: comp.description || ''
+              },
+              instances: 1
+            };
+            
+            // Simple categorization based on name
+            if (this.isAtomicComponent(componentInfo)) {
+              mapping.atoms.push(componentInfo);
+            } else if (this.isMolecule(componentInfo)) {
+              mapping.molecules.push(componentInfo);
+            } else if (this.isOrganism(componentInfo)) {
+              mapping.organisms.push(componentInfo);
+            } else {
+              mapping.templates.push(componentInfo);
+            }
+            
+            // Group by containing frame/set
+            if (comp.containing_frame?.name) {
+              const setName = comp.containing_frame.name;
+              if (!mapping.sets[setName]) {
+                mapping.sets[setName] = [];
+              }
+              mapping.sets[setName].push(componentInfo);
+            }
+          });
+          
+          return mapping;
+        }
+      } catch (apiError: any) {
+        // If components API fails (likely due to scope), fall back to file scanning
+        progressCallback?.('Components API unavailable, scanning file structure...');
+      }
+      
+      // Fallback: Scan file structure for components and instances
+      progressCallback?.('Scanning file for components and instances...');
+      const fileResponse = await this.client.get(`/files/${fileKey}`, {
+        params: {
+          depth: 3,
+          geometry: 'paths'
+        }
+      });
+      
+      const componentMap = new Map<string, ComponentInfo>();
+      const instanceCounts = new Map<string, number>();
+      
+      // Recursive function to find components and instances
+      const scanNode = (node: any, pageName: string = '') => {
+        if (node.type === 'COMPONENT') {
+          const componentInfo: ComponentInfo = {
+            id: node.id,
+            name: node.name,
+            type: 'COMPONENT',
+            parentScreen: pageName,
+            properties: {
+              description: node.description || ''
+            },
+            instances: 0,
+            isReusable: true
+          };
+          
+          componentMap.set(node.id, componentInfo);
+          
+          // Categorize component
+          if (this.isAtomicComponent(componentInfo)) {
+            mapping.atoms.push(componentInfo);
+          } else if (this.isMolecule(componentInfo)) {
+            mapping.molecules.push(componentInfo);
+          } else if (this.isOrganism(componentInfo)) {
+            mapping.organisms.push(componentInfo);
+          } else {
+            mapping.templates.push(componentInfo);
+          }
+        } else if (node.type === 'INSTANCE' && node.componentId) {
+          // Count instances
+          instanceCounts.set(node.componentId, (instanceCounts.get(node.componentId) || 0) + 1);
+        }
+        
+        // Recursively scan children
+        if (node.children) {
+          node.children.forEach((child: any) => scanNode(child, pageName));
+        }
+      };
+      
+      // Scan all pages
+      if (fileResponse.data.document?.children) {
+        fileResponse.data.document.children.forEach((page: any) => {
+          if (page.children) {
+            page.children.forEach((child: any) => scanNode(child, page.name));
+          }
+        });
+      }
+      
+      // Update instance counts
+      instanceCounts.forEach((count, componentId) => {
+        const component = componentMap.get(componentId);
+        if (component) {
+          component.instances = count;
+        }
+      });
+      
+      progressCallback?.(`Found ${componentMap.size} components and ${instanceCounts.size} component usages`);
+      
+    } catch (error: any) {
+      progressCallback?.(`Component scan error: ${error.message}`);
+      // Return minimal mapping on error
+      const simpleInfo: ComponentInfo = {
+        id: startNodeId || 'main',
+        name: 'Main Frame',
+        type: 'FRAME',
+        parentScreen: startNodeId || 'main',
+        properties: {},
+        instances: 1
+      };
+      mapping.templates.push(simpleInfo);
+    }
+    
+    return mapping;
   }
   
   private isAtomicComponent(component: ComponentInfo): boolean {
@@ -1500,137 +1474,81 @@ export class FigmaAPIClient {
       }
     });
   }
-  
-  private generateTranslationKey(component: ComponentInfo | null, textNode: any): string {
-    // Extract meaningful parts for the key
-    const componentType = this.detectComponentType(component?.name || '');
-    const componentName = this.sanitizeForKey(component?.name || 'global');
-    const textPurpose = this.inferTextPurpose(textNode.name, textNode.characters);
+
+  /**
+   * Download frame images from Figma
+   */
+  async downloadFrameImages(
+    screens: PrototypeScreen[],
+    fileKey: string,
+    outputDir: string,
+    progressCallback?: (message: string) => void
+  ): Promise<string[]> {
+    const downloadedFiles: string[] = [];
+    const batchSize = 5; // Process 5 frames at a time to avoid rate limiting
     
-    // Generate hierarchical key
-    if (componentType && componentType !== 'unknown') {
-      return `${componentType}.${componentName}.${textPurpose}`;
-    }
-    return `${componentName}.${textPurpose}`;
-  }
-  
-  private detectComponentType(componentName: string): string {
-    const name = componentName.toLowerCase();
+    // Modules are imported at the top of the file
     
-    if (name.includes('button') || name.includes('btn')) return 'button';
-    if (name.includes('card')) return 'card';
-    if (name.includes('header')) return 'header';
-    if (name.includes('footer')) return 'footer';
-    if (name.includes('nav')) return 'nav';
-    if (name.includes('menu')) return 'menu';
-    if (name.includes('modal')) return 'modal';
-    if (name.includes('dialog')) return 'dialog';
-    if (name.includes('form')) return 'form';
-    if (name.includes('input')) return 'input';
-    if (name.includes('field')) return 'field';
-    if (name.includes('list')) return 'list';
-    if (name.includes('table')) return 'table';
-    if (name.includes('tab')) return 'tab';
-    if (name.includes('sidebar')) return 'sidebar';
-    if (name.includes('hero')) return 'hero';
-    if (name.includes('section')) return 'section';
-    
-    return 'component';
-  }
-  
-  private sanitizeForKey(text: string): string {
-    // Convert to camelCase and remove special characters
-    return text
-      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special chars
-      .split(/\s+/)                    // Split by whitespace
-      .map((word, index) => 
-        index === 0 
-          ? word.toLowerCase() 
-          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      )
-      .join('');
-  }
-  
-  private inferTextPurpose(nodeName: string, text: string): string {
-    const lowerName = nodeName.toLowerCase();
-    const lowerText = text.toLowerCase();
-    
-    // Check node name hints
-    if (lowerName.includes('title') || lowerName.includes('heading')) return 'title';
-    if (lowerName.includes('subtitle')) return 'subtitle';
-    if (lowerName.includes('description') || lowerName.includes('desc')) return 'description';
-    if (lowerName.includes('button') || lowerName.includes('btn')) return 'action';
-    if (lowerName.includes('label')) return 'label';
-    if (lowerName.includes('placeholder')) return 'placeholder';
-    if (lowerName.includes('error')) return 'error';
-    if (lowerName.includes('warning')) return 'warning';
-    if (lowerName.includes('success')) return 'success';
-    if (lowerName.includes('hint') || lowerName.includes('help')) return 'hint';
-    
-    // Check text content hints
-    if (text.length <= 20) {
-      if (lowerText.includes('click') || lowerText.includes('submit') || 
-          lowerText.includes('save') || lowerText.includes('cancel')) return 'action';
-      return 'label';
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
     }
     
-    if (text.length > 100) return 'description';
-    if (text.endsWith('?')) return 'question';
-    if (text.endsWith('!')) return 'alert';
-    
-    return 'text';
-  }
-  
-  private findParentComponent(node: any, components: ComponentInfo[]): ComponentInfo | null {
-    // Find the closest parent component for this text node
-    for (const component of components) {
-      if (this.isNodeWithinComponent(node, component)) {
-        return component;
-      }
-    }
-    return null;
-  }
-  
-  private isNodeWithinComponent(node: any, component: ComponentInfo): boolean {
-    // Check if node's bounding box is within component's bounding box
-    if (!node.absoluteBoundingBox || !component.boundingBox) return false;
-    
-    const nodeBounds = node.absoluteBoundingBox;
-    const compBounds = component.boundingBox;
-    
-    return nodeBounds.x >= compBounds.x &&
-           nodeBounds.y >= compBounds.y &&
-           nodeBounds.x + nodeBounds.width <= compBounds.x + compBounds.width &&
-           nodeBounds.y + nodeBounds.height <= compBounds.y + compBounds.height;
-  }
-  
-  private extractMixedTextStyle(node: any): TextContent['style'] {
-    // For mixed styles, we need to handle multiple style runs
-    // Figma API provides styleOverrideTable for mixed styles
-    
-    if (node.styleOverrideTable) {
-      // Get the first style override as the primary style
-      const firstOverride = Object.values(node.styleOverrideTable)[0] as any;
-      if (firstOverride) {
-        return {
-          fontFamily: firstOverride.fontFamily || 'Inter',
-          fontSize: firstOverride.fontSize || 14,
-          fontWeight: firstOverride.fontWeight || 400,
-          lineHeight: firstOverride.lineHeight?.value || 1.5,
-          letterSpacing: firstOverride.letterSpacing || 0
-        };
+    for (let i = 0; i < screens.length; i += batchSize) {
+      const batch = screens.slice(i, i + batchSize);
+      const nodeIds = batch.map(s => s.frameId || s.id).join(',');
+      
+      progressCallback?.(`📥 Downloading frames ${i + 1}-${Math.min(i + batchSize, screens.length)} of ${screens.length}...`);
+      
+      try {
+        // Get image URLs from Figma
+        const response = await this.client.get(`/images/${fileKey}`, {
+          params: {
+            ids: nodeIds,
+            format: 'png',
+            scale: 2 // 2x for retina displays
+          }
+        });
+        
+        // Download each image
+        for (let j = 0; j < batch.length; j++) {
+          const screen = batch[j];
+          const imageUrl = response.data.images[screen.frameId || screen.id];
+          
+          if (imageUrl) {
+            const filename = `${String(i + j + 1).padStart(2, '0')}-${screen.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`;
+            const filePath = path.join(outputDir, filename);
+            
+            // Download the image
+            await new Promise((resolve, reject) => {
+              const file = fs.createWriteStream(filePath);
+              https.get(imageUrl, (response: any) => {
+                response.pipe(file);
+                file.on('finish', () => {
+                  file.close();
+                  downloadedFiles.push(filename);
+                  resolve(null);
+                });
+              }).on('error', (err: any) => {
+                fs.unlink(filePath, () => {}); // Delete the file on error
+                reject(err);
+              });
+            });
+          }
+        }
+        
+        // Add delay between batches to avoid rate limiting
+        if (i + batchSize < screens.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (error: any) {
+        progressCallback?.(`⚠️  Error downloading batch: ${error.message}`);
       }
     }
     
-    // Fallback to default style if no override table
-    return {
-      fontFamily: 'Inter',
-      fontSize: 14,
-      fontWeight: 400,
-      lineHeight: 1.5,
-      letterSpacing: 0
-    };
+    progressCallback?.(`✅ Downloaded ${downloadedFiles.length} frame images`);
+    return downloadedFiles;
   }
+  
 }
 
 export interface ImplementationPlan {

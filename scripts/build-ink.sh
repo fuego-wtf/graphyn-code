@@ -75,13 +75,38 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const cliPath = join(__dirname, 'ink', 'cli.js');
+
+// Create child process
 const child = spawn('node', [cliPath, ...process.argv.slice(2)], {
   stdio: 'inherit',
   env: process.env
 });
 
-child.on('exit', (code) => {
-  process.exit(code || 0);
+// Flag to prevent multiple exits
+let exiting = false;
+
+// Forward all signals to child
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(signal => {
+  process.on(signal, () => {
+    if (!exiting) {
+      exiting = true;
+      child.kill(signal);
+    }
+  });
+});
+
+// When child exits, exit parent with same code
+child.on('exit', (code, signal) => {
+  if (!exiting) {
+    exiting = true;
+    process.exit(code || 0);
+  }
+});
+
+// Handle errors
+child.on('error', (err) => {
+  console.error('Failed to start CLI:', err);
+  process.exit(1);
 });
 EOF
 

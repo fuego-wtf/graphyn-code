@@ -94,111 +94,33 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       let componentMap;
       
       if (isComponentExtraction) {
-        // First analyze the prototype to get all screens
-        setStatusMessage('Analyzing prototype structure...');
+        // Extract components from entire file (lightweight)
+        setStatusMessage('Extracting design system from file...');
         
         try {
-          // Get prototype data with all screens
+          // Get file-level component data
+          const componentMap = await figmaClient.extractComponentsFromFile(
+            urlParts.fileKey,
+            (message: string) => setStatusMessage(message)
+          );
+          
+          // Still analyze prototype for navigation flow
+          setStatusMessage('Analyzing prototype navigation...');
           prototypeData = await figmaClient.analyzePrototype(cleanUrl, (message: string) => {
             setStatusMessage(message);
           });
           
-          // Now extract components from all discovered screens
-          setStatusMessage(`Extracting components from ${prototypeData.totalScreens} screens...`);
-          
-          // Initialize combined component map
-          const combinedMap: any = {
-            designTokens: {
-              colors: {},
-              typography: {},
-              spacing: {}
-            },
-            atomicComponents: [],
-            molecules: [],
-            organisms: [],
-            templates: [],
-            componentSets: {},
-            translations: {
-              extracted: {},
-              keyMapping: {},
-              languages: { en: {} }
-            }
-          };
-          
-          // Limit the number of screens to process to prevent memory overflow
-          const MAX_SCREENS_TO_PROCESS = 10;
-          const screensToProcess = prototypeData.screens.slice(0, MAX_SCREENS_TO_PROCESS);
-          
-          if (prototypeData.screens.length > MAX_SCREENS_TO_PROCESS) {
-            setStatusMessage(`⚠️  Processing first ${MAX_SCREENS_TO_PROCESS} screens out of ${prototypeData.totalScreens} to prevent memory overflow`);
-          }
-          
-          // Track unique components across all screens
-          const globalComponentMap = new Map<string, any>();
-          
-          // Extract components from each screen
-          for (let i = 0; i < screensToProcess.length; i++) {
-            const screen = screensToProcess[i];
-            setStatusMessage(`Extracting from ${screen.name} (${i + 1}/${screensToProcess.length})...`);
-            
-            try {
-              const screenComponentMap = await figmaClient.extractComponentsFromFrame(
-                urlParts.fileKey,
-                screen.frameId,
-                (message: string) => setStatusMessage(message)
-              );
-              
-              // Merge design tokens (these are usually consistent across screens)
-              Object.assign(combinedMap.designTokens.colors, screenComponentMap.designTokens.colors);
-              Object.assign(combinedMap.designTokens.typography, screenComponentMap.designTokens.typography);
-              Object.assign(combinedMap.designTokens.spacing, screenComponentMap.designTokens.spacing);
-              
-              // Deduplicate components before adding to combined map
-              const dedupeAndAdd = (components: any[], targetArray: any[]) => {
-                components.forEach(comp => {
-                  const key = `${comp.name}_${comp.type}`;
-                  if (!globalComponentMap.has(key)) {
-                    globalComponentMap.set(key, comp);
-                    targetArray.push(comp);
-                  } else {
-                    // Update instance count
-                    const existing = globalComponentMap.get(key);
-                    existing.instances = (existing.instances || 1) + 1;
-                  }
-                });
-              };
-              
-              dedupeAndAdd(screenComponentMap.atomicComponents, combinedMap.atomicComponents);
-              dedupeAndAdd(screenComponentMap.molecules, combinedMap.molecules);
-              dedupeAndAdd(screenComponentMap.organisms, combinedMap.organisms);
-              dedupeAndAdd(screenComponentMap.templates, combinedMap.templates);
-              
-              // Merge translations
-              Object.assign(combinedMap.translations.extracted, screenComponentMap.translations?.extracted || {});
-              Object.assign(combinedMap.translations.keyMapping, screenComponentMap.translations?.keyMapping || {});
-              Object.assign(combinedMap.translations.languages.en, screenComponentMap.translations?.languages.en || {});
-              
-              // Add a small delay between screens to prevent overwhelming the API
-              if (i < screensToProcess.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
-            } catch (error: any) {
-              console.error(`Failed to extract from screen ${screen.name}: ${error.message}`);
-              setStatusMessage(`⚠️  Skipped ${screen.name}: ${error.message}`);
-            }
-          }
-          
-          // Update prototype data with combined components
+          // Update prototype data with component information
           prototypeData.components = [
-            ...combinedMap.atomicComponents,
-            ...combinedMap.molecules,
-            ...combinedMap.organisms,
-            ...combinedMap.templates
+            ...componentMap.atomicComponents,
+            ...componentMap.molecules,
+            ...componentMap.organisms,
+            ...componentMap.templates
           ];
-          prototypeData.componentMap = combinedMap;
+          prototypeData.componentMap = componentMap;
           prototypeData.totalComponents = prototypeData.components.length;
           
-          componentMap = combinedMap;
+          // componentMap already set
         } catch (error: any) {
           throw new Error(`Component extraction failed: ${error.message}`);
         }
@@ -271,7 +193,61 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       setProgress(80);
       setStatusMessage(`Found ${prototypeData.totalScreens} screens with ${prototypeData.totalComponents} components!`);
       
-      // Step 6: Generate context for Claude
+      // Step 6: Extract design assets
+      if (isComponentExtraction || prototypeData.totalScreens > 0) {
+        setStep('analyzing');
+        setProgress(82);
+        setStatusMessage('📥 Downloading design assets...');
+        
+        try {
+          // Create design folder structure
+          const designPath = path.join(process.cwd(), 'design');
+          const folders = ['frames', 'icons', 'illustrations', 'assets', 'mapping'];
+          
+          for (const folder of folders) {
+            const folderPath = path.join(designPath, folder);
+            if (!fs.existsSync(folderPath)) {
+              fs.mkdirSync(folderPath, { recursive: true });
+            }
+          }
+          
+          // Download frame images
+          setStatusMessage(`📥 Downloading ${prototypeData.totalScreens} frame images...`);
+          const frameImages = await figmaClient.downloadFrameImages(
+            prototypeData.screens,
+            urlParts.fileKey,
+            path.join(designPath, 'frames'),
+            (progress: string) => setStatusMessage(progress)
+          );
+          
+          setProgress(85);
+          setStatusMessage(`✅ Downloaded ${frameImages.length} frame images to /design/frames/`);
+          
+          // Save frame mapping
+          const frameMapping = {
+            frames: prototypeData.screens.map((screen: any, index: number) => ({
+              id: screen.id,
+              name: screen.name,
+              filename: `${String(index + 1).padStart(2, '0')}-${screen.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`,
+              frameId: screen.frameId
+            })),
+            totalFrames: prototypeData.totalScreens,
+            generatedAt: new Date().toISOString()
+          };
+          
+          fs.writeFileSync(
+            path.join(designPath, 'mapping', 'frame-index.json'),
+            JSON.stringify(frameMapping, null, 2)
+          );
+          
+          setStatusMessage('✅ Assets downloaded successfully!');
+        } catch (error: any) {
+          console.error('Asset download error:', error);
+          setStatusMessage(`⚠️  Asset download skipped: ${error.message}`);
+        }
+      }
+      
+      // Step 7: Generate context for Claude
       setStep('preparing-context');
       setProgress(90);
       setStatusMessage('Preparing design context...');
@@ -485,14 +461,163 @@ ${task.subtasks.length > 0 ? `**Subtasks**:
 ${task.subtasks.map((st: any) => `- ${st.title}`).join('\n')}` : ''}
 `).join('\n')}
 
-## Getting Started
+## 🚀 FIRST STEP: Create Comprehensive Task List
 
-1. Use the TodoWrite tool to create all tasks above
-2. Start with high priority tasks first
-3. Use Figma MCP tools to get exact specifications
-4. Test each component as you build
+### Use TodoWrite to persist ALL implementation tasks:
+\`\`\`javascript
+// Copy this ENTIRE task list and use with TodoWrite tool
+const allTasks = [
+  // Phase 1: Asset Preparation (MUST DO FIRST!)
+  { id: "asset-1", content: "Create /design folder structure", priority: "high", status: "pending" },
+  { id: "asset-2", content: "Run npm run extract:figma to download all frames", priority: "high", status: "pending" },
+  { id: "asset-3", content: "Verify all ${prototype.totalScreens} frame PNGs downloaded", priority: "high", status: "pending" },
+  { id: "asset-4", content: "Extract SVG icons using Figma export API", priority: "high", status: "pending" },
+  { id: "asset-5", content: "Extract SVG illustrations and graphics", priority: "high", status: "pending" },
+  { id: "asset-6", content: "Create component-to-frame mapping JSON", priority: "high", status: "pending" },
+  
+  // ... (include ALL tasks from comprehensive plan)
+  
+  // IMPORTANT: Start with asset-1 and asset-2 immediately!
+];
 
-Remember: The goal is pixel-perfect implementation matching the Figma designs exactly.`;
+// First command to run:
+TodoWrite(allTasks);
+\`\`\`
+
+### ⚠️ CRITICAL: Design Folder Setup
+The /design folder must be populated BEFORE implementation:
+1. Run \`npm run extract:figma\` if available
+2. OR manually export from Figma:
+   - All ${prototype.totalScreens} screens as PNG @ 2x
+   - All icons as SVG
+   - All illustrations as SVG
+
+## Asset Extraction Phase
+
+### 1. Create Design Folder Structure
+\`\`\`
+/design/
+├── frames/          # Screen images (PNG)
+├── components/      # Component images for reference
+├── icons/          # SVG icons extracted from Figma
+├── illustrations/  # SVG illustrations
+├── assets/         # Other visual assets
+└── mapping/        # JSON files for relationships
+\`\`\`
+
+### 2. Download ALL Visual Assets
+- Frame images (PNG) for all ${prototype.totalScreens} screens
+- SVG exports for all icons
+- SVG exports for illustrations/graphics
+- Component images for visual reference
+- **NO copy-pasting or recreating** - everything downloaded directly
+
+### 3. Asset Download Script
+Use the provided script: \`npm run extract:figma\` (if available)
+
+## Critical Implementation Rules
+
+### ⚠️ PRESERVE ALL EXISTING LOGIC
+- **DO NOT** modify business logic
+- **DO NOT** change API integration  
+- **DO NOT** alter authentication flows
+- **DO NOT** modify state management
+- **ONLY** update the visual layer
+
+### Authentication Pages Special Note
+For sign-up/sign-in pages:
+- Keep all validation logic intact
+- Preserve form submission handlers
+- Maintain error handling
+- Keep redirect logic
+- Only update UI components and styling
+
+## Implementation Sequence
+
+### Phase 1: Asset Preparation
+1. Download all frame images first
+2. Extract SVG icons and illustrations
+3. Create component mapping document
+4. Validate all assets are downloaded
+
+### Phase 2: Component Implementation
+1. Use TodoWrite tool to create comprehensive task list:
+
+\`\`\`javascript
+// COMPREHENSIVE TASK LIST FOR TODOWRITE
+const implementationTasks = [
+  // Phase 1: Asset Preparation
+  { id: "asset-1", content: "Create /design folder structure", priority: "high", status: "pending" },
+  { id: "asset-2", content: "Download all ${prototype.totalScreens} frame images as PNGs", priority: "high", status: "pending" },
+  { id: "asset-3", content: "Extract all SVG icons from Figma", priority: "high", status: "pending" },
+  { id: "asset-4", content: "Extract all SVG illustrations and graphics", priority: "high", status: "pending" },
+  { id: "asset-5", content: "Create frame-to-route mapping document", priority: "high", status: "pending" },
+  
+  // Phase 2: Design System Setup
+  { id: "design-1", content: "Extract design variables using MCP tools", priority: "high", status: "pending" },
+  { id: "design-2", content: "Create theme configuration from Figma tokens", priority: "high", status: "pending" },
+  { id: "design-3", content: "Setup color palette matching Figma", priority: "high", status: "pending" },
+  { id: "design-4", content: "Configure typography system", priority: "high", status: "pending" },
+  { id: "design-5", content: "Setup spacing and layout system", priority: "high", status: "pending" },
+  
+  // Phase 3: Component Development
+  { id: "comp-1", content: "Analyze existing components (preserve logic)", priority: "high", status: "pending" },
+  { id: "comp-2", content: "Update Button component (visual only)", priority: "high", status: "pending" },
+  { id: "comp-3", content: "Update Input component (preserve validation)", priority: "high", status: "pending" },
+  { id: "comp-4", content: "Create/update Card components", priority: "medium", status: "pending" },
+  { id: "comp-5", content: "Update Navigation components", priority: "medium", status: "pending" },
+  { id: "comp-6", content: "Import and integrate all SVG icons", priority: "medium", status: "pending" },
+  
+  // Phase 4: Page Implementation
+  { id: "page-1", content: "Update Landing Page (Frame 1568:55865)", priority: "high", status: "pending" },
+  { id: "page-2", content: "Update Sign Up page (preserve auth logic)", priority: "high", status: "pending" },
+  { id: "page-3", content: "Update Sign In page (preserve auth logic)", priority: "high", status: "pending" },
+  { id: "page-4", content: "Update Thread View pages", priority: "high", status: "pending" },
+  { id: "page-5", content: "Update Agent Creation flow", priority: "medium", status: "pending" },
+  { id: "page-6", content: "Update Agency Creation flow", priority: "medium", status: "pending" },
+  
+  // Phase 5: Integration & Testing
+  { id: "test-1", content: "Verify all auth flows work correctly", priority: "high", status: "pending" },
+  { id: "test-2", content: "Test navigation between all screens", priority: "high", status: "pending" },
+  { id: "test-3", content: "Validate against Figma frame images", priority: "high", status: "pending" },
+  { id: "test-4", content: "Ensure no API calls broken", priority: "high", status: "pending" },
+  { id: "test-5", content: "Performance and accessibility check", priority: "medium", status: "pending" }
+];
+
+// Use this with TodoWrite tool to persist all tasks
+\`\`\`
+
+2. Start implementation following task order
+3. Mark tasks as "in_progress" when starting
+4. Update to "completed" when done
+
+### Phase 3: MCP Tool Usage Pattern
+For **EACH** component:
+\`\`\`bash
+# 1. Get visual reference (for frames/screens)
+mcp__figma-dev-mode-mcp-server__get_image --nodeId="[frame-id]"
+
+# 2. Get component code (for individual components)
+mcp__figma-dev-mode-mcp-server__get_code --nodeId="[component-id]"
+
+# 3. Get design variables
+mcp__figma-dev-mode-mcp-server__get_variable_defs --nodeId="[id]"
+\`\`\`
+
+### Phase 4: Validation
+1. Test each component preserves functionality
+2. Verify against frame images in /design/frames/
+3. Ensure no console errors
+4. Check all API calls still work
+
+## Important Notes
+
+- **Use downloaded SVGs** from /design folder - never recreate
+- **Match pixel-perfectly** using frame images as reference
+- **Import icons directly** - don't use icon fonts
+- **Preserve all functionality** - visual updates only
+
+Remember: The goal is pixel-perfect implementation matching the Figma designs while preserving 100% of existing functionality.`;
 }
 
 function generateComponentMapContext(url: string, prototype: any, componentMap: any, framework: string): string {
@@ -541,18 +666,24 @@ ${Object.entries(componentMap.componentSets).map(([setId, components]: [string, 
 ${components.map((c: any) => `- ${c.name}`).join('\n')}
 `).join('\n') || 'No component sets found'}
 
-## Extracted Translations (${Object.keys(componentMap.translations?.extracted || {}).length} texts)
+## Component Naming Patterns
 
-${componentMap.translations ? `### Translation Keys by Component
-${Object.entries(componentMap.translations.keyMapping).slice(0, 10).map(([key, compId]) => 
-  `- \`${key}\` → ${compId}`
-).join('\n')}${Object.keys(componentMap.translations.keyMapping).length > 10 ? '\n... and more' : ''}
-
-### Sample Translations
-\`\`\`json
-${JSON.stringify(Object.fromEntries(Object.entries(componentMap.translations.languages.en).slice(0, 5)), null, 2)}
-\`\`\`
-` : ''}
+### Inferred Component Structure
+${(() => {
+  const patterns = new Map();
+  [...componentMap.atomicComponents, ...componentMap.molecules, ...componentMap.organisms].forEach(c => {
+    const parts = c.name.split('/');
+    if (parts.length > 1) {
+      const base = parts[0];
+      if (!patterns.has(base)) patterns.set(base, []);
+      patterns.get(base).push(parts.slice(1).join('/'));
+    }
+  });
+  
+  return Array.from(patterns.entries()).map(([base, variants]) => 
+    `- **${base}**: ${variants.join(', ')}`
+  ).join('\n') || 'No clear patterns detected';
+})()}
 
 ## Prototype Interactions & Navigation
 
@@ -570,103 +701,124 @@ ${prototype.screens?.map((screen: any) =>
 ).filter(Boolean).join('\n') || 'No navigation found'}
 ` : 'No prototype interactions detected'}
 
-## Implementation Plan with i18n
+## Implementation Plan
 
-### 1. Setup Design System with i18n Support
+### 1. Setup Design System
 - Create tokens file with extracted design tokens
-- Setup i18n configuration for ${framework}
-- Create translation files from extracted texts
-- Configure component library with useTranslation hooks
+- Configure component library for ${framework}
+- Setup base component structure
 
-### 2. Build Atomic Components with Translations
+### 2. Build Atomic Components
 ${componentMap.atomicComponents.slice(0, 5).map((c: any) => 
-  `- Implement ${c.name} with i18n keys: ${c.i18nKeys?.slice(0, 2).join(', ') || 'no texts'}`
-).join('\n')}
+  `- Implement ${c.name}`
+).join('\n') || '- No atomic components found'}
 
-### 3. Compose Molecules with i18n
+### 3. Compose Molecules
 ${componentMap.molecules.slice(0, 5).map((c: any) => 
-  `- Build ${c.name} using atomic components${c.texts?.length ? ` (${c.texts.length} texts)` : ''}`
-).join('\n')}
+  `- Build ${c.name} using atomic components`
+).join('\n') || '- No molecules found'}
 
 ### 4. Assemble Organisms
 ${componentMap.organisms.slice(0, 5).map((c: any) => `- Create ${c.name} from molecules and atoms`).join('\n')}
 
 ### 5. Create Templates
-${componentMap.templates.slice(0, 3).map((c: any) => `- Implement ${c.name} layout`).join('\n')}
+${componentMap.templates.slice(0, 3).map((c: any) => `- Implement ${c.name} layout`).join('\n') || '- No templates found'}
 
-### 6. Generate Translation Files
-- Create en.json with all extracted texts
-- Setup translation file structure
-- Export translation keys TypeScript types
-
-## MCP Tool Usage with i18n
+## MCP Tool Usage
 
 For each component, use the following workflow:
 1. \`mcp__figma-dev-mode-mcp-server__get_image\` - Get visual reference
 2. \`mcp__figma-dev-mode-mcp-server__get_code\` - Generate component code
-3. Replace hardcoded text with translation keys from the extracted map
-4. \`mcp__figma-dev-mode-mcp-server__get_variable_defs\` - Get design variables
-5. Test component with different text lengths for i18n compatibility
+3. \`mcp__figma-dev-mode-mcp-server__get_variable_defs\` - Get design variables
 
-## Component Template Example
+## Component Implementation Strategy
+
+Based on the component names, implement with proper variant support:
 
 \`\`\`${framework === 'react' ? 'jsx' : 'vue'}
-${framework === 'react' ? `import { useTranslation } from 'react-i18next';
-
-export const Button = ({ onClick }) => {
-  const { t } = useTranslation();
+${framework === 'react' ? `// Example for Button/Primary, Button/Secondary pattern
+export const Button = ({ variant = 'primary', onClick, children }) => {
+  const styles = {
+    primary: 'bg-primary-500 text-white hover:bg-primary-600',
+    secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+  };
   
   return (
-    <button onClick={onClick}>
-      {t('button.primary.action')}
+    <button 
+      className={\`px-4 py-2 rounded-lg \${styles[variant]}\`}
+      onClick={onClick}
+    >
+      {children}
     </button>
   );
 };` : `<template>
-  <button @click="onClick">
-    {{ $t('button.primary.action') }}
+  <button 
+    :class="buttonClasses"
+    @click="onClick"
+  >
+    <slot />
   </button>
 </template>
 
 <script>
 export default {
-  props: ['onClick']
+  props: ['variant', 'onClick'],
+  computed: {
+    buttonClasses() {
+      const styles = {
+        primary: 'bg-primary-500 text-white hover:bg-primary-600',
+        secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+      };
+      return \`px-4 py-2 rounded-lg \${styles[this.variant || 'primary']}\`;
+    }
+  }
 }
 </script>`}
 \`\`\`
 
-## Translation File Structure
-
-\`\`\`
-/locales
-  /en
-    - common.json    # Shared translations
-    - components.json # Component-specific
-  /[other-languages]
-    - common.json
-    - components.json
-\`\`\`
-
 ## Reusable Patterns Detected
-${componentMap.atomicComponents.filter((c: any) => c.isReusable).map((c: any) => 
-  `- **${c.name}**: Used in ${c.variants?.length || 0} variations`
-).join('\n') || 'No patterns detected'}
+${componentMap.atomicComponents.filter((c: any) => c.instances && c.instances > 1).map((c: any) => 
+  `- **${c.name}**: Used ${c.instances} times`
+).join('\n') || 'Analyzing component usage patterns...'}
 
-Remember: All text content has been extracted and mapped to translation keys. Use these keys instead of hardcoding text in components.
+## Design System Summary
 
-## Generated Translation File
+- **Total Design Tokens**: ${Object.keys(componentMap.designTokens.colors).length + Object.keys(componentMap.designTokens.typography).length + Object.keys(componentMap.designTokens.spacing).length}
+- **Component Categories**: ${componentMap.atomicComponents.length} atoms, ${componentMap.molecules.length} molecules, ${componentMap.organisms.length} organisms
+- **Component Sets**: ${Object.keys(componentMap.componentSets).length} variant groups
 
-Save this as \`locales/en.json\`:
+## Asset Extraction Requirements
 
-\`\`\`json
-${JSON.stringify(componentMap.translations?.languages.en || {}, null, 2)}
+### 1. Create Design Folder
+\`\`\`
+/design/
+├── frames/          # All ${prototype.totalScreens} screen PNGs
+├── icons/          # SVG icons from Figma
+├── illustrations/  # SVG graphics
+└── mapping/        # Component relationships
 \`\`\`
 
-## TypeScript Types for Translation Keys
+### 2. Download Assets First
+- Use Figma export API for SVGs
+- Download all frame images at 2x resolution
+- **NEVER recreate SVGs manually**
+- **ALWAYS use original assets**
 
-\`\`\`typescript
-// Generated translation key types
-export type TranslationKeys = ${Object.keys(componentMap.translations?.extracted || {}).map(k => `'${k}'`).join(' | ') || "''"};
-\`\`\``;
+## Critical Rules for Implementation
+
+### ⚠️ PRESERVE ALL LOGIC
+- **DO NOT** modify any business logic
+- **DO NOT** change state management
+- **DO NOT** alter API calls
+- **ONLY** update visual components
+
+### For Authentication Components
+- Keep validation rules intact
+- Preserve error handling
+- Maintain form submission logic
+- Only update styling and layout
+
+Use the component names to infer relationships and build a consistent component library while preserving all functionality.`;
 }
 
 async function saveContext(content: string, agentType: string): Promise<string> {
