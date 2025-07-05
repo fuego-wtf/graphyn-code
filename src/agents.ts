@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+// Declare NodeJS require for TypeScript without Node types installed
+declare var require: any;
+const os = require('os');
 import { AuthManager } from './auth';
 import { config } from './config';
 import { 
@@ -30,11 +33,12 @@ export class AgentManager {
       // Read the prompt content
       const promptContent = fs.readFileSync(promptFile, 'utf8');
       
-      const claudePath = '/Users/resatugurulu/.claude/local/claude';
+      // Resolve Claude CLI path dynamically based on the current user rather than a hard-coded absolute path
+      const username = os.userInfo().username;
+      const claudePath = `/Users/${username}/.claude/local/claude`;
       
       if (fs.existsSync(claudePath)) {
         // Save context to file
-        const os = require('os');
         const tmpDir = os.tmpdir();
         const tmpFile = path.join(tmpDir, `graphyn-${type}-interactive-${Date.now()}.txt`);
         fs.writeFileSync(tmpFile, promptContent);
@@ -96,7 +100,6 @@ export class AgentManager {
   }
 
   private async queryWithClaudeCode(type: string, query: string): Promise<string> {
-    const os = require('os');
     const theme = agentThemes[type as keyof typeof agentThemes];
     console.log();
     console.log(theme ? theme.gradient(`🚀 Launching Claude Code with ${type} agent context...`) : colors.info(`🚀 Launching Claude Code with ${type} agent context...`));
