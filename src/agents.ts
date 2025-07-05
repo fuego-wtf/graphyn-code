@@ -1,9 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
-// Declare NodeJS require for TypeScript without Node types installed
-declare var require: any;
-const os = require('os');
+import os from 'os';
+import { execSync } from 'child_process';
 import { AuthManager } from './auth';
 import { config } from './config';
 import { 
@@ -147,7 +146,6 @@ Please analyze the above query in the context of the ${type} agent role and prov
     fs.writeFileSync(tmpFile, fullContext);
     
     if (fs.existsSync(claudePath)) {
-      const { execSync } = require('child_process');
       
       console.log(colors.success('\n✨ Starting Claude Code...\n'));
       

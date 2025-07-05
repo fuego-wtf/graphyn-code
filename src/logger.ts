@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { version as packageVersion } from '../package.json';
 
 export class GraphynLogger {
   private logFile: string;
@@ -27,7 +28,8 @@ export class GraphynLogger {
     const entry = {
       ...data,
       timestamp: data.timestamp || new Date(),
-      version: require('../package.json').version
+      // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+      version: packageVersion
     };
     
     const logLine = JSON.stringify(entry) + '\n';
