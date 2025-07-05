@@ -22,5 +22,3 @@ declare namespace NodeJS {
 }
 
 declare const process: NodeJS.Process;
-
-export {};
