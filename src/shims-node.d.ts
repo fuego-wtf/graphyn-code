@@ -4,8 +4,8 @@ declare module 'os' {
 }
 
 declare module 'child_process' {
-  const value: any;
-  export = value;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export function execSync(command: string, options?: any): Buffer;
 }
 
 declare module 'path' {
@@ -26,8 +26,31 @@ declare module 'axios' {
 }
 
 declare module 'chokidar' {
-  const value: any;
-  export = value;
+  import { EventEmitter } from 'events';
+
+  export interface WatchOptions {
+    ignored?: string | RegExp | ((path: string) => boolean);
+    persistent?: boolean;
+    ignoreInitial?: boolean;
+    followSymlinks?: boolean;
+    cwd?: string;
+    depth?: number;
+    awaitWriteFinish?: {
+      stabilityThreshold?: number;
+      pollInterval?: number;
+    } | boolean;
+  }
+
+  export interface FSWatcher extends EventEmitter {
+    add(paths: string | ReadonlyArray<string>): void;
+    unwatch(paths: string | ReadonlyArray<string>): void;
+    close(): Promise<void>;
+    on(event: 'add' | 'addDir' | 'change' | 'unlink' | 'unlinkDir', listener: (path: string) => void): this;
+    on(event: 'error', listener: (error: Error) => void): this;
+    on(event: 'ready' | 'raw', listener: () => void): this;
+  }
+
+  export function watch(paths: string | ReadonlyArray<string>, options?: WatchOptions): FSWatcher;
 }
 
 declare module 'events' {
