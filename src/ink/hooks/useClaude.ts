@@ -90,10 +90,21 @@ export const useClaude = () => {
           .replace(/`/g, '\\`')
           .replace(/\$/g, '\\$');
         
-        // Launch Claude without signal propagation
-        execSync(`"${claudeResult.path}" "${escapedContent}"`, { 
-          stdio: 'inherit'
-        });
+        // Launch Claude and handle signal propagation properly
+        try {
+          execSync(`"${claudeResult.path}" "${escapedContent}"`, { 
+            stdio: 'inherit',
+            killSignal: 'SIGTERM'
+          });
+        } catch (error: any) {
+          // Check if the error was due to a signal (user pressed Ctrl+C)
+          if (error.signal === 'SIGINT' || error.signal === 'SIGTERM') {
+            // User intentionally closed Claude, exit gracefully
+            process.exit(0);
+          }
+          // Re-throw other errors
+          throw error;
+        }
 
         return {
           success: true,

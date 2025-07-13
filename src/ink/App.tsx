@@ -125,6 +125,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         'diagnose-agents': 'diagnose-agents'
       };
       
+      // Debug logging
+      console.log('Debug - command:', command);
+      console.log('Debug - directCommands:', Object.keys(directCommands));
+      
       if (directCommands[command]) {
         setMode(directCommands[command]);
       } else if (['backend', 'frontend', 'architect', 'design', 'cli'].includes(command)) {

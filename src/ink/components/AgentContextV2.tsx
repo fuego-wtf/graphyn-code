@@ -26,13 +26,30 @@ export const AgentContextV2: React.FC<AgentContextProps> = ({ agent, query }) =>
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tempFile, setTempFile] = useState<string | null>(null);
+  const [hasLaunched, setHasLaunched] = useState(false);
 
   useEffect(() => {
-    prepareAndLaunch();
+    let cancelled = false;
+    
+    const launch = async () => {
+      if (!cancelled) {
+        await prepareAndLaunch();
+      }
+    };
+    
+    launch();
+    
+    return () => {
+      cancelled = true;
+    };
   }, [agent, query]);
 
   const prepareAndLaunch = async () => {
+    // Prevent multiple launches
+    if (hasLaunched) return;
+    
     try {
+      setHasLaunched(true);
       setLoading(true);
       setError(null);
 
