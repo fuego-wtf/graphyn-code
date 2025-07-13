@@ -82,15 +82,21 @@ const child = spawn('node', [cliPath, ...process.argv.slice(2)], {
   env: process.env
 });
 
-// Flag to prevent multiple exits
+// Flag to prevent multiple exits and track if we're shutting down due to signal
 let exiting = false;
+let signalReceived = false;
 
 // Forward all signals to child
 ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach(signal => {
   process.on(signal, () => {
     if (!exiting) {
       exiting = true;
+      signalReceived = true;
       child.kill(signal);
+      // Force exit after a timeout if child doesn't exit cleanly
+      setTimeout(() => {
+        process.exit(130); // 128 + 2 (SIGINT)
+      }, 1000);
     }
   });
 });
@@ -99,7 +105,13 @@ let exiting = false;
 child.on('exit', (code, signal) => {
   if (!exiting) {
     exiting = true;
-    process.exit(code || 0);
+    // If we received a signal, always exit with signal code
+    // This prevents tools from thinking it was a clean exit
+    if (signalReceived) {
+      process.exit(130); // 128 + 2 (SIGINT)
+    } else {
+      process.exit(code || 0);
+    }
   }
 });
 

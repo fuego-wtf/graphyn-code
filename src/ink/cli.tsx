@@ -23,7 +23,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.52');
+  console.log('0.1.53');
   process.exit(0);
 }
 
@@ -108,12 +108,12 @@ if (!process.stdin.isTTY && !process.env.FORCE_COLOR) {
     // Handle process termination
     process.on('SIGINT', () => {
       unmount();
-      process.exit(0);
+      process.exit(130); // 128 + 2 (SIGINT) - proper signal exit code
     });
 
     process.on('SIGTERM', () => {
       unmount();
-      process.exit(0);
+      process.exit(143); // 128 + 15 (SIGTERM) - proper signal exit code
     });
 
     // Handle uncaught errors
