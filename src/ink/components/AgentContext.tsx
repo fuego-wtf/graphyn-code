@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { useStore } from '../store.js';
 import { useClaude } from '../hooks/useClaude.js';
+import { initGraphynFolder, appendToInitMd } from '../../utils/graphyn-folder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +18,7 @@ interface AgentContextProps {
 
 type LaunchStatus = 'preparing' | 'checking' | 'launching' | 'success' | 'fallback' | 'error';
 
-export const AgentContextV2: React.FC<AgentContextProps> = ({ agent, query }) => {
+export const AgentContext: React.FC<AgentContextProps> = ({ agent, query }) => {
   const { exit } = useApp();
   const { setLoading, setError } = useStore();
   const { launchClaude, checkClaude } = useClaude();
@@ -53,8 +54,18 @@ export const AgentContextV2: React.FC<AgentContextProps> = ({ agent, query }) =>
       setLoading(true);
       setError(null);
 
-      // Step 1: Check Claude availability
+      // Step 1: Initialize .graphyn folder if needed
       setStatus('checking');
+      setProgress(10);
+      
+      try {
+        await initGraphynFolder();
+      } catch (error) {
+        // Non-critical error, continue
+        console.error('Failed to init .graphyn folder:', error);
+      }
+      
+      // Step 2: Check Claude availability
       setProgress(20);
       
       const claudeResult = await checkClaude();
@@ -105,6 +116,13 @@ Please analyze the above query in the context of the ${agent} agent role and pro
 
       setProgress(100);
       
+      // Log to .graphyn/init.md
+      try {
+        appendToInitMd(`### Agent: ${agent}\n**Query**: ${query}\n**Time**: ${new Date().toISOString()}\n`);
+      } catch (error) {
+        // Non-critical, continue
+      }
+      
       if (result.success) {
         if (result.tempFile) {
           setTempFile(result.tempFile);
@@ -113,10 +131,8 @@ Please analyze the above query in the context of the ${agent} agent role and pro
           setStatus('success');
         }
         
-        // Exit after showing status briefly
-        setTimeout(() => {
-          exit();
-        }, result.tempFile ? 3000 : 500);
+        // Exit immediately - Claude is now running as a detached process
+        exit();
       } else {
         setStatus('error');
         setErrorMessage(result.error || 'Failed to launch Claude');

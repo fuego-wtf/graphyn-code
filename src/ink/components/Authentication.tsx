@@ -19,7 +19,7 @@ interface AuthState {
   oauthProvider?: 'github' | 'figma';
 }
 
-export const AuthenticationV2: React.FC = () => {
+export const Authentication: React.FC = () => {
   const { exit } = useApp();
   const { reset } = useStore();
   const { isAuthenticated, user, authenticate, getTestToken, logout } = useAuth();

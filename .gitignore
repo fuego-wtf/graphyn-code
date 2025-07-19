@@ -4,6 +4,9 @@ test-*.js
 test-node.js
 test-real-prototype.js
 
+# Graphyn local workspace (secret!)
+.graphyn/
+
 # Keep the rest of gitignore
 # User data
 .fuego/

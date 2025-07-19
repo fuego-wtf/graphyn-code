@@ -23,7 +23,7 @@ interface ThreadExtended extends APIThread {
 
 type Thread = ThreadExtended;
 
-export const ThreadManagementV2: React.FC = () => {
+export const ThreadManagement: React.FC = () => {
   const { exit } = useApp();
   const { reset } = useStore();
   const [mode, setMode] = useState<ViewMode>('list');
@@ -405,12 +405,12 @@ export const ThreadManagementV2: React.FC = () => {
 };
 
 // Export wrapped component with error boundary
-export const ThreadManagementV2WithErrorBoundary: React.FC = () => {
+export const ThreadManagementWithErrorBoundary: React.FC = () => {
   const { error, clearError } = useErrorHandler();
   
   if (error) {
     return <ErrorFallback error={error} resetError={clearError} />;
   }
   
-  return <ThreadManagementV2 />;
+  return <ThreadManagement />;
 };

@@ -23,7 +23,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.53');
+  console.log('0.1.54');
   process.exit(0);
 }
 
@@ -59,6 +59,7 @@ Commands:
   graphyn whoami                 Show authentication status
   graphyn logout                 Remove authentication
   graphyn diagnose-agents        Diagnose Figma agent connectivity
+  graphyn init-graphyn           Initialize .graphyn folder structure
 
 Agents:
   backend (b)                    Backend development agent

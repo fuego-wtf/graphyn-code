@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MainMenu } from './components/MainMenu.js';
-import { AgentContextV2 } from './components/AgentContextV2.js';
+import { AgentContext } from './components/AgentContext.js';
 import { Loading } from './components/Loading.js';
 import { Init } from './components/Init.js';
-import { ThreadManagementV2 } from './components/ThreadManagementV2.js';
-import { AuthenticationV2 } from './components/AuthenticationV2.js';
+import { ThreadManagement } from './components/ThreadManagement.js';
+import { Authentication } from './components/Authentication.js';
 import { Doctor } from './components/Doctor.js';
 import { ShareAgent } from './components/ShareAgent.js';
 import { History } from './components/History.js';
@@ -20,6 +20,7 @@ import { ThreadCommand } from './components/ThreadCommand.js';
 import { Context } from './components/Context.js';
 import { TestMemory } from './components/TestMemory.js';
 import { DiagnoseAgents } from './components/DiagnoseAgents.js';
+import { InitGraphyn } from './components/InitGraphyn.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
@@ -67,6 +68,8 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
   useEffect(() => {
     if (command === 'init') {
       setMode('init');
+    } else if (command === 'init-graphyn') {
+      setMode('init-graphyn');
     } else if (command === 'share' && query === 'agent') {
       setMode('share');
     } else if (command === 'sync' && query) {
@@ -219,13 +222,13 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         return <Init />;
       
       case 'agent':
-        return <AgentContextV2 agent={selectedAgent} query={query || ''} />;
+        return <AgentContext agent={selectedAgent} query={query || ''} />;
       
       case 'threads':
-        return <ThreadManagementV2 />;
+        return <ThreadManagement />;
       
       case 'auth':
-        return <AuthenticationV2 />;
+        return <Authentication />;
       
       case 'doctor':
         return <Doctor />;
@@ -291,6 +294,9 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       
       case 'diagnose-agents':
         return <DiagnoseAgents />;
+        
+      case 'init-graphyn':
+        return <InitGraphyn />;
       
       default:
         return null;

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -90,21 +90,15 @@ export const useClaude = () => {
           .replace(/`/g, '\\`')
           .replace(/\$/g, '\\$');
         
-        // Launch Claude and handle signal propagation properly
-        try {
-          execSync(`"${claudeResult.path}" "${escapedContent}"`, { 
-            stdio: 'inherit',
-            killSignal: 'SIGTERM'
-          });
-        } catch (error: any) {
-          // Check if the error was due to a signal (user pressed Ctrl+C)
-          if (error.signal === 'SIGINT' || error.signal === 'SIGTERM') {
-            // User intentionally closed Claude, exit gracefully
-            process.exit(0);
-          }
-          // Re-throw other errors
-          throw error;
-        }
+        // Launch Claude as a detached process so graphyn can exit immediately
+        const child = spawn(claudeResult.path, [escapedContent], {
+          detached: true,
+          stdio: 'inherit',
+          shell: false
+        });
+        
+        // Unref the child so graphyn can exit independently
+        child.unref();
 
         return {
           success: true,

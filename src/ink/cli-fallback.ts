@@ -28,7 +28,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.51');
+  console.log('0.1.54');
   process.exit(0);
 }
 
@@ -64,7 +64,7 @@ if (!normalizedCommand) {
 }
 
 // Handle commands that require interactive mode
-if (['init', 'thread', 'agent'].includes(normalizedCommand)) {
+if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
   console.error(`The "graphyn ${normalizedCommand}" command requires an interactive terminal.`);
   console.error('Please run this command in a proper terminal (not piped or in CI).');
   process.exit(1);
