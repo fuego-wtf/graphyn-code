@@ -1,6 +1,6 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.54",
+  "version": "0.1.55",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "type": "module",
   "main": "dist/ink/cli.js",
