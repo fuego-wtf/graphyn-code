@@ -1,0 +1,45 @@
+# Source files
+src/
+*.ts
+!dist/**/*.d.ts
+
+# Development files
+tsconfig.json
+.env*
+.vscode/
+.idea/
+
+# Git files
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Test files
+tests/
+test-graphyn.sh
+compare-agents.sh
+
+# Config files
+.editorconfig
+.eslintrc*
+.prettierrc*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Scripts (except postinstall)
+scripts/*.sh
+deploy/
+
+# Build artifacts
+*.map
+dist/**/*.map

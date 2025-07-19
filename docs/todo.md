@@ -1,5 +1,127 @@
 # Graphyn Code CLI - Development Tasks
 
+## 🎨 INK FRAMEWORK MIGRATION (TOP PRIORITY - January 2025)
+
+### Current Status: Tasks 1-10 of 17 Completed ✅
+We're migrating from Commander.js to Ink (React for terminals) for a modern, reactive CLI experience.
+
+### Completed Tasks
+- ✅ Task 1: Created minimal Ink app that displays 'Hello Graphyn' and exits
+- ✅ Task 2: Set up ESM-compatible build pipeline (package.json has "type": "module")
+- ✅ Task 3: Created main menu component with agent selection (MainMenu.tsx exists)
+- ✅ Task 4: Built reactive state management with Zustand
+- ✅ Task 5: Created agent context preparation component
+- ✅ Task 6: Implemented loading states and progress indicators
+- ✅ Task 7: Fixed TTY/terminal issues for deployment
+- ✅ Task 8: Created production build script
+- ✅ Task 9: Tested npm package locally - all tests passing
+- ✅ Task 10: Handled Claude Code launching strategy with fallback
+
+### Current Focus: Release Version 0.2.0
+- [ ] **Task 11: Publish version 0.2.0 to npm**
+  - Package built and tested successfully
+  - Ready for npm publish
+  
+### Next Immediate Tasks (11-17)
+- [ ] **Task 12: Build thread management UI component**
+  - Full CRUD interface for threads
+  - Real-time updates with keyboard shortcuts
+  
+- [ ] **Task 13: Create authentication flow component**
+  - API key input with validation
+  - Secure storage and error handling
+  
+- [ ] **Task 14: Integrate API client for backend communication**
+  - Connect to live Encore.dev backend
+  - Replace mock implementations
+  
+- [ ] **Task 15: Implement error handling and recovery UI**
+  - Error boundaries and retry mechanisms
+  - Graceful fallbacks for all error types
+  
+- [ ] **Task 16: Add keyboard navigation and shortcuts**
+  - Vim-style navigation, global hotkeys
+  - Context-aware shortcuts with help overlay
+  
+- [ ] **Task 17: Create doctor command with system diagnostics**
+  - Check Claude Code installation
+  - Verify API connectivity
+  - Display configuration status
+
+### Migration Challenges & Solutions
+1. **Terminal/TTY Handling**: Ink requires exclusive terminal control
+   - Solution: Clean exit before launching Claude Code
+   - Fallback: Save context to temp files
+   
+2. **ESM Module System**: Full migration to ES modules
+   - All imports use .js extensions
+   - No __dirname, use import.meta.url
+   
+3. **State Management**: Moving from imperative to reactive
+   - Zustand for global state
+   - React hooks for local state
+
+### Full Task List Reference
+See `/INK_MIGRATION_PLAN.md` for complete 17-task breakdown
+
+---
+
+## 🧠 CLI INTELLIGENCE VIA AGENT CONSUMPTION (NEXT PRIORITY)
+
+### Core Strategy: Consume Agents, Don't Build Intelligence
+The CLI becomes intelligent by orchestrating Graphyn agents. All intelligence features come from asking agents questions and facilitating their responses.
+
+### Immediate Agent Integration Tasks
+- [ ] Create CLI Assistant Agent consumption:
+    ```typescript
+    // CLI asks agents for help
+    const nextSteps = await queryAgent('cli-assistant', {
+      query: 'What should the user do next?',
+      context: { recentCommands, projectState, currentThread }
+    });
+    ```
+- [ ] Natural language command interpretation:
+    ```bash
+    graphyn "test my customer service agent"
+    # CLI sends to agent: "Interpret this command: test my customer service agent"
+    # Agent responds with: { action: 'test', target: 'agent', filter: 'customer-service' }
+    ```
+- [ ] Context awareness through agents:
+    - [ ] Agents track user's work session
+    - [ ] Agents remember previous commands
+    - [ ] Agents understand project state
+    - [ ] Agents provide contextual suggestions
+
+### Agent-Driven Features
+- [ ] Smart suggestions:
+    ```bash
+    graphyn suggest
+    # Asks agent: "Based on context, what should user do?"
+    # Agent: "You just created an agent. Try: graphyn test agent customer-service"
+    ```
+- [ ] Learning analytics via agents:
+    ```bash
+    graphyn learning analyze
+    # Asks learning agent: "What patterns do you see?"
+    # Agent analyzes and reports insights
+    ```
+- [ ] Debugging with agent help:
+    ```bash
+    graphyn debug thread-123
+    # Asks debug agent: "Analyze this thread for issues"
+    # Agent provides detailed analysis
+    ```
+
+### Multi-Agent Orchestration
+- [ ] Agent-to-agent conversations:
+    - [ ] CLI creates thread for agents to discuss
+    - [ ] Facilitates agent collaboration
+    - [ ] Aggregates multi-agent insights
+- [ ] Agent consensus building:
+    - [ ] Ask multiple agents same question
+    - [ ] Compare and combine responses
+    - [ ] Present unified recommendation
+
 ## 🚀 LIVE BACKEND INTEGRATION (URGENT - January 2025)
 
 ### BREAKTHROUGH: APIs Are Live!

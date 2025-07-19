@@ -3,7 +3,48 @@
 ## Project Overview
 Graphyn Code is a CLI tool that enhances Claude Code with specialized AI agents for backend, frontend, and architecture development. It provides context-aware prompts and manages agent interactions.
 
+**Current Status**: Undergoing major UI rewrite from Commander.js to Ink framework (React for terminals) for better user experience and real-time updates.
+
+## Core Intelligence Strategy (Updated January 2025)
+
+**Key Principle**: The CLI becomes intelligent by **consuming Graphyn agents**, not by building its own intelligence.
+
+### What This Means
+- CLI asks agents: "What should the user do next?"
+- CLI sends natural language to agents: "Test my customer service agent" → Agent interprets
+- Agents maintain context about user's work session
+- Agents provide suggestions, analytics, and insights
+- CLI is the orchestration layer, agents are the intelligence layer
+
+### Implementation Approach
+```typescript
+// Instead of building intelligence in CLI
+// ❌ const suggestion = analyzeUserPattern(history);
+
+// CLI consumes agent intelligence
+// ✅ const suggestion = await askAgent('cli-assistant', {
+//      query: 'What should the user do next?',
+//      context: { currentTask, recentCommands, projectState }
+//    });
+```
+
 ## Key Learnings
+
+### Ink Framework Migration (January 2025)
+
+**Status**: Migrating Graphyn CLI from Commander.js to Ink framework - same framework Claude Code uses.
+
+**Progress**: 3 of 17 tasks completed
+- ✅ Minimal Ink app created and working
+- ✅ ESM build pipeline configured
+- ✅ Main menu component implemented
+- 🔄 Currently implementing Zustand state management (Task 4)
+
+**Challenges**:
+1. **Terminal Control**: Both apps need exclusive TTY access
+2. **ESM Modules**: Full migration to ES module system
+3. **State Management**: Shifting from imperative to reactive patterns
+4. **Component Architecture**: Complete UI rewrite needed
 
 ### Claude Code Terminal Integration Issues (January 2025)
 
@@ -47,8 +88,9 @@ Graphyn Code is a CLI tool that enhances Claude Code with specialized AI agents 
 
 ### Terminal Limitations
 - Cannot spawn Claude Code reliably from Node.js
-- Interactive menus (inquirer) conflict with Claude's terminal needs
-- Must work around Ink framework requirements
+- Both Graphyn and Claude use Ink - cannot run simultaneously
+- Must exit Graphyn cleanly before launching Claude
+- Ink requires exclusive raw mode terminal access
 
 ### Platform Differences
 - macOS: Can try osascript for new terminal windows
@@ -146,3 +188,77 @@ await graphyn.delete('/api/threads/123/participants/agent-1'); // Trigger learni
 - Focus on orchestration and user experience
 - Document terminal-related issues thoroughly
 - Keep UI consistent and beautiful
+- **ALWAYS run `npm run test:package` before releasing**
+- **Use ESM imports with .js extensions in all TypeScript files**
+- **Test Ink components in isolation before integration**
+- **Handle terminal cleanup properly when exiting Ink**
+
+## NPM Package Testing (Added January 2025)
+
+### Automated Testing Before Every Release
+```bash
+npm run test:package  # Tests installation in isolated environment
+```
+
+### What This Tests
+1. Package builds correctly
+2. Installation works in clean environment
+3. Postinstall script runs without dependencies
+4. CLI commands are accessible
+5. No missing dependencies
+
+### Release Process
+```bash
+# 1. Make your changes
+# 2. Test locally
+npm run test:package
+
+# 3. Bump version
+npm version patch  # or minor/major
+
+# 4. Publish (auto-runs test:package)
+npm publish
+```
+
+### Why This Matters
+- Prevents broken releases (like the chalk dependency issue)
+- Catches problems before users experience them
+- Tests actual npm installation flow
+- Verifies cross-platform compatibility
+
+## Context Mapping Boundaries (Added January 2025)
+
+### Key Learning: Agent Commands Work Through Context Files
+All agent commands (frontend, backend, architect, cli) now work properly by:
+1. **Preparing context** in temp files instead of direct Claude Code spawning
+2. **Showing manual commands** for users to launch Claude Code
+3. **Logging interactions** for history and debugging
+4. **5-minute cleanup** of temporary context files
+
+### Technical Implementation
+```typescript
+// Working approach (implemented)
+// ✅ Save context to file → Show commands → Let user launch Claude
+fs.writeFileSync(tmpFile, fullContext);
+console.log(`claude "${truncatedPreview}..."`);
+console.log(`/read ${tmpFile}`);
+
+// Failed approach (causes terminal conflicts)
+// ❌ execSync(`claude < "${tmpFile}"`, { stdio: 'inherit' });
+```
+
+### Why This Boundary Exists
+- Both Claude Code and Graphyn CLI use **Ink framework** requiring exclusive terminal control
+- Neither can function as child process or with piped stdin
+- Raw mode conflicts are **fundamental** - only one Ink app at a time
+- Solution: Exit Graphyn's Ink UI cleanly before launching Claude Code
+- This is the definitive solution for Ink-to-Ink app transitions
+
+### User Experience Flow
+1. User runs: `graphyn architect "design my system"`
+2. CLI prepares full context with agent prompt + query
+3. CLI saves to temp file and shows instructions
+4. User manually launches Claude Code with context
+5. Context auto-cleans up after 5 minutes
+
+This boundary ensures **all agent commands work reliably** without terminal conflicts.
