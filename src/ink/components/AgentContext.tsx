@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { useStore } from '../store.js';
 import { useClaude } from '../hooks/useClaude.js';
 import { initGraphynFolder, appendToInitMd } from '../../utils/graphyn-folder.js';
+import { getAccentColor } from '../theme/colors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +52,8 @@ export const AgentContext: React.FC<AgentContextProps> = ({ agent, query }) => {
     
     try {
       setHasLaunched(true);
-      setLoading(true);
+      // Don't use global loading state since we return null
+      // setLoading(true);
       setError(null);
 
       // Step 1: Initialize .graphyn folder if needed
@@ -73,7 +75,7 @@ export const AgentContext: React.FC<AgentContextProps> = ({ agent, query }) => {
       if (!claudeResult.found) {
         setStatus('error');
         setErrorMessage('Claude Code not found');
-        setLoading(false);
+        // setLoading(false);
         return;
       }
 
@@ -133,16 +135,20 @@ Please analyze the above query in the context of the ${agent} agent role and pro
         
         // Exit immediately - Claude is now running as a detached process
         exit();
+        // Force exit if Ink doesn't exit properly
+        setTimeout(() => {
+          process.exit(0);
+        }, 100);
       } else {
         setStatus('error');
         setErrorMessage(result.error || 'Failed to launch Claude');
       }
       
-      setLoading(false);
+      // setLoading(false);
     } catch (error) {
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
-      setLoading(false);
+      // setLoading(false);
     }
   };
 
@@ -181,11 +187,11 @@ Please analyze the above query in the context of the ${agent} agent role and pro
       case 'launching':
         return <Spinner type="dots" />;
       case 'success':
-        return '✅';
+        return '✓';
       case 'fallback':
-        return '📄';
+        return '□';
       case 'error':
-        return '❌';
+        return '✗';
       default:
         return null;
     }
@@ -210,9 +216,14 @@ Please analyze the above query in the context of the ${agent} agent role and pro
     }
   };
 
+  // Show errors only - otherwise stay silent to avoid duplication with Claude
+  if (status !== 'error' && status !== 'fallback') {
+    return null;
+  }
+
   return (
     <Box flexDirection="column" padding={1}>
-      <Text bold color="cyan">
+      <Text bold color="magenta">
         {agent.charAt(0).toUpperCase() + agent.slice(1)} Agent
       </Text>
       
@@ -223,37 +234,32 @@ Please analyze the above query in the context of the ${agent} agent role and pro
       </Box>
       
       <Box marginTop={1}>
-        <Text>
+        <Text color="blue">
           [{'█'.repeat(Math.floor(progress / 10)).padEnd(10, '░')}] {progress}%
         </Text>
       </Box>
       
-      {status === 'success' && (
-        <Box marginTop={1}>
-          <Text color="green">✅ Claude Code is now handling your request!</Text>
-        </Box>
-      )}
       
       {status === 'fallback' && tempFile && (
         <Box marginTop={1} flexDirection="column">
-          <Text color="yellow">📄 Large context saved to file</Text>
+          <Text color="blue">□ Large context saved to file</Text>
           <Box marginTop={1} flexDirection="column">
             <Text>To use this context in Claude:</Text>
-            <Text color="cyan">1. Run: claude</Text>
-            <Text color="cyan">2. Use: /read {tempFile}</Text>
+            <Text color="magenta">1. Run: claude</Text>
+            <Text color="magenta">2. Use: /read {tempFile}</Text>
           </Box>
         </Box>
       )}
       
       {status === 'error' && (
         <Box marginTop={1} flexDirection="column">
-          <Text color="red">❌ {errorMessage}</Text>
+          <Text color="red">✗ {errorMessage}</Text>
           {errorMessage?.includes('not found') && (
             <Box marginTop={1} flexDirection="column">
               <Text>To install Claude Code:</Text>
-              <Text color="cyan">1. Visit https://claude.ai/code</Text>
-              <Text color="cyan">2. Download and install for your platform</Text>
-              <Text color="cyan">3. Run "graphyn doctor" to verify</Text>
+              <Text color="blue">1. Visit https://claude.ai/code</Text>
+              <Text color="blue">2. Download and install for your platform</Text>
+              <Text color="blue">3. Run "graphyn doctor" to verify</Text>
             </Box>
           )}
         </Box>

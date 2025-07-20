@@ -8,6 +8,7 @@ import { useStore } from '../store.js';
 import { useAuth, useAPI } from '../hooks/useAPI.js';
 import { config as appConfig } from '../../config.js';
 import { generateState, waitForOAuthCallback, getAvailablePort } from '../utils/auth.js';
+import { getAccentColor, getDimColor } from '../theme/colors.js';
 
 type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service';
 
@@ -202,7 +203,7 @@ export const Authentication: React.FC = () => {
   if (state.loading && state.mode !== 'oauth-flow') {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold>Authentication</Text>
+        <Text bold color="magenta">Authentication</Text>
         <Box marginTop={1}>
           <Spinner type="dots" />
           <Text> Authenticating...</Text>
@@ -215,16 +216,16 @@ export const Authentication: React.FC = () => {
   if (state.mode === 'oauth-flow') {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text bold>🚀 Graphyn Authentication</Text>
+        <Text bold color="cyan">▶ Graphyn Authentication</Text>
         <Box marginTop={1}>
           <Spinner type="dots" />
           <Text> Opening browser for Graphyn login...</Text>
         </Box>
         <Box marginTop={1}>
-          <Text dimColor>Please complete the authentication in your browser</Text>
+          <Text color={getDimColor()}>Please complete the authentication in your browser</Text>
         </Box>
         <Box marginTop={1}>
-          <Text dimColor>You'll be redirected to graphyn.com to sign in</Text>
+          <Text color={getDimColor()}>You'll be redirected to graphyn.com to sign in</Text>
         </Box>
         {state.error && (
           <Box marginTop={1}>
@@ -240,31 +241,31 @@ export const Authentication: React.FC = () => {
     case 'menu':
       const menuItems = isAuthenticated
         ? [
-            { label: '📊 View Status', value: 'status' },
-            { label: '🔗 Connect GitHub', value: 'connect-github' },
-            { label: '🎨 Connect Figma', value: 'connect-figma' },
-            { label: '🚪 Logout', value: 'logout' },
+            { label: '● View Status', value: 'status' },
+            { label: '→ Connect GitHub', value: 'connect-github' },
+            { label: '■ Connect Figma', value: 'connect-figma' },
+            { label: '× Logout', value: 'logout' },
             { label: '← Back to Main Menu', value: 'back' }
           ]
         : [
-            { label: '🔑 Enter API Key', value: 'api-key' },
-            { label: '🚀 Login with Graphyn', value: 'oauth-graphyn' },
-            { label: '🧪 Get Test Token', value: 'test-token' },
+            { label: '▹ Enter API Key', value: 'api-key' },
+            { label: '▶ Login with Graphyn', value: 'oauth-graphyn' },
+            { label: '○ Get Test Token', value: 'test-token' },
             { label: '← Back to Main Menu', value: 'back' }
           ];
 
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold>Authentication</Text>
+          <Text bold color="magenta">Authentication</Text>
           <Box marginTop={1}>
-            <Text color={isAuthenticated ? 'green' : 'yellow'}>
-              {isAuthenticated ? '✅ Authenticated' : '⚠️  Not authenticated'}
+            <Text color={isAuthenticated ? 'cyan' : 'blue'}>
+              {isAuthenticated ? '✓ Authenticated' : '⚠  Not authenticated'}
             </Text>
           </Box>
           
           {state.error && (
             <Box marginTop={1}>
-              <Text color="red">❌ {state.error}</Text>
+              <Text color="red">✗ {state.error}</Text>
             </Box>
           )}
           
@@ -273,7 +274,7 @@ export const Authentication: React.FC = () => {
           </Box>
           
           <Box marginTop={2}>
-            <Text dimColor>Use ↑↓ to navigate, ↵ to select, ESC to go back</Text>
+            <Text color={getDimColor()}>Use ↑↓ to navigate, ↵ to select, ESC to go back</Text>
           </Box>
         </Box>
       );
@@ -281,7 +282,7 @@ export const Authentication: React.FC = () => {
     case 'api-key':
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold>Enter API Key</Text>
+          <Text bold color="magenta">Enter API Key</Text>
           <Box marginTop={1}>
             <Text>Enter your Graphyn API key (starts with gph_ or test_):</Text>
           </Box>
@@ -298,12 +299,12 @@ export const Authentication: React.FC = () => {
           
           {state.error && (
             <Box marginTop={1}>
-              <Text color="red">❌ {state.error}</Text>
+              <Text color="red">✗ {state.error}</Text>
             </Box>
           )}
           
           <Box marginTop={1}>
-            <Text dimColor>Press Enter to submit, ESC to cancel</Text>
+            <Text color={getDimColor()}>Press Enter to submit, ESC to cancel</Text>
           </Box>
         </Box>
       );
@@ -311,7 +312,7 @@ export const Authentication: React.FC = () => {
     case 'oauth-select':
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold>OAuth Login</Text>
+          <Text bold color="magenta">OAuth Login</Text>
           <Box marginTop={1}>
             <Text>Select a provider to authenticate with:</Text>
           </Box>
@@ -319,8 +320,8 @@ export const Authentication: React.FC = () => {
           <Box marginTop={1}>
             <SelectInput
               items={[
-                { label: '🐙 GitHub', value: 'github' },
-                { label: '🎨 Figma', value: 'figma' },
+                { label: '● GitHub', value: 'github' },
+                { label: '■ Figma', value: 'figma' },
                 { label: '← Back', value: 'back' }
               ]}
               onSelect={handleOAuthSelect}
@@ -329,7 +330,7 @@ export const Authentication: React.FC = () => {
           
           {state.error && (
             <Box marginTop={1}>
-              <Text color="red">❌ {state.error}</Text>
+              <Text color="red">✗ {state.error}</Text>
             </Box>
           )}
         </Box>
@@ -341,13 +342,13 @@ export const Authentication: React.FC = () => {
       
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold>Authentication Status</Text>
+          <Text bold color="magenta">Authentication Status</Text>
           
           <Box marginTop={1} flexDirection="column">
             <Box>
               <Text>Status: </Text>
-              <Text color={isAuthenticated ? 'green' : 'red'}>
-                {isAuthenticated ? '✅ Authenticated' : '❌ Not authenticated'}
+              <Text color={isAuthenticated ? 'cyan' : 'red'}>
+                {isAuthenticated ? '✓ Authenticated' : '✗ Not authenticated'}
               </Text>
             </Box>
             
@@ -362,7 +363,7 @@ export const Authentication: React.FC = () => {
               <>
                 <Box marginTop={1}>
                   <Text>User: </Text>
-                  <Text color="cyan">{user.name || user.email}</Text>
+                  <Text color="blue">{user.name || user.email}</Text>
                 </Box>
                 {user.orgID && (
                   <Box>
@@ -375,7 +376,7 @@ export const Authentication: React.FC = () => {
           </Box>
           
           <Box marginTop={2}>
-            <Text dimColor>Press any key to return to menu</Text>
+            <Text color={getDimColor()}>Press any key to return to menu</Text>
           </Box>
         </Box>
       );
@@ -383,9 +384,9 @@ export const Authentication: React.FC = () => {
     case 'connect-service':
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold>🔗 Connect External Services</Text>
+          <Text bold color="magenta">→ Connect External Services</Text>
           <Box marginTop={1}>
-            <Text color="yellow">⚠️  Coming Soon</Text>
+            <Text color="blue">⚠  Coming Soon</Text>
           </Box>
           <Box marginTop={1}>
             <Text>This feature will allow you to connect:</Text>
@@ -395,7 +396,7 @@ export const Authentication: React.FC = () => {
             </Box>
           </Box>
           <Box marginTop={2}>
-            <Text dimColor>Press ESC to go back</Text>
+            <Text color={getDimColor()}>Press ESC to go back</Text>
           </Box>
         </Box>
       );

@@ -10,6 +10,14 @@ interface RepoInfo {
 }
 
 /**
+ * Check if docs folder exists in the project
+ */
+export async function checkDocsFolder(projectPath: string = process.cwd()): Promise<boolean> {
+  const docsPath = path.join(projectPath, 'docs');
+  return fs.existsSync(docsPath) && fs.statSync(docsPath).isDirectory();
+}
+
+/**
  * Initialize .graphyn folder structure in the current project
  */
 export async function initGraphynFolder(projectPath: string = process.cwd()): Promise<void> {
@@ -17,9 +25,23 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
   const docsPath = path.join(graphynPath, 'docs');
   const tempPath = path.join(docsPath, 'temp');
   
-  // Create directories
+  // Create .graphyn directory
   fs.mkdirSync(graphynPath, { recursive: true });
-  fs.mkdirSync(docsPath, { recursive: true });
+  
+  // Check if project has a /docs folder
+  const projectDocsPath = path.join(projectPath, 'docs');
+  if (fs.existsSync(projectDocsPath) && fs.statSync(projectDocsPath).isDirectory()) {
+    // Move existing docs folder to .graphyn/docs
+    if (!fs.existsSync(docsPath)) {
+      fs.renameSync(projectDocsPath, docsPath);
+      console.log('📁 Moved existing /docs folder to .graphyn/docs');
+    }
+  } else {
+    // Create docs structure if no existing docs folder
+    fs.mkdirSync(docsPath, { recursive: true });
+  }
+  
+  // Ensure temp directory exists
   fs.mkdirSync(tempPath, { recursive: true });
   
   // Initialize init.md if it doesn't exist
@@ -145,7 +167,6 @@ async function generateSitemap(projectPath: string): Promise<string> {
         }
         
         const fullPath = path.join(dir, item.name);
-        const relativePath = path.relative(projectPath, fullPath);
         
         if (item.isDirectory()) {
           sitemap.push(`${prefix}- **${item.name}/**`);
@@ -257,7 +278,7 @@ async function generateServicemap(projectPath: string): Promise<string> {
     const fullPath = path.join(projectPath, apiPath);
     if (fs.existsSync(fullPath)) {
       servicemap.push('\n## API Routes');
-      scanApiRoutes(fullPath, projectPath, servicemap);
+      scanApiRoutes(fullPath, servicemap);
       break;
     }
   }
@@ -295,7 +316,7 @@ function getDirectoryPurpose(dirName: string): string {
 /**
  * Scan API routes
  */
-function scanApiRoutes(apiPath: string, projectPath: string, servicemap: string[]): void {
+function scanApiRoutes(apiPath: string, servicemap: string[]): void {
   function scan(dir: string, prefix: string = ''): void {
     const items = fs.readdirSync(dir, { withFileTypes: true });
     

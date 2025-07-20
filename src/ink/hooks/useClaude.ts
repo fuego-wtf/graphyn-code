@@ -84,22 +84,23 @@ export const useClaude = () => {
 
       // Try direct launch first
       try {
-        const escapedContent = fullContext
-          .replace(/\\/g, '\\\\')
-          .replace(/"/g, '\\"')
-          .replace(/`/g, '\\`')
-          .replace(/\$/g, '\\$');
+        // Don't escape - just pass the content directly
+        const escapedContent = fullContext;
         
-        // Launch Claude as a detached process so graphyn can exit immediately
+        // Launch Claude as a completely independent process
         const child = spawn(claudeResult.path, [escapedContent], {
           detached: true,
           stdio: 'inherit',
           shell: false
         });
         
-        // Unref the child so graphyn can exit independently
+        // Unref to allow graphyn to exit
         child.unref();
-
+        
+        // Force immediate exit - don't wait for anything
+        process.exit(0);
+        
+        // This return will never execute, but TypeScript needs it
         return {
           success: true,
           tempFile: tmpFile,

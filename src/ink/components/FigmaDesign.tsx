@@ -10,6 +10,7 @@ import { ConfigManager } from '../../config-manager.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { getAccentColor, getDimColor } from '../theme/colors.js';
 
 interface FigmaDesignProps {
   url: string;
@@ -66,7 +67,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       token = tokens.access_token;
       
       setProgress(20);
-      setStatusMessage('✅ Figma authenticated');
+      setStatusMessage('✓ Figma authenticated');
       
       // Step 2: Initialize Figma API client
       setStep('analyzing');
@@ -143,7 +144,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
               totalComponents: 0
             };
             
-            setStatusMessage('⚠️  Limited access - using basic file info');
+            setStatusMessage('⚠  Limited access - using basic file info');
           } catch (fileError: any) {
             throw new Error(`Cannot access Figma file: ${fileError.message}`);
           }
@@ -189,7 +190,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       if (isComponentExtraction || prototypeData.totalScreens > 0) {
         setStep('analyzing');
         setProgress(82);
-        setStatusMessage('📥 Downloading design assets...');
+        setStatusMessage('▼ Downloading design assets...');
         
         try {
           // Create design folder structure
@@ -204,7 +205,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
           }
           
           // Download frame images
-          setStatusMessage(`📥 Downloading ${prototypeData.totalScreens} frame images...`);
+          setStatusMessage(`▼ Downloading ${prototypeData.totalScreens} frame images...`);
           const frameImages = await figmaClient.downloadFrameImages(
             prototypeData.screens,
             urlParts.fileKey,
@@ -213,7 +214,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
           );
           
           setProgress(85);
-          setStatusMessage(`✅ Downloaded ${frameImages.length} frame images to /design/frames/`);
+          setStatusMessage(`✓ Downloaded ${frameImages.length} frame images to /design/frames/`);
           
           // Save frame mapping
           const frameMapping = {
@@ -232,10 +233,10 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
             JSON.stringify(frameMapping, null, 2)
           );
           
-          setStatusMessage('✅ Assets downloaded successfully!');
+          setStatusMessage('✓ Assets downloaded successfully!');
         } catch (error: any) {
           console.error('Asset download error:', error);
-          setStatusMessage(`⚠️  Asset download skipped: ${error.message}`);
+          setStatusMessage(`⚠  Asset download skipped: ${error.message}`);
         }
       }
       
@@ -274,7 +275,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       setProgress(100);
       
       if (result.success) {
-        setStatusMessage('✅ Claude Code launched with Figma context!');
+        setStatusMessage('✓ Claude Code launched with Figma context!');
         
         // Exit after brief delay
         setTimeout(() => {
@@ -305,7 +306,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       case 'launching':
         return <Spinner type="dots" />;
       case 'error':
-        return '❌';
+        return '✗';
       default:
         return null;
     }
@@ -313,12 +314,12 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
 
   return (
     <Box flexDirection="column" padding={1}>
-      <Text bold color="cyan">
-        🎨 Figma Design Import
+      <Text bold color="magenta">
+        ■ Figma Design Import
       </Text>
       
       <Box marginTop={1}>
-        <Text dimColor>URL: {url}</Text>
+        <Text color={getDimColor()}>URL: {url}</Text>
       </Box>
       
       <Box marginTop={2}>
@@ -328,22 +329,22 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       </Box>
       
       <Box marginTop={1}>
-        <Text>
+        <Text color="blue">
           [{'█'.repeat(Math.floor(progress / 10)).padEnd(10, '░')}] {progress}%
         </Text>
       </Box>
       
       {step === 'error' && errorMessage && (
         <Box marginTop={2} flexDirection="column">
-          <Text color="red">❌ {errorMessage}</Text>
+          <Text color="red">✗ {errorMessage}</Text>
           
           {authInstructions && (
             <Box marginTop={1} flexDirection="column">
-              <Text color="yellow">To access Figma files, you need to authenticate:</Text>
-              <Text color="cyan">1. Exit this tool (press Ctrl+C)</Text>
-              <Text color="cyan">2. Run: graphyn design auth</Text>
-              <Text color="cyan">3. Complete OAuth in your browser</Text>
-              <Text color="cyan">4. Try again: graphyn design {url}</Text>
+              <Text color="blue">To access Figma files, you need to authenticate:</Text>
+              <Text color="magenta">1. Exit this tool (press Ctrl+C)</Text>
+              <Text color="magenta">2. Run: graphyn design auth</Text>
+              <Text color="magenta">3. Complete OAuth in your browser</Text>
+              <Text color="magenta">4. Try again: graphyn design {url}</Text>
             </Box>
           )}
         </Box>
@@ -351,7 +352,7 @@ export const FigmaDesign: React.FC<FigmaDesignProps> = ({ url, framework = 'reac
       
       {prototype && (
         <Box marginTop={2} flexDirection="column" borderStyle="single" padding={1}>
-          <Text bold>📐 Prototype Analysis</Text>
+          <Text bold color="cyan">□ Prototype Analysis</Text>
           <Text>File: {prototype.fileName}</Text>
           <Text>Screens: {prototype.totalScreens}</Text>
           <Text>Components: {prototype.totalComponents}</Text>

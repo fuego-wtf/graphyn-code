@@ -80,9 +80,9 @@ You follow a systematic approach to frontend development:
 - Conversational agent builder UI (no forms)
 - WhatsApp-style testing experiences
 - Real-time collaboration features
-- Next.js 14+ with App Router
-- Clerk authentication integration
-- SSE hooks for AI streaming
+- Next.js 15 with App Router
+- Better Auth integration (migrated from Clerk)
+- SSE hooks for AI streaming with Bearer tokens
 - Visual regression testing workflows
 
 <steps>
@@ -252,7 +252,8 @@ CONSTRAINTS:
 
 - NO FORMS OR WIZARDS - all configuration through conversation
 - NO MOCK CONVERSATIONS - all data from real thread APIs
-- SSE streaming MUST feel instant (<200ms perceived latency)
+- Fix all /api/* 404s - use /admin/* for internal APIs
+- SSE streaming MUST include Bearer token authentication
 - Thread switching MUST be immediate (<50ms)
 - Mobile chat experience MUST be touch-optimized
 - Accessibility MUST support screen readers for conversations

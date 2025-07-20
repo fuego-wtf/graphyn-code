@@ -34,32 +34,9 @@ Graphyn Code - AI Development Tool for Claude Code
 
 Usage:
   graphyn                        Interactive mode
-  graphyn init                   Initialize with OAuth authentication
   graphyn <agent> <query>        Direct agent query
-  graphyn design <figma-url>     Generate pixel-perfect components
-  graphyn design <url> --extract-components  Extract design system from frame
-  graphyn thread [id]            Start or continue builder conversation
-  graphyn agent <command>        Manage your AI agents
-  
-Commands:
-  graphyn agent list             List all your agents
-  graphyn agent test <id>        Test an agent
-  graphyn agent deploy <id>      Deploy agent and get API credentials
-  graphyn threads                Manage conversation threads
-  graphyn design auth            Authenticate with Figma
-  graphyn design logout          Logout from Figma
-  graphyn auth [key]             Authenticate with API key
-  graphyn doctor                 System health check
-  graphyn context                Show detected repository patterns
-  graphyn test-memory            Test thread persistence
-  graphyn status                 Show project status
-  graphyn history                View recent interactions
-  graphyn share agent            Share agent with team
-  graphyn sync <action>          Sync GRAPHYN.md (pull|push|edit)
-  graphyn whoami                 Show authentication status
-  graphyn logout                 Remove authentication
-  graphyn diagnose-agents        Diagnose Figma agent connectivity
-  graphyn init-graphyn           Initialize .graphyn folder structure
+  graphyn design <figma-url>     Extract Figma components
+  graphyn auth [key]             Set API key (optional)
 
 Agents:
   backend (b)                    Backend development agent
@@ -73,18 +50,34 @@ Options:
   -h, --help                     Show help
 
 Examples:
-  graphyn init                   OAuth authentication setup
-  graphyn thread                 Create a new agent via conversation
-  graphyn agent list             See all your agents
-  graphyn agent deploy abc123    Get API key for agent
-  graphyn design figma.com/...   Extract Figma components
-  graphyn backend "add auth"     Query backend agent
+  graphyn backend "add auth"     Backend development
+  graphyn frontend "react hook"  Frontend development
+  graphyn architect "design api" Architecture review
+  graphyn design figma.com/...   Extract components
 `);
   process.exit(0);
 }
 
+// Check if this is a direct agent command - always use fallback for these
+const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
+const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
+
 // Check if we can use raw mode
-if (!process.stdin.isTTY && !process.env.FORCE_COLOR) {
+// Also check for Warp terminal which might have special TTY handling
+const isWarp = process.env.TERM_PROGRAM === 'WarpTerminal';
+
+// Debug output for terminal detection
+if (process.env.DEBUG_GRAPHYN) {
+  console.log('Terminal Debug Info:');
+  console.log('- TTY:', process.stdin.isTTY ? 'YES' : 'NO');
+  console.log('- TERM_PROGRAM:', process.env.TERM_PROGRAM || 'none');
+  console.log('- Is Warp:', isWarp ? 'YES' : 'NO');
+  console.log('- Direct agent command:', isDirectAgentCommand ? 'YES' : 'NO');
+  console.log('- Using fallback:', (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || isDirectAgentCommand) ? 'YES' : 'NO');
+}
+
+// Use fallback for: non-TTY, Warp terminal, or direct agent commands
+if (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || isDirectAgentCommand) {
   // Fall back to non-interactive mode
   import('child_process').then(({ execSync }) => {
     const fallbackPath = new URL('./cli-fallback.js', import.meta.url).pathname;

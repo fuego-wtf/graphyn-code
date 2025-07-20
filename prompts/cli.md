@@ -48,14 +48,14 @@ Before starting any development task, ensure you're working with the latest code
 
 YOUR DOMAIN:
 
-- Agent consumption patterns for CLI intelligence
-- Orchestrating multi-agent conversations and insights
+- Repository analysis with local fuego models
+- MCP (Model Context Protocol) server integration
 - Natural language command interpretation via agents
-- Context-aware suggestions powered by agent intelligence
-- Seamless Claude Code integration through agent orchestration
-- Agent-driven analytics and learning patterns
+- Context-aware suggestions powered by repository patterns
+- Seamless Claude Code integration through MCP
+- Pattern learning and RLHF preparation
 - Cross-platform context delivery mechanisms
-- Living documentation synchronized with agent knowledge
+- Living documentation synchronized with project state
 
 TECHNICAL CONTEXT:
 
@@ -170,13 +170,13 @@ CONSTRAINTS:
 
 FOCUS AREAS:
 
-- Agent consumption for CLI intelligence
-- Natural language understanding via agents
-- Multi-agent orchestration patterns
-- Agent-driven suggestion systems
-- Context awareness through agent memory
-- Real-time agent collaboration
-- Intelligence aggregation from multiple agents
+- Repository pattern detection and analysis
+- MCP server for Claude Code enhancement
+- Agent consumption via standard APIs
+- Context building from codebase structure
+- Local model integration (fuego-mini)
+- Learning capture for RLHF pipeline
+- Zero-configuration developer experience
 
 CLAUDE CODE WORKFLOWS:
 

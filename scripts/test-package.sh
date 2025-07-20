@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Test npm package installation in isolation
-# This prevents issues like the postinstall dependency bug
+# Enhanced test for npm package installation
+# Comprehensive validation to prevent NPM installation issues
 
 set -e
 
-echo "🧪 Testing npm package installation..."
+echo "🧪 Testing npm package installation (Enhanced)..."
 
 # Colors
 GREEN='\033[0;32m'
@@ -21,9 +21,16 @@ ERRORS=0
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# 1. Build the project
-echo "📦 Building project..."
-npm run build
+# 0. Run package validation
+echo "🔍 Validating package structure..."
+if node scripts/validate-package.cjs; then
+    echo -e "${GREEN}✅ Package validation passed${NC}"
+else
+    echo -e "${RED}❌ Package validation failed${NC}"
+    exit 1
+fi
+
+# Skip build - should already be built before running this test
 
 # 2. Create a test package
 echo "📦 Creating test package..."
@@ -43,13 +50,38 @@ echo "🔧 Testing in isolated environment: $TEST_DIR"
 # 4. Initialize fresh npm project
 npm init -y --silent
 
-# 5. Test installation
-echo "📥 Installing package..."
+# 5. Test installation with various scenarios
+echo "📥 Testing package installation..."
+
+# Test 5a: Normal installation
+echo -e "${BLUE}  → Testing normal install...${NC}"
 if npm install "$PACKAGE_PATH" --loglevel=error; then
-    echo -e "${GREEN}✅ Package installed successfully${NC}"
+    echo -e "${GREEN}    ✅ Normal install passed${NC}"
 else
-    echo -e "${RED}❌ Package installation failed${NC}"
-    exit 1
+    echo -e "${RED}    ❌ Normal install failed${NC}"
+    ((ERRORS++))
+fi
+
+# Test 5b: Installation with CI flag (should skip postinstall)
+echo -e "${BLUE}  → Testing CI install...${NC}"
+rm -rf node_modules package-lock.json
+CI=true npm install "$PACKAGE_PATH" --loglevel=error
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}    ✅ CI install passed${NC}"
+else
+    echo -e "${RED}    ❌ CI install failed${NC}"
+    ((ERRORS++))
+fi
+
+# Test 5c: Installation with minimal flag
+echo -e "${BLUE}  → Testing minimal install...${NC}"
+rm -rf node_modules package-lock.json
+GRAPHYN_MINIMAL_INSTALL=true npm install "$PACKAGE_PATH" --loglevel=error
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}    ✅ Minimal install passed${NC}"
+else
+    echo -e "${RED}    ❌ Minimal install failed${NC}"
+    ((ERRORS++))
 fi
 
 # 6. Test that graphyn command exists
@@ -58,19 +90,37 @@ if npx graphyn --version; then
     echo -e "${GREEN}✅ CLI command works${NC}"
 else
     echo -e "${RED}❌ CLI command not found${NC}"
-    exit 1
+    ((ERRORS++))
 fi
 
-# 7. Test basic functionality
-echo "🚀 Testing basic commands..."
+# 7. Test CLI commands
+echo "🚀 Testing CLI commands..."
+
+# Test help
 if npx graphyn --help > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Help command works${NC}"
 else
     echo -e "${RED}❌ Help command failed${NC}"
-    exit 1
+    ((ERRORS++))
 fi
 
-# 8. Check postinstall ran
+# Test init command availability
+if npx graphyn --help | grep -q "graphyn init"; then
+    echo -e "${GREEN}✅ Init command documented${NC}"
+else
+    echo -e "${RED}❌ Init command not found in help${NC}"
+    ((ERRORS++))
+fi
+
+# Test design command availability
+if npx graphyn --help | grep -q "graphyn design"; then
+    echo -e "${GREEN}✅ Design command documented${NC}"
+else
+    echo -e "${RED}❌ Design command not found in help${NC}"
+    ((ERRORS++))
+fi
+
+# 8. Check postinstall ran (in normal install)
 echo "📋 Checking postinstall execution..."
 if [ -d "$HOME/.graphyn" ]; then
     echo -e "${GREEN}✅ Postinstall created .graphyn directory${NC}"
@@ -78,11 +128,63 @@ else
     echo -e "${YELLOW}⚠️  .graphyn directory not found (may already exist)${NC}"
 fi
 
+# 9. Test package size
+echo "📏 Checking package size..."
+if [ -f "$PACKAGE_PATH" ]; then
+    PACKAGE_SIZE=$(stat -f%z "$PACKAGE_PATH" 2>/dev/null || stat -c%s "$PACKAGE_PATH" 2>/dev/null || echo "0")
+    PACKAGE_SIZE_MB=$(echo "scale=2; $PACKAGE_SIZE / 1024 / 1024" | bc 2>/dev/null || echo "0")
+    
+    echo -e "${GREEN}✅ Package size: ${PACKAGE_SIZE_MB}MB${NC}"
+    
+    # Warn if package is too large
+    if [ "$PACKAGE_SIZE" -gt 10485760 ]; then  # 10MB
+        echo -e "${YELLOW}⚠️  Package larger than 10MB - consider optimizing${NC}"
+    fi
+fi
+
+# 10. Test package integrity
+echo "🔐 Testing package integrity..."
+
+# Check if all required files are accessible
+REQUIRED_COMMANDS=(
+    "npx graphyn --version"
+    "npx graphyn --help"
+)
+
+for cmd in "${REQUIRED_COMMANDS[@]}"; do
+    if $cmd > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Command works: $cmd${NC}"
+    else
+        echo -e "${RED}❌ Command failed: $cmd${NC}"
+        ((ERRORS++))
+    fi
+done
+
 # Cleanup
 cd "$PROJECT_ROOT"
 rm -rf "$TEST_DIR"
 rm -f "$PACKAGE_FILE"
 
-echo -e "${GREEN}✨ All tests passed!${NC}"
+# Final report
 echo ""
-echo "Ready to publish with: npm publish"
+echo "═══════════════════════════════════"
+if [ $ERRORS -eq 0 ]; then
+    echo -e "${GREEN}✨ All tests passed!${NC}"
+    echo ""
+    echo "Package is ready for publishing:"
+    echo "  npm publish"
+    echo ""
+    echo "Or test locally with:"
+    echo "  npm link"
+    echo "  graphyn init"
+    exit 0
+else
+    echo -e "${RED}❌ Found $ERRORS error(s)${NC}"
+    echo ""
+    echo "Please fix the errors before publishing."
+    echo "Run individual tests with:"
+    echo "  node scripts/validate-package.js"
+    echo "  npm run build"
+    echo "  npm pack --dry-run"
+    exit 1
+fi

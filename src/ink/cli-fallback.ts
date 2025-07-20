@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { AGENT_TYPES, isAgentType } from '../constants/agents.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -71,8 +72,7 @@ if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
 }
 
 // Process agent commands
-const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
-if (agents.includes(normalizedCommand) && query) {
+if (isAgentType(normalizedCommand) && query) {
   console.log(`Preparing ${normalizedCommand} agent context...`);
   
   // Read agent prompt
@@ -110,19 +110,30 @@ Please analyze the above query in the context of the ${normalizedCommand} agent 
   const tmpFile = path.join(tmpDir, `graphyn-${normalizedCommand}-${Date.now()}.md`);
   fs.writeFileSync(tmpFile, fullContext);
 
-  console.log('✅ Context prepared successfully!');
-  console.log(`\nContext saved to: ${tmpFile}`);
-  console.log('\nLaunch Claude Code with:');
-  console.log(`  claude "${query}"`);
-  console.log('\nOr use /read command:');
-  console.log(`  /read ${tmpFile}`);
-  
-  // Cleanup after 5 minutes
-  setTimeout(() => {
-    if (fs.existsSync(tmpFile)) {
-      fs.unlinkSync(tmpFile);
-    }
-  }, 5 * 60 * 1000).unref();
+  // Launch Claude directly with the full context
+  import('child_process').then(({ spawnSync }) => {
+    import('../utils/claude-detector.js').then(({ findClaude }) => {
+      findClaude().then((claudeResult) => {
+        if (claudeResult.found && claudeResult.path) {
+          // Launch Claude synchronously with the full context
+          const result = spawnSync(claudeResult.path, [fullContext], {
+            stdio: 'inherit',
+            shell: false
+          });
+          
+          // Exit with the same code as Claude
+          process.exit(result.status || 0);
+        } else {
+          // Claude not found - show error and exit
+          console.error('❌ Claude Code not found. Please install from https://claude.ai/code');
+          process.exit(1);
+        }
+      }).catch((error) => {
+        console.error('❌ Error finding Claude:', error.message);
+        process.exit(1);
+      });
+    });
+  });
 } else {
   console.error(`Unknown command: ${normalizedCommand}`);
   console.error('Run "graphyn --help" for usage information');

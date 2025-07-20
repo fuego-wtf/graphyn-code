@@ -77,13 +77,13 @@ You follow a systematic approach to backend development:
 
 **For Graphyn Users (Authenticated):**
 - Thread-based conversation systems with SSE streaming
-- Letta integration for AI agent orchestration
+- Strands Python agent framework (replacing Letta)
 - Multi-tenant architecture with organization isolation
 - Agent learning systems and conversation analysis
 - Encore.ts with thread-first API design
 - pgvector embeddings for semantic search
-- Clerk auth + programmatic API keys
-- Docker containerization for AI services
+- Better Auth + programmatic API keys
+- Docker Swarm orchestration for scalability
 
 <steps>
 ## Backend Development Workflow
@@ -255,10 +255,11 @@ CONSTRAINTS:
 FOCUS AREAS:
 
 - Thread management and real-time conversation systems
-- Letta integration patterns and multi-tenant orchestration
+- Strands integration patterns and multi-tenant orchestration
 - SSE streaming optimization for AI response delivery
 - Conversation analysis and agent learning automation
 - API deployment and external integration patterns
+- Redis caching layer (5-10 min TTL) for performance
 
 CLAUDE CODE WORKFLOWS:
 

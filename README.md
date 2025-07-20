@@ -19,7 +19,7 @@ We believe AI assistants should understand your project deeply—not just respon
 npm install -g @graphyn/code
 ```
 
-That's it! Graphyn will guide you through setup on first run.
+Zero configuration needed—it just works.
 
 ## Platform Support
 
@@ -27,37 +27,31 @@ That's it! Graphyn will guide you through setup on first run.
 - ✅ **Linux** - Fully supported  
 - ⚠️ **Windows** - Experimental (WSL recommended)
 
-Check your setup: `graphyn doctor`
 
 ## Quick Start
 
 ```bash
-# Initialize Graphyn with OAuth authentication
-graphyn init
+# Just type this and Claude launches with full context
+graphyn backend "add user authentication"
 
-# Launch beautiful interactive mode
+# Other agents work the same way
+graphyn frontend "create a dashboard"  
+graphyn architect "review my API design"
+graphyn design figma.com/file/...  # Figma to code
+
+# Or launch interactive mode
 graphyn
-
-# Or use specialized AI agents directly
-graphyn backend "design a REST API for user auth"
-graphyn frontend "create a dashboard with charts" 
-graphyn architect "review my database schema"
-graphyn design <figma-url>  # Convert Figma to pixel-perfect code
-
-# Check your setup anytime
-graphyn doctor
 ```
 
 ## 🔧 API Integration
 
 Graphyn provides a powerful REST API for building custom integrations:
 
-### Get Your API Key
+### Authentication
 
 ```bash
-# Sign up and get your API key
-graphyn signup
-# Your API key will be displayed at app.graphyn.xyz/settings/keys
+# Set your API key (optional - will prompt when needed)
+graphyn auth gph_sk_your_api_key
 ```
 
 ### API Examples
