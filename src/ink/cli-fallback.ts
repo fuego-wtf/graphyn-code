@@ -56,11 +56,14 @@ Example:
   process.exit(0);
 }
 
-// If no command, show error
+// If no command, show builder mode message
 if (!normalizedCommand) {
-  console.error('Interactive mode requires a TTY terminal.');
-  console.error('Please use: graphyn <agent> <query>');
-  console.error('Or run in a proper terminal for interactive mode.');
+  console.error('Graphyn Builder mode requires an interactive terminal.');
+  console.error('');
+  console.error('To use Builder mode, run "graphyn" in a proper terminal.');
+  console.error('For direct agent queries: graphyn <agent> <query>');
+  console.error('');
+  console.error('Example: graphyn backend "add authentication"');
   process.exit(1);
 }
 

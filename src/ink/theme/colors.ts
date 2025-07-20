@@ -51,3 +51,7 @@ export const getAccentColor = (isSelected: boolean = false) => {
 };
 
 export const getDimColor = () => 'gray';
+
+export const getErrorColor = () => 'red';
+
+export const getSuccessColor = () => 'green';

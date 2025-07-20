@@ -62,6 +62,9 @@ Examples:
 const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
 const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
 
+// Check if graphyn was called without any arguments (builder mode)
+const isBuilderMode = !normalizedCommand;
+
 // Check if we can use raw mode
 // Also check for Warp terminal which might have special TTY handling
 const isWarp = process.env.TERM_PROGRAM === 'WarpTerminal';
@@ -76,8 +79,8 @@ if (process.env.DEBUG_GRAPHYN) {
   console.log('- Using fallback:', (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || isDirectAgentCommand) ? 'YES' : 'NO');
 }
 
-// Use fallback for: non-TTY, Warp terminal, or direct agent commands
-if (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || isDirectAgentCommand) {
+// Use fallback for: non-TTY, Warp terminal, or direct agent commands (but not builder mode)
+if (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || (isDirectAgentCommand && !isBuilderMode)) {
   // Fall back to non-interactive mode
   import('child_process').then(({ execSync }) => {
     const fallbackPath = new URL('./cli-fallback.js', import.meta.url).pathname;

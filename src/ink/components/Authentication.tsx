@@ -4,6 +4,7 @@ import SelectInput from 'ink-select-input';
 import TextInput from 'ink-text-input';
 import Spinner from 'ink-spinner';
 import open from 'open';
+import crypto from 'crypto';
 import { useStore } from '../store.js';
 import { useAuth, useAPI } from '../hooks/useAPI.js';
 import { config as appConfig } from '../../config.js';
@@ -20,9 +21,13 @@ interface AuthState {
   oauthProvider?: 'github' | 'figma';
 }
 
-export const Authentication: React.FC = () => {
+interface AuthenticationProps {
+  returnToBuilder?: boolean;
+}
+
+export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder = false }) => {
   const { exit } = useApp();
-  const { reset } = useStore();
+  const { reset, setMode } = useStore();
   const { isAuthenticated, user, authenticate, getTestToken, logout } = useAuth();
   const api = useAPI();
   
@@ -46,9 +51,13 @@ export const Authentication: React.FC = () => {
         mode: 'status'
       }));
       
-      // Show success for 2 seconds then return to menu
+      // Show success for 2 seconds then return to appropriate mode
       setTimeout(() => {
-        setState(prev => ({ ...prev, mode: 'menu' }));
+        if (returnToBuilder) {
+          setMode('builder');
+        } else {
+          setState(prev => ({ ...prev, mode: 'menu' }));
+        }
       }, 2000);
     } catch (error) {
       setState(prev => ({
@@ -71,15 +80,107 @@ export const Authentication: React.FC = () => {
         mode: 'status'
       }));
       
-      // Show success for 2 seconds then return to menu
+      // Show success for 2 seconds then return to appropriate mode
       setTimeout(() => {
-        setState(prev => ({ ...prev, mode: 'menu' }));
+        if (returnToBuilder) {
+          setMode('builder');
+        } else {
+          setState(prev => ({ ...prev, mode: 'menu' }));
+        }
       }, 2000);
     } catch (error) {
       setState(prev => ({
         ...prev,
         loading: false,
         error: error instanceof Error ? error.message : 'Failed to get test token'
+      }));
+    }
+  };
+
+  const handleGraphynOAuth = async () => {
+    setState(prev => ({ 
+      ...prev, 
+      loading: true, 
+      error: undefined,
+      mode: 'oauth-flow'
+    }));
+    
+    try {
+      const port = await getAvailablePort();
+      const state = generateState();
+      const redirectUri = `http://localhost:${port}/callback`;
+      
+      // Generate PKCE code verifier and challenge
+      const codeVerifier = crypto.randomBytes(32).toString('base64url');
+      const codeChallenge = crypto
+        .createHash('sha256')
+        .update(codeVerifier)
+        .digest('base64url');
+      
+      // Construct OAuth authorization URL
+      const authUrl = new URL('/v1/auth/oauth/authorize', appConfig.apiBaseUrl);
+      authUrl.searchParams.set('client_id', 'graphyn-cli-official');
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('scope', 'openid profile');
+      authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      
+      // Store code verifier for later use
+      const oauthState = { codeVerifier, redirectUri };
+      
+      // Open browser
+      await open(authUrl.toString());
+      
+      // Wait for callback with authorization code
+      const callbackData = await waitForOAuthCallback(port, state);
+      
+      // Exchange authorization code for tokens
+      const tokenResponse = await api.post<{
+        access_token: string;
+        token_type: string;
+        expires_in: number;
+        refresh_token?: string;
+        scope: string;
+      }>('/v1/auth/oauth/token', {
+        grant_type: 'authorization_code',
+        code: callbackData.access_token, // This is actually the authorization code
+        redirect_uri: redirectUri,
+        client_id: 'graphyn-cli-official',
+        code_verifier: codeVerifier
+      });
+      
+      // Store the OAuth tokens
+      await authenticate(tokenResponse.access_token);
+      
+      // Also store refresh token if provided
+      if (tokenResponse.refresh_token) {
+        const { ConfigManager } = await import('../../config-manager.js');
+        const configManager = new ConfigManager();
+        await configManager.set('auth.refreshToken', tokenResponse.refresh_token);
+      }
+      
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        mode: 'status'
+      }));
+      
+      // Show success for 2 seconds then return to appropriate mode
+      setTimeout(() => {
+        if (returnToBuilder) {
+          setMode('builder');
+        } else {
+          setState(prev => ({ ...prev, mode: 'menu' }));
+        }
+      }, 2000);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        mode: 'menu',
+        error: error instanceof Error ? error.message : 'OAuth authentication failed'
       }));
     }
   };
@@ -120,9 +221,13 @@ export const Authentication: React.FC = () => {
         mode: 'status'
       }));
       
-      // Show success for 2 seconds then return to menu
+      // Show success for 2 seconds then return to appropriate mode
       setTimeout(() => {
-        setState(prev => ({ ...prev, mode: 'menu' }));
+        if (returnToBuilder) {
+          setMode('builder');
+        } else {
+          setState(prev => ({ ...prev, mode: 'menu' }));
+        }
       }, 2000);
     } catch (error) {
       setState(prev => ({
@@ -164,7 +269,7 @@ export const Authentication: React.FC = () => {
         break;
       case 'oauth-graphyn':
         // Direct Graphyn OAuth (primary login method)
-        handleOAuthFlow('github'); // Using GitHub OAuth for Graphyn login
+        handleGraphynOAuth();
         break;
       case 'connect-github':
         // Connect GitHub account (after already authenticated)
@@ -186,7 +291,11 @@ export const Authentication: React.FC = () => {
         handleLogout();
         break;
       case 'back':
-        reset();
+        if (returnToBuilder) {
+          exit(); // Exit if we came from builder mode
+        } else {
+          reset();
+        }
         break;
     }
   };

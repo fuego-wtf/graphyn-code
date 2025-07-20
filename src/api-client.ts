@@ -173,9 +173,13 @@ export class GraphynAPIClient {
 
     const url = `${this.baseUrl}/api/threads/${threadId}/stream`;
     
-    // For now, let's create a basic EventSource
-    // In production, you might need to handle auth headers differently
-    const eventSource = new EventSource(`${url}?token=${this.token}`);
+    // Create EventSource with Authorization header support
+    // The eventsource package supports headers
+    const eventSource = new EventSource(url, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`
+      }
+    } as any);
     
     return eventSource;
   }

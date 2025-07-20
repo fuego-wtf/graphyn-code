@@ -18,23 +18,23 @@ export async function checkDocsFolder(projectPath: string = process.cwd()): Prom
 }
 
 /**
- * Initialize .graphyn folder structure in the current project
+ * Initialize graphyn folder structure in the current project
  */
 export async function initGraphynFolder(projectPath: string = process.cwd()): Promise<void> {
-  const graphynPath = path.join(projectPath, '.graphyn');
+  const graphynPath = path.join(projectPath, 'graphyn');
   const docsPath = path.join(graphynPath, 'docs');
   const tempPath = path.join(docsPath, 'temp');
   
-  // Create .graphyn directory
+  // Create graphyn directory
   fs.mkdirSync(graphynPath, { recursive: true });
   
   // Check if project has a /docs folder
   const projectDocsPath = path.join(projectPath, 'docs');
   if (fs.existsSync(projectDocsPath) && fs.statSync(projectDocsPath).isDirectory()) {
-    // Move existing docs folder to .graphyn/docs
+    // Move existing docs folder to graphyn/docs
     if (!fs.existsSync(docsPath)) {
       fs.renameSync(projectDocsPath, docsPath);
-      console.log('📁 Moved existing /docs folder to .graphyn/docs');
+      console.log('📁 Moved existing /docs folder to graphyn/docs');
     }
   } else {
     // Create docs structure if no existing docs folder
@@ -44,6 +44,14 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
   // Ensure temp directory exists
   fs.mkdirSync(tempPath, { recursive: true });
   
+  // Move GRAPHYN.md to graphyn folder if it exists in root
+  const rootGraphynMdPath = path.join(projectPath, 'GRAPHYN.md');
+  const graphynMdPath = path.join(graphynPath, 'GRAPHYN.md');
+  if (fs.existsSync(rootGraphynMdPath) && !fs.existsSync(graphynMdPath)) {
+    fs.renameSync(rootGraphynMdPath, graphynMdPath);
+    console.log('📄 Moved GRAPHYN.md to graphyn folder');
+  }
+  
   // Initialize init.md if it doesn't exist
   const initMdPath = path.join(graphynPath, 'init.md');
   if (!fs.existsSync(initMdPath)) {
@@ -52,24 +60,38 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
     fs.writeFileSync(initMdPath, initContent);
   }
   
-  // Create sitemap.md
-  const sitemapPath = path.join(docsPath, 'sitemap.md');
-  if (!fs.existsSync(sitemapPath)) {
-    const sitemapContent = await generateSitemap(projectPath);
-    fs.writeFileSync(sitemapPath, sitemapContent);
+  // Create map.md with base outline
+  const mapPath = path.join(graphynPath, 'map.md');
+  if (!fs.existsSync(mapPath)) {
+    const mapContent = generateBaseMapMd(projectPath);
+    fs.writeFileSync(mapPath, mapContent);
   }
   
-  // Create servicemap.md
-  const servicemapPath = path.join(docsPath, 'servicemap.md');
-  if (!fs.existsSync(servicemapPath)) {
-    const servicemapContent = await generateServicemap(projectPath);
-    fs.writeFileSync(servicemapPath, servicemapContent);
+  // Create focus.md with base outline
+  const focusPath = path.join(graphynPath, 'focus.md');
+  if (!fs.existsSync(focusPath)) {
+    const projectName = path.basename(projectPath);
+    const focusContent = generateBaseFocusMd(projectName);
+    fs.writeFileSync(focusPath, focusContent);
   }
   
-  // Create .gitignore for temp files
-  const gitignorePath = path.join(graphynPath, '.gitignore');
-  if (!fs.existsSync(gitignorePath)) {
-    fs.writeFileSync(gitignorePath, 'docs/temp/\n');
+  // Update root .gitignore to handle .graphyn folder
+  const rootGitignorePath = path.join(projectPath, '.gitignore');
+  if (fs.existsSync(rootGitignorePath)) {
+    try {
+      let gitignoreContent = fs.readFileSync(rootGitignorePath, 'utf-8');
+      
+      // Check if .graphyn is already handled
+      if (!gitignoreContent.includes('.graphyn/')) {
+        // Add .graphyn folder rules
+        const graphynRules = `\n# Graphyn local workspace\n.graphyn/*\n!.graphyn/map.md\n!.graphyn/focus.md\n`;
+        gitignoreContent += graphynRules;
+        fs.writeFileSync(rootGitignorePath, gitignoreContent);
+        console.log('✅ Updated .gitignore to track .graphyn/map.md and focus.md');
+      }
+    } catch (error) {
+      // Ignore errors
+    }
   }
 }
 
@@ -77,7 +99,7 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
  * Append content to init.md with timestamp
  */
 export function appendToInitMd(content: string, projectPath: string = process.cwd()): void {
-  const initMdPath = path.join(projectPath, '.graphyn', 'init.md');
+  const initMdPath = path.join(projectPath, 'graphyn', 'init.md');
   const timestamp = new Date().toISOString();
   
   const entry = `\n## Session ${timestamp}\n\n${content}\n`;
@@ -89,7 +111,7 @@ export function appendToInitMd(content: string, projectPath: string = process.cw
  * Save temporary documentation
  */
 export function saveTempDoc(filename: string, content: string, projectPath: string = process.cwd()): string {
-  const tempPath = path.join(projectPath, '.graphyn', 'docs', 'temp');
+  const tempPath = path.join(projectPath, 'graphyn', 'docs', 'temp');
   const filePath = path.join(tempPath, filename);
   
   fs.writeFileSync(filePath, content);
@@ -149,201 +171,119 @@ This file captures notes, decisions, and temporary documentation from Graphyn an
 }
 
 /**
- * Generate sitemap.md by analyzing project structure
+ * Generate base map.md outline
  */
-async function generateSitemap(projectPath: string): Promise<string> {
-  const sitemap: string[] = ['# Project Sitemap\n'];
-  
-  function scanDirectory(dir: string, prefix: string = '', ignorePatterns: string[] = [
-    'node_modules', '.git', 'dist', 'build', '.next', 'coverage', '.graphyn'
-  ]): void {
-    try {
-      const items = fs.readdirSync(dir, { withFileTypes: true });
-      
-      items.forEach(item => {
-        // Skip ignored patterns
-        if (ignorePatterns.some(pattern => item.name.includes(pattern))) {
-          return;
-        }
-        
-        const fullPath = path.join(dir, item.name);
-        
-        if (item.isDirectory()) {
-          sitemap.push(`${prefix}- **${item.name}/**`);
-          scanDirectory(fullPath, prefix + '  ');
-        } else if (item.isFile()) {
-          const ext = path.extname(item.name);
-          if (['.ts', '.tsx', '.js', '.jsx', '.md', '.json'].includes(ext)) {
-            sitemap.push(`${prefix}- ${item.name}`);
-          }
-        }
-      });
-    } catch (error) {
-      // Skip directories we can't read
-    }
-  }
-  
-  scanDirectory(projectPath);
-  
-  sitemap.push('\n## Key Files\n');
-  
-  // Check for common important files
-  const keyFiles = [
-    'package.json',
-    'tsconfig.json',
-    'README.md',
-    'GRAPHYN.md',
-    '.env.example',
-    'docker-compose.yml'
-  ];
-  
-  keyFiles.forEach(file => {
-    if (fs.existsSync(path.join(projectPath, file))) {
-      sitemap.push(`- ${file}`);
-    }
-  });
-  
-  return sitemap.join('\n');
-}
-
-/**
- * Generate servicemap.md by analyzing code structure
- */
-async function generateServicemap(projectPath: string): Promise<string> {
-  const servicemap: string[] = ['# Service Map\n'];
-  
-  // Check package.json for dependencies and scripts
+function generateBaseMapMd(projectPath: string): string {
+  const projectName = path.basename(projectPath);
   const packageJsonPath = path.join(projectPath, 'package.json');
+  let projectType = 'Unknown';
+  let packageInfo = '';
+  
   if (fs.existsSync(packageJsonPath)) {
     try {
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      packageInfo = `\n**Package**: ${pkg.name || 'unnamed'}\n**Version**: ${pkg.version || '0.0.0'}`;
       
-      servicemap.push('## Project Info');
-      servicemap.push(`- **Name**: ${packageJson.name || 'Unknown'}`);
-      servicemap.push(`- **Version**: ${packageJson.version || 'Unknown'}`);
-      servicemap.push(`- **Type**: ${packageJson.type || 'commonjs'}\n`);
-      
-      if (packageJson.scripts) {
-        servicemap.push('## Available Scripts');
-        Object.entries(packageJson.scripts).forEach(([name, script]) => {
-          servicemap.push(`- \`npm run ${name}\`: ${script}`);
-        });
-        servicemap.push('');
-      }
-      
-      // Detect frameworks
-      const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      servicemap.push('## Detected Technologies');
-      
-      if (deps['next']) servicemap.push('- **Framework**: Next.js');
-      else if (deps['react']) servicemap.push('- **Framework**: React');
-      else if (deps['vue']) servicemap.push('- **Framework**: Vue');
-      else if (deps['express']) servicemap.push('- **Framework**: Express');
-      else if (deps['fastify']) servicemap.push('- **Framework**: Fastify');
-      
-      if (deps['typescript']) servicemap.push('- **Language**: TypeScript');
-      if (deps['@clerk/nextjs']) servicemap.push('- **Auth**: Clerk');
-      if (deps['prisma']) servicemap.push('- **ORM**: Prisma');
-      if (deps['drizzle-orm']) servicemap.push('- **ORM**: Drizzle');
-      
-      servicemap.push('');
-    } catch {
-      // Failed to parse package.json
+      // Detect project type from dependencies
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+      if (deps['next']) projectType = 'Next.js Application';
+      else if (deps['react'] && !deps['react-native']) projectType = 'React Application';
+      else if (deps['vue']) projectType = 'Vue Application';
+      else if (deps['express'] || deps['fastify']) projectType = 'Node.js Backend';
+      else if (deps['@angular/core']) projectType = 'Angular Application';
+      else if (pkg.bin) projectType = 'CLI Tool';
+      else if (deps['react-native']) projectType = 'React Native App';
+    } catch (e) {
+      // Ignore parse errors
     }
   }
   
-  // Analyze source structure
-  servicemap.push('## Source Structure');
-  
-  const srcPath = path.join(projectPath, 'src');
-  if (fs.existsSync(srcPath)) {
-    const srcDirs = fs.readdirSync(srcPath, { withFileTypes: true })
-      .filter(item => item.isDirectory())
-      .map(item => item.name);
-    
-    srcDirs.forEach(dir => {
-      servicemap.push(`- **src/${dir}/** - ${getDirectoryPurpose(dir)}`);
-    });
-  }
-  
-  // Check for API routes
-  const apiPaths = [
-    'pages/api',
-    'app/api',
-    'src/pages/api',
-    'src/app/api'
-  ];
-  
-  for (const apiPath of apiPaths) {
-    const fullPath = path.join(projectPath, apiPath);
-    if (fs.existsSync(fullPath)) {
-      servicemap.push('\n## API Routes');
-      scanApiRoutes(fullPath, servicemap);
-      break;
-    }
-  }
-  
-  return servicemap.join('\n');
+  return `# ${projectName} - Repository Map
+
+**Type**: ${projectType}${packageInfo}
+**Last Updated**: ${new Date().toISOString().split('T')[0]}
+
+## 📋 TODO: Claude Code, please help complete this map by:
+
+1. **Analyzing the repository structure** to understand:
+   - Directory organization and purpose
+   - Key files and their relationships
+   - Configuration and build setup
+
+2. **Identifying the architecture patterns**:
+   - Design patterns used
+   - State management approach
+   - API/service structure
+
+3. **Documenting key workflows**:
+   - Development setup and commands
+   - Build and deployment process
+   - Testing strategies
+
+4. **Mapping integration points**:
+   - External services and APIs
+   - Authentication methods
+   - Database connections
+
+## Repository Structure
+
+[Claude: Please analyze and document the directory structure]
+
+## Key Components
+
+[Claude: Please identify and describe the main components/services]
+
+## Development Workflows
+
+[Claude: Please document common development tasks and commands]
+
+## Architecture Notes
+
+[Claude: Please add any important architectural decisions or patterns]
+`;
 }
 
 /**
- * Get directory purpose based on common naming conventions
+ * Generate base focus.md outline
  */
-function getDirectoryPurpose(dirName: string): string {
-  const purposes: Record<string, string> = {
-    'components': 'React/UI components',
-    'pages': 'Page components/routes',
-    'api': 'API endpoints',
-    'utils': 'Utility functions',
-    'lib': 'Library code',
-    'hooks': 'React hooks',
-    'services': 'Service layer',
-    'models': 'Data models',
-    'types': 'TypeScript types',
-    'styles': 'CSS/styling',
-    'public': 'Static assets',
-    'tests': 'Test files',
-    'config': 'Configuration files',
-    'middleware': 'Middleware functions',
-    'contexts': 'React contexts',
-    'store': 'State management',
-    'ink': 'Ink CLI components'
-  };
-  
-  return purposes[dirName] || 'Project files';
+function generateBaseFocusMd(projectName: string): string {
+  return `# ${projectName} - Development Focus
+
+**Created**: ${new Date().toISOString().split('T')[0]}
+
+## 🎯 Current Focus
+
+[Claude: Please help identify the current development priorities by analyzing recent commits, open issues, or asking the developer]
+
+## 📝 Active Tasks
+
+[Claude: What are the immediate tasks that need attention?]
+
+## 🚧 Known Issues
+
+[Claude: Please document any bugs, technical debt, or blockers]
+
+## 💡 Ideas & Improvements
+
+[Claude: Capture any enhancement ideas or architectural improvements]
+
+## 📊 Progress Notes
+
+[Claude: Track implementation progress and decisions made]
+`;
 }
 
-/**
- * Scan API routes
- */
-function scanApiRoutes(apiPath: string, servicemap: string[]): void {
-  function scan(dir: string, prefix: string = ''): void {
-    const items = fs.readdirSync(dir, { withFileTypes: true });
-    
-    items.forEach(item => {
-      const fullPath = path.join(dir, item.name);
-      const route = path.relative(apiPath, fullPath).replace(/\\/g, '/');
-      
-      if (item.isDirectory()) {
-        scan(fullPath, prefix);
-      } else if (item.isFile() && ['.ts', '.js'].includes(path.extname(item.name))) {
-        const routePath = '/' + route.replace(/\.(ts|js)$/, '').replace(/\/index$/, '');
-        servicemap.push(`- \`${routePath}\``);
-      }
-    });
-  }
-  
-  scan(apiPath);
-}
+
+
 
 /**
- * Update servicemap with detected patterns
+ * Update map.md with detected patterns
  */
-export async function updateServicemap(patterns: string[], projectPath: string = process.cwd()): Promise<void> {
-  const servicemapPath = path.join(projectPath, '.graphyn', 'docs', 'servicemap.md');
+export async function updateMapWithPatterns(patterns: string[], projectPath: string = process.cwd()): Promise<void> {
+  const mapPath = path.join(projectPath, '.graphyn', 'map.md');
   
-  if (fs.existsSync(servicemapPath)) {
-    let content = fs.readFileSync(servicemapPath, 'utf-8');
+  if (fs.existsSync(mapPath)) {
+    let content = fs.readFileSync(mapPath, 'utf-8');
     
     // Add detected patterns section if not exists
     if (!content.includes('## Detected Patterns')) {
@@ -356,6 +296,6 @@ export async function updateServicemap(patterns: string[], projectPath: string =
       }
     });
     
-    fs.writeFileSync(servicemapPath, content);
+    fs.writeFileSync(mapPath, content);
   }
 }

@@ -85,7 +85,11 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
 
   // Handle direct command mode
   useEffect(() => {
-    if (command === 'design' && query === 'auth') {
+    // Check if graphyn was called without any arguments (builder mode)
+    if (!command && !query) {
+      // Launch builder mode directly
+      setMode('builder');
+    } else if (command === 'design' && query === 'auth') {
       // Special case: Figma OAuth authentication
       setMode('figma-auth');
     } else if (command === 'design' && query === 'logout') {
@@ -219,6 +223,19 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
           });
         });
         return <Loading message="Logging out from Figma..." />;
+      
+      case 'builder':
+        // Dynamic import to avoid circular dependencies
+        const BuilderAgent = React.lazy(() => import('./components/BuilderAgent.js').then(m => ({ default: m.BuilderAgent })));
+        return (
+          <React.Suspense fallback={<Loading message="Loading builder agent..." />}>
+            <BuilderAgent />
+          </React.Suspense>
+        );
+      
+      case 'builder-auth':
+        // Show auth flow specifically for builder mode
+        return <Authentication returnToBuilder={true} />;
       
       default:
         return null;
