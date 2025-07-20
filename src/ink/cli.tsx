@@ -23,7 +23,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.55');
+  console.log('0.1.60');
   process.exit(0);
 }
 
