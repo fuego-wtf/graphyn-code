@@ -104,13 +104,7 @@ else
     ((ERRORS++))
 fi
 
-# Test init command availability
-if npx graphyn --help | grep -q "graphyn init"; then
-    echo -e "${GREEN}✅ Init command documented${NC}"
-else
-    echo -e "${RED}❌ Init command not found in help${NC}"
-    ((ERRORS++))
-fi
+# Init command removed in v0.1.60 - CLI is now zero-config
 
 # Test design command availability
 if npx graphyn --help | grep -q "graphyn design"; then

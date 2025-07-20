@@ -16,7 +16,7 @@
     "test:unit": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
-    "test:package": "./scripts/test-package-enhanced.sh",
+    "test:package": "./scripts/test-package.sh",
     "validate": "node scripts/validate-package.cjs",
     "prepublishOnly": "npm run build && npm run test:package",
     "postinstall": "node scripts/postinstall.js || true"
