@@ -87,9 +87,15 @@ if (isAgentType(normalizedCommand) && query) {
 
   // Read project context
   let projectContext = '';
-  const graphynPath = path.join(process.cwd(), 'GRAPHYN.md');
-  if (fs.existsSync(graphynPath)) {
-    projectContext = fs.readFileSync(graphynPath, 'utf-8');
+  const focusPath = path.join(process.cwd(), '.graphyn', 'focus.md');
+  const mapPath = path.join(process.cwd(), '.graphyn', 'map.md');
+  
+  if (fs.existsSync(focusPath)) {
+    projectContext = fs.readFileSync(focusPath, 'utf-8');
+  }
+  
+  if (fs.existsSync(mapPath)) {
+    projectContext += (projectContext ? '\n\n' : '') + fs.readFileSync(mapPath, 'utf-8');
   }
 
   // Combine context
@@ -97,7 +103,7 @@ if (isAgentType(normalizedCommand) && query) {
 
 ${agentPrompt}
 
-${projectContext ? `# Project Context (from GRAPHYN.md)\n${projectContext}\n\n` : ''}
+${projectContext ? `# Project Context\n${projectContext}\n\n` : ''}
 
 # User Query
 ${query}

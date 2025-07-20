@@ -97,7 +97,7 @@ export const AgentContext: React.FC<AgentContextProps> = ({ agent, query }) => {
 
 ${agentPrompt}
 
-${projectContext ? `# Project Context (from GRAPHYN.md)\n${projectContext}\n\n` : ''}
+${projectContext ? `${projectContext}\n\n` : ''}
 
 # User Query
 ${query}
@@ -173,11 +173,34 @@ Please analyze the above query in the context of the ${agent} agent role and pro
   };
 
   const loadProjectContext = async (): Promise<string> => {
-    const graphynPath = path.join(process.cwd(), 'GRAPHYN.md');
-    if (fs.existsSync(graphynPath)) {
-      return fs.readFileSync(graphynPath, 'utf-8');
+    let projectContext = '';
+    
+    // Load focus.md from .graphyn folder
+    const focusPath = path.join(process.cwd(), '.graphyn', 'focus.md');
+    if (fs.existsSync(focusPath)) {
+      try {
+        const focusContent = fs.readFileSync(focusPath, 'utf-8');
+        projectContext = `# Project Focus (from focus.md)\n${focusContent}`;
+      } catch (error) {
+        // Ignore read errors
+      }
     }
-    return '';
+    
+    // Load map.md from .graphyn folder
+    const mapPath = path.join(process.cwd(), '.graphyn', 'map.md');
+    if (fs.existsSync(mapPath)) {
+      try {
+        const mapContent = fs.readFileSync(mapPath, 'utf-8');
+        if (projectContext) {
+          projectContext += '\n\n';
+        }
+        projectContext += `# Repository Map (from map.md)\n${mapContent}`;
+      } catch (error) {
+        // Ignore read errors
+      }
+    }
+    
+    return projectContext;
   };
 
   const getStatusIcon = () => {

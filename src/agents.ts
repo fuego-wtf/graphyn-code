@@ -26,6 +26,37 @@ export class AgentManager {
       // Get prompt content (dynamic or local)
       const promptContent = await this.promptService.getAgentPrompt(type);
       
+      // Get project context from map.md and focus.md
+      let projectContext = '';
+      const focusPath = path.join(process.cwd(), '.graphyn', 'focus.md');
+      const mapPath = path.join(process.cwd(), '.graphyn', 'map.md');
+      
+      if (fs.existsSync(focusPath)) {
+        try {
+          const focusContent = fs.readFileSync(focusPath, 'utf8');
+          projectContext = `\n\n# Project Focus (from focus.md)\n${focusContent}`;
+        } catch (error) {
+          // Ignore read errors
+        }
+      }
+      
+      if (fs.existsSync(mapPath)) {
+        try {
+          const mapContent = fs.readFileSync(mapPath, 'utf8');
+          projectContext += `\n\n# Repository Map (from map.md)\n${mapContent}`;
+        } catch (error) {
+          // Ignore read errors
+        }
+      }
+      
+      // Combine agent prompt with project context
+      const fullContext = `# ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Context
+
+${promptContent}${projectContext}
+
+# Interactive Session
+You are now in an interactive session. The user will provide queries and you should respond in the context of the ${type} agent role.`;
+      
       // Use claude detector instead of hardcoded path
       const claudeResult = await findClaude();
       
@@ -33,7 +64,7 @@ export class AgentManager {
         // Save context to file
         const tmpDir = os.tmpdir();
         const tmpFile = path.join(tmpDir, `graphyn-${type}-interactive-${Date.now()}.txt`);
-        fs.writeFileSync(tmpFile, promptContent);
+        fs.writeFileSync(tmpFile, fullContext);
         
         console.log(colors.success('\n✓ Interactive agent context prepared!'));
         console.log(colors.info(`\nContext saved to: ${tmpFile}`));
@@ -47,7 +78,7 @@ export class AgentManager {
         console.log(colors.primary(`\n🚀 ${type.charAt(0).toUpperCase() + type.slice(1)} Agent Interactive Mode`));
         console.log(colors.info('─'.repeat(60)));
         console.log(colors.accent('Agent Context:'));
-        console.log(promptContent);
+        console.log(fullContext);
         console.log(colors.info('─'.repeat(60)));
         console.log(colors.success('\n✓ Agent context loaded!'));
         console.log(colors.info('You can now interact with this specialized agent context.'));
@@ -107,13 +138,24 @@ export class AgentManager {
       return this.getFallbackResponse(type, query);
     }
     
-    // Check for GRAPHYN.md in current directory
+    // Check for focus.md in .graphyn folder
     let projectContext = '';
-    const graphynMdPath = path.join(process.cwd(), 'GRAPHYN.md');
-    if (fs.existsSync(graphynMdPath)) {
+    const focusPath = path.join(process.cwd(), '.graphyn', 'focus.md');
+    if (fs.existsSync(focusPath)) {
       try {
-        const graphynContent = fs.readFileSync(graphynMdPath, 'utf8');
-        projectContext = `\n\n# Project Context (from GRAPHYN.md)\n${graphynContent}`;
+        const focusContent = fs.readFileSync(focusPath, 'utf8');
+        projectContext = `\n\n# Project Focus (from focus.md)\n${focusContent}`;
+      } catch (error) {
+        // Ignore read errors
+      }
+    }
+    
+    // Also check for map.md
+    const mapPath = path.join(process.cwd(), '.graphyn', 'map.md');
+    if (fs.existsSync(mapPath)) {
+      try {
+        const mapContent = fs.readFileSync(mapPath, 'utf8');
+        projectContext += `\n\n# Repository Map (from map.md)\n${mapContent}`;
       } catch (error) {
         // Ignore read errors
       }
@@ -151,20 +193,12 @@ Please analyze the above query in the context of the ${type} agent role and prov
       
       console.log(colors.accent('\n🚀 Launching Claude Code with ' + type + ' agent context...\n'));
       
-      const { execSync } = require('child_process');
-      
       try {
-        // Pass content as direct argument to Claude
-        // Properly escape the content for shell
-        const escapedContent = fullContext
-          .replace(/\\/g, '\\\\')
-          .replace(/"/g, '\\"')
-          .replace(/`/g, '\\`')
-          .replace(/\$/g, '\\$');
-        
-        execSync(`"${claudeResult.path}" "${escapedContent}"`, { 
+        // Use direct argument passing to avoid shell escaping issues
+        const { spawnSync } = require('child_process');
+        spawnSync(claudeResult.path, [fullContext], { 
           stdio: 'inherit',
-          shell: true 
+          shell: false 
         });
       } catch (error) {
         // Claude exited - this is normal
@@ -230,11 +264,20 @@ Please analyze the above query in the context of the ${type} agent role and prov
       timestamp: new Date().toISOString()
     };
 
-    // Try to read GRAPHYN.md if it exists
-    const graphynMdPath = path.join(process.cwd(), 'GRAPHYN.md');
-    if (fs.existsSync(graphynMdPath)) {
+    // Try to read focus.md and map.md from .graphyn folder
+    const focusPath = path.join(process.cwd(), '.graphyn', 'focus.md');
+    if (fs.existsSync(focusPath)) {
       try {
-        context.graphynMd = fs.readFileSync(graphynMdPath, 'utf8');
+        context.focusMd = fs.readFileSync(focusPath, 'utf8');
+      } catch (error) {
+        // Ignore read errors
+      }
+    }
+    
+    const mapPath = path.join(process.cwd(), '.graphyn', 'map.md');
+    if (fs.existsSync(mapPath)) {
+      try {
+        context.mapMd = fs.readFileSync(mapPath, 'utf8');
       } catch (error) {
         // Ignore read errors
       }
@@ -295,7 +338,7 @@ ${colors.accent('I specialize in:')}
 ${typeDescriptions[type as keyof typeof typeDescriptions]}
 
 ${colors.accent('Living Documentation:')}
-Create a GRAPHYN.md file in your project root to give me context about:
+Create a focus.md file in your .graphyn folder to give me context about:
 • Your tech stack and conventions
 • Your team's coding standards
 • Your architectural decisions
