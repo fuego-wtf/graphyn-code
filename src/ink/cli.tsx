@@ -6,8 +6,25 @@ import { APIProvider } from './contexts/APIContext.js';
 
 // Parse command line arguments
 const [, , rawCommand, ...args] = process.argv;
-const command = rawCommand?.toLowerCase(); // Make command case-insensitive
-const query = args.join(' ');
+
+// Check if this is a natural language query (wrapped in quotes or starting with "I")
+const isNaturalLanguage = rawCommand && (
+  (rawCommand.startsWith('"') && args[args.length - 1]?.endsWith('"')) ||
+  rawCommand.toLowerCase().startsWith('i ') ||
+  (rawCommand === 'I' && args.length > 0)
+);
+
+let command: string | undefined;
+let query: string;
+
+if (isNaturalLanguage) {
+  // Treat entire input as a natural language query
+  command = 'squad';
+  query = [rawCommand, ...args].join(' ').replace(/^"|"$/g, '');
+} else {
+  command = rawCommand?.toLowerCase(); // Make command case-insensitive
+  query = args.join(' ');
+}
 
 // Define agent aliases
 const agentAliases: Record<string, string> = {
@@ -59,7 +76,7 @@ Examples:
 }
 
 // Check if this is a direct agent command - always use fallback for these
-const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
+const agents = ['backend', 'frontend', 'architect', 'design', 'cli', 'squad'];
 const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
 
 // Check if graphyn was called without any arguments (builder mode)

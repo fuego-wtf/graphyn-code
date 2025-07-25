@@ -1,29 +1,24 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { PixelFireLogo } from './PixelFireLogo.js';
-import { GraphynTextLogo } from './GraphynTextLogo.js';
-import { BlinkingCursor } from './BlinkingCursor.js';
-import { pixelTheme, applyPixelTheme } from '../theme/pixelart.js';
+import { CombinedLogo } from './CombinedLogo.js';
+import { DogPixelArt } from './DogPixelArt.js';
+import { pixelTheme } from '../theme/pixelart.js';
 
 interface MainMenuProps {
   onSelect: (value: string) => void;
 }
 
-// Menu items with terminal-style prefixes
+// Menu items matching Figma design
 const menuItems = [
-  { label: 'Backend Agent', value: 'backend' },
-  { label: 'Frontend Agent', value: 'frontend' },
-  { label: 'Architect Agent', value: 'architect' },
-  { label: 'Design Agent', value: 'design' },
-  { label: 'CLI Agent', value: 'cli' },
-  { label: '', value: 'separator' },
-  { label: 'Authentication', value: 'auth' },
+  { label: 'Login', value: 'auth' },
+  { label: 'Analyze my repository', value: 'analyze' },
+  { label: 'Connect your accounts', value: 'connect' },
   { label: 'Exit', value: 'exit' },
 ];
 
 export const MainMenu: React.FC<MainMenuProps> = ({ onSelect }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const selectableItems = menuItems.filter(item => item.value !== 'separator');
+  const selectableItems = menuItems;
   
   useInput((input, key) => {
     if (key.upArrow) {
@@ -54,42 +49,38 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onSelect }) => {
   const currentValue = selectableItems[selectedIndex]?.value;
 
   return (
-    <Box flexDirection="column" alignItems="flex-start" paddingY={1}>
-      {/* Fire Logo */}
-      <Box marginBottom={1} alignSelf="center">
-        <PixelFireLogo />
-      </Box>
-      
-      {/* GRAPHYN Text Logo */}
-      <Box marginBottom={2} alignSelf="center">
-        <GraphynTextLogo />
-      </Box>
-      
-      {/* Subtitle with terminal styling */}
-      <Box marginBottom={3} alignSelf="center">
-        <Text color={pixelTheme.colors.dim}>
-          Squad Initializer for Claude Code
-        </Text>
+    <Box flexDirection="column" alignItems="flex-start" paddingX={1} paddingY={1}>
+      {/* Top section with Dog and Text side by side */}
+      <Box flexDirection="row" width="100%" marginBottom={2}>
+        {/* Dog Pixel Art on the left */}
+        <Box marginRight={3}>
+          <DogPixelArt scale={1} color={pixelTheme.colors.accent} />
+        </Box>
+        
+        {/* Logo and tagline section */}
+        <Box flexDirection="column" alignItems="flex-start" justifyContent="center">
+          {/* Combined Logo - left aligned */}
+          <Box marginBottom={2}>
+            <CombinedLogo />
+          </Box>
+          
+          {/* Tagline with emoji - left aligned */}
+          <Box>
+            <Text color={pixelTheme.colors.text}>
+              Hi there! Ignite intelligence in every line of code 🔥
+            </Text>
+          </Box>
+        </Box>
       </Box>
       
       {/* Menu Section with terminal-style items */}
-      <Box flexDirection="column" width="100%">
+      <Box flexDirection="column" width="100%" marginTop={2}>
         {menuItems.map((item, index) => {
-          if (item.value === 'separator') {
-            return (
-              <Box key={index} marginY={1}>
-                <Text color={pixelTheme.colors.dim}>
-                  {pixelTheme.characters.horizontal.repeat(50)}
-                </Text>
-              </Box>
-            );
-          }
-          
           const isSelected = item.value === currentValue;
-          const menuText = applyPixelTheme.menuItem(item.label, isSelected);
+          const menuText = `└─ ${item.label}`;
           
           return (
-            <Box key={item.value}>
+            <Box key={item.value} marginBottom={0}>
               <Text color={isSelected ? pixelTheme.colors.accent : pixelTheme.colors.text}>
                 {menuText}
               </Text>
@@ -98,24 +89,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onSelect }) => {
         })}
       </Box>
       
-      {/* Help Text with terminal styling */}
-      <Box marginTop={3} alignSelf="center">
-        <Text>
-          <Text color={pixelTheme.colors.accent}>↑↓</Text>
-          <Text color={pixelTheme.colors.dim}> Navigate  </Text>
-          <Text color={pixelTheme.colors.accent}>↵</Text>
-          <Text color={pixelTheme.colors.dim}> Select  </Text>
-          <Text color={pixelTheme.colors.accent}>?</Text>
-          <Text color={pixelTheme.colors.dim}> Help  </Text>
-          <Text color={pixelTheme.colors.accent}>ESC</Text>
-          <Text color={pixelTheme.colors.dim}> Exit</Text>
-        </Text>
-      </Box>
-      
-      {/* Blinking cursor at the bottom */}
-      <Box marginTop={1}>
-        <BlinkingCursor />
-      </Box>
+      {/* Removed help text and cursor to match Figma design */}
     </Box>
   );
 };

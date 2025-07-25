@@ -37,7 +37,12 @@ cat > tsconfig.ink.json << 'EOF'
     "src/logger.ts",
     "src/ui.ts",
     "src/utils/claude-detector.ts",
-    "src/utils/agent-config-manager.ts"
+    "src/utils/agent-config-manager.ts",
+    "src/utils/git.ts",
+    "src/auth/oauth.ts",
+    "src/api/teams.ts",
+    "src/commands/squad.ts",
+    "src/cli-main.ts"
   ],
   "exclude": [
     "src/ink/**/*.test.tsx",
@@ -74,7 +79,30 @@ import { spawn } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const cliPath = join(__dirname, 'ink', 'cli.js');
+// Parse arguments to determine which CLI to use
+const args = process.argv.slice(2);
+const firstArg = args[0]?.toLowerCase();
+
+// Check if this is a natural language query
+const isNaturalLanguageQuery = args.length > 0 && (
+  // Quoted strings
+  (args.join(' ').match(/^".*"$/) || args.join(' ').match(/^'.*'$/)) ||
+  // Starts with "I need", "I want", "Create", "Help", etc.
+  firstArg?.startsWith('i ') ||
+  ['create', 'help', 'add', 'build', 'make', 'setup', 'implement'].includes(firstArg) ||
+  // Not a known command
+  !['backend', 'frontend', 'architect', 'design', 'cli', 'auth', 'logout', '--version', '-v', '--help', '-h'].includes(firstArg)
+);
+
+// Route to appropriate CLI
+let cliPath;
+if (isNaturalLanguageQuery || firstArg === 'auth' || firstArg === 'logout') {
+  // Use the new OAuth-based CLI for natural language queries
+  cliPath = join(__dirname, 'cli-main.js');
+} else {
+  // Use the original Ink CLI for agent commands
+  cliPath = join(__dirname, 'ink', 'cli.js');
+}
 
 // Create child process
 const child = spawn('node', [cliPath, ...process.argv.slice(2)], {

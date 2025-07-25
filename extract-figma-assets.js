@@ -4,40 +4,7 @@ const path = require('path');
 
 // Frame data from the prototype analysis
 const frames = [
-  { id: '1568:55865', name: '01-landing-page-unauthenticated' },
-  { id: '1614:84180', name: '02-state-placeholder-on' },
-  { id: '1568:57961', name: '03-sign-up' },
-  { id: '1451:24650', name: '04-state-switch-mode' },
-  { id: '1451:26289', name: '05-state-open-commands' },
-  { id: '1614:81315', name: '06-state-active' },
-  { id: '1614:84226', name: '07-state-placeholder-off' },
-  { id: '1315:65341', name: '08-state-typing' },
-  { id: '1614:103422', name: '09-type-default-focused' },
-  { id: '1568:102242', name: '10-sign-up-filled-input' },
-  { id: '1935:249117', name: '11-state-state14' },
-  { id: '1568:99043', name: '12-state-add-learning' },
-  { id: '1614:85135', name: '13-property-hover' },
-  { id: '1451:36583', name: '14-state-added-commands' },
-  { id: '1568:102993', name: '15-sign-up-loading' },
-  { id: '1935:250093', name: '16-state-state15' },
-  { id: '1614:92515', name: '17-property-selected' },
-  { id: '2113:58616', name: '18-sign-up-loading-alt' },
-  { id: '1624:70913', name: '19-state-done' },
-  { id: '1624:68787', name: '20-frame-2' },
-  { id: '1627:68293', name: '21-property-compute-2' },
-  { id: '1614:90883', name: '22-state-test-mode' },
-  { id: '1964:283379', name: '23-thread-view-first-time' },
-  { id: '1624:68791', name: '24-frame-3' },
-  { id: '1627:68294', name: '25-property-compute-3' },
-  { id: '1964:301696', name: '26-thread-view-first-time-sidebar-collapse' },
-  { id: '1964:302174', name: '27-thread-view-filled' },
-  { id: '1624:68795', name: '28-frame-4' },
-  { id: '1964:288080', name: '29-property-collapse-hover' },
-  { id: '2066:70465', name: '30-whatsapp-style-testing' },
-  { id: '2048:59806', name: '31-thread-view-create-agent-preview' },
-  { id: '1624:68799', name: '32-frame-5' },
-  { id: '2072:45503', name: '33-thread-view-create-agent-preview-2' },
-  { id: '2072:47390', name: '34-thread-view-create-agent-deployed' }
+  { id: '2563:102223', name: 'Terminal-First-time' }
 ];
 
 class FigmaAssetExtractor {
@@ -55,7 +22,7 @@ class FigmaAssetExtractor {
   async extractFrameImages() {
     console.log('🎨 Starting frame image extraction...');
     
-    const designDir = '/Users/resatugurulu/Developer/graphyn-monorepo/frontend/design/frames';
+    const designDir = './design/frames';
     
     // Ensure directory exists
     if (!fs.existsSync(designDir)) {
@@ -129,7 +96,7 @@ class FigmaAssetExtractor {
   }
 
   async createFrameIndex() {
-    const indexPath = '/Users/resatugurulu/Developer/graphyn-monorepo/frontend/design/mapping/frame-index.json';
+    const indexPath = './design/mapping/frame-index.json';
     const mappingDir = path.dirname(indexPath);
     
     if (!fs.existsSync(mappingDir)) {
@@ -150,44 +117,229 @@ class FigmaAssetExtractor {
   async extractComponents() {
     console.log('\n🔧 Starting component extraction...');
     
-    // Get file data to find components
+    // Get specific frame data to find components
     try {
-      const response = await this.client.get(`/files/${this.fileKey}`, {
+      // First, get the specific frame node
+      const frameResponse = await this.client.get(`/files/${this.fileKey}/nodes`, {
         params: {
-          depth: 2
+          ids: frames.map(f => f.id).join(','),
+          depth: 3
         }
       });
 
-      const components = this.findComponents(response.data.document);
-      console.log(`Found ${components.length} components`);
-
-      // Save component list
-      const componentPath = '/Users/resatugurulu/Developer/graphyn-monorepo/frontend/design/mapping/components.json';
-      fs.writeFileSync(componentPath, JSON.stringify(components, null, 2));
+      console.log('\n📊 Analyzing frame structure...');
       
-      console.log('✅ Saved component list to design/mapping/components.json');
+      const allComponents = [];
+      const designTokens = {
+        colors: {},
+        typography: {},
+        spacing: {},
+        shadows: {}
+      };
+      
+      // Process each frame
+      for (const frame of frames) {
+        const frameNode = frameResponse.data.nodes[frame.id];
+        if (frameNode && frameNode.document) {
+          console.log(`\nProcessing frame: ${frame.name}`);
+          
+          // Find components in this frame
+          const frameComponents = this.findComponents(frameNode.document);
+          allComponents.push(...frameComponents);
+          
+          // Extract design tokens from frame
+          this.extractDesignTokens(frameNode.document, designTokens);
+        }
+      }
+      
+      // Also get file-level components
+      console.log('\n🔍 Fetching file-level components...');
+      const fileResponse = await this.client.get(`/files/${this.fileKey}`, {
+        params: {
+          depth: 1
+        }
+      });
+      
+      // Get component metadata
+      const componentSets = {};
+      const componentMap = {
+        atomic: [],
+        molecules: [],
+        organisms: [],
+        templates: []
+      };
+      
+      // Categorize components
+      allComponents.forEach(comp => {
+        const category = this.categorizeComponent(comp);
+        componentMap[category].push(comp);
+        
+        // Group by component set
+        if (comp.name.includes('/')) {
+          const [setName] = comp.name.split('/');
+          if (!componentSets[setName]) {
+            componentSets[setName] = [];
+          }
+          componentSets[setName].push(comp);
+        }
+      });
+      
+      console.log(`\n📊 Component Analysis:`);
+      console.log(`- Atomic: ${componentMap.atomic.length}`);
+      console.log(`- Molecules: ${componentMap.molecules.length}`);
+      console.log(`- Organisms: ${componentMap.organisms.length}`);
+      console.log(`- Templates: ${componentMap.templates.length}`);
+      console.log(`- Total: ${allComponents.length}`);
+      
+      // Save all extracted data
+      const mappingDir = './design/mapping';
+      if (!fs.existsSync(mappingDir)) {
+        fs.mkdirSync(mappingDir, { recursive: true });
+      }
+      
+      // Save component catalog
+      fs.writeFileSync(
+        path.join(mappingDir, 'components.json'),
+        JSON.stringify({
+          extractedAt: new Date().toISOString(),
+          fileKey: this.fileKey,
+          frameIds: frames.map(f => f.id),
+          totalComponents: allComponents.length,
+          components: componentMap,
+          componentSets: componentSets,
+          allComponents: allComponents
+        }, null, 2)
+      );
+      
+      // Save design tokens
+      fs.writeFileSync(
+        path.join(mappingDir, 'design-tokens.json'),
+        JSON.stringify({
+          extractedAt: new Date().toISOString(),
+          tokens: designTokens
+        }, null, 2)
+      );
+      
+      console.log('\n✅ Saved component catalog to design/mapping/components.json');
+      console.log('✅ Saved design tokens to design/mapping/design-tokens.json');
+      
     } catch (error) {
       console.error(`❌ Error extracting components: ${error.message}`);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+      }
     }
   }
 
-  findComponents(node, components = []) {
-    if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
-      components.push({
+  findComponents(node, components = [], path = '') {
+    const nodePath = path ? `${path}/${node.name}` : node.name;
+    
+    if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET' || node.type === 'INSTANCE') {
+      const component = {
         id: node.id,
         name: node.name,
         type: node.type,
-        description: node.description || ''
-      });
+        path: nodePath,
+        description: node.description || '',
+        visible: node.visible !== false,
+        absoluteBoundingBox: node.absoluteBoundingBox,
+        constraints: node.constraints,
+        componentId: node.componentId || null,
+        mainComponent: node.mainComponent || null
+      };
+      
+      // Extract additional properties
+      if (node.fills) component.fills = node.fills;
+      if (node.strokes) component.strokes = node.strokes;
+      if (node.effects) component.effects = node.effects;
+      if (node.layoutMode) component.layoutMode = node.layoutMode;
+      
+      components.push(component);
     }
 
     if (node.children) {
       for (const child of node.children) {
-        this.findComponents(child, components);
+        this.findComponents(child, components, nodePath);
       }
     }
 
     return components;
+  }
+  
+  extractDesignTokens(node, tokens) {
+    // Extract colors from fills
+    if (node.fills && Array.isArray(node.fills)) {
+      node.fills.forEach(fill => {
+        if (fill.type === 'SOLID' && fill.color) {
+          const colorKey = this.rgbToHex(fill.color);
+          tokens.colors[colorKey] = fill.color;
+        }
+      });
+    }
+    
+    // Extract text styles
+    if (node.type === 'TEXT' && node.style) {
+      const styleKey = `${node.style.fontSize || 16}px-${node.style.fontWeight || 400}`;
+      tokens.typography[styleKey] = {
+        fontFamily: node.style.fontFamily || 'Inter',
+        fontSize: node.style.fontSize || 16,
+        fontWeight: node.style.fontWeight || 400,
+        lineHeight: node.style.lineHeightPx || node.style.fontSize * 1.5,
+        letterSpacing: node.style.letterSpacing || 0
+      };
+    }
+    
+    // Extract effects (shadows)
+    if (node.effects && Array.isArray(node.effects)) {
+      node.effects.forEach((effect, index) => {
+        if (effect.type === 'DROP_SHADOW' && effect.visible !== false) {
+          tokens.shadows[`shadow-${index}`] = {
+            offset: effect.offset,
+            radius: effect.radius,
+            color: effect.color
+          };
+        }
+      });
+    }
+    
+    // Recursively process children
+    if (node.children) {
+      node.children.forEach(child => this.extractDesignTokens(child, tokens));
+    }
+  }
+  
+  categorizeComponent(component) {
+    const name = component.name.toLowerCase();
+    
+    // Atomic components
+    if (name.includes('button') || name.includes('input') || 
+        name.includes('icon') || name.includes('toggle') ||
+        name.includes('checkbox') || name.includes('radio')) {
+      return 'atomic';
+    }
+    
+    // Templates
+    if (name.includes('page') || name.includes('screen') || 
+        name.includes('layout') || name.includes('template')) {
+      return 'templates';
+    }
+    
+    // Organisms
+    if (name.includes('header') || name.includes('footer') || 
+        name.includes('nav') || name.includes('sidebar') ||
+        name.includes('modal') || name.includes('dialog')) {
+      return 'organisms';
+    }
+    
+    // Default to molecules
+    return 'molecules';
+  }
+  
+  rgbToHex(color) {
+    const r = Math.round(color.r * 255);
+    const g = Math.round(color.g * 255);
+    const b = Math.round(color.b * 255);
+    return `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`;
   }
 }
 

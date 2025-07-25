@@ -3,19 +3,14 @@ import { Box, Text } from 'ink';
 import { pixelTheme } from '../theme/pixelart.js';
 
 export const PixelFireLogo: React.FC = () => {
-  // Pixel-perfect ASCII art based on the SVG fire logo
+  // Simplified pixel art fire logo matching Figma design
   const fireArt = [
-    '   ▀▀   ',
-    '   ██   ',
-    '  ████  ',
-    ' ██████ ',
-    ' ██████ ',
-    ' ██████ ',
-    '████████',
-    '████████',
-    '████████',
-    '█ ████ █',
-    '  ████  '
+    '  █▀█  ',
+    ' ███   ',
+    '████   ',
+    '██████ ',
+    '██████ ',
+    '██████ '
   ];
 
   return (

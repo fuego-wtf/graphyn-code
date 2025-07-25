@@ -9,73 +9,32 @@ interface TerminalFrameProps {
 
 export const TerminalFrame: React.FC<TerminalFrameProps> = ({ 
   children, 
-  title = 'Graphyn Code' 
+  title = 'Terminal-First-time' 
 }) => {
-  const frameColor = pixelTheme.colors.innerFrame;
-  const width = 80; // Fixed width for consistent appearance
-  
-  // Title bar with window controls
-  const titleBar = (
-    <Box width={width - 2} justifyContent="space-between">
-      <Box>
-        <Text color={pixelTheme.colors.dim}>●</Text>
-        <Text color={pixelTheme.colors.dim}> ●</Text>
-        <Text color={pixelTheme.colors.dim}> ●</Text>
-        <Text color={pixelTheme.colors.text}>  {title}</Text>
-      </Box>
-      <Text> </Text>
-    </Box>
-  );
-
-  // Create border lines
-  const horizontalLine = '─'.repeat(width - 2);
-  const topBorder = `┌${horizontalLine}┐`;
-  const middleBorder = `├${horizontalLine}┤`;
-  const bottomBorder = `└${horizontalLine}┘`;
-  
+  // Simplified terminal frame matching Figma design
   return (
     <Box flexDirection="column">
-      {/* Outer frame simulation */}
+      {/* Title bar with window controls */}
       <Box 
-        flexDirection="column" 
-        paddingX={1}
-        paddingY={0}
+        paddingX={1} 
+        paddingY={1}
+        borderStyle="single"
+        borderColor={pixelTheme.colors.innerFrame}
       >
-        {/* Terminal window */}
-        <Box flexDirection="column">
-          {/* Top border */}
-          <Text color={frameColor}>{topBorder}</Text>
-          
-          {/* Title bar */}
-          <Box>
-            <Text color={frameColor}>│</Text>
-            {titleBar}
-            <Text color={frameColor}>│</Text>
-          </Box>
-          
-          {/* Middle border */}
-          <Text color={frameColor}>{middleBorder}</Text>
-          
-          {/* Content area with black background */}
-          <Box 
-            flexDirection="row"
-            minHeight={20}
-          >
-            <Text color={frameColor}>│</Text>
-            <Box 
-              width={width - 2} 
-              paddingX={3} 
-              paddingY={1}
-              flexDirection="column"
-            >
-              {children}
-            </Box>
-            <Text color={frameColor}>│</Text>
-          </Box>
-          
-          {/* Bottom border */}
-          <Text color={frameColor}>{bottomBorder}</Text>
+        <Box>
+          <Text color="#FF5F56">●</Text>
+          <Text color="#FFBD2E"> ●</Text>
+          <Text color="#27C93F"> ●</Text>
         </Box>
+      </Box>
+      
+      {/* Content area */}
+      <Box 
+        paddingX={2} 
+        paddingY={1}
+        minHeight={20}
+      >
+        {children}
       </Box>
     </Box>
   );

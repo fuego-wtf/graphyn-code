@@ -2,23 +2,26 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { URL } from 'url';
 import crypto from 'crypto';
 
-interface OAuthToken {
-  access_token: string;
-  token_type: string;
-  scope: string;
+export interface OAuthCallbackData {
+  code?: string;
+  access_token?: string;
+  token?: string;
+  state: string;
 }
 
 export const generateState = (): string => {
   return crypto.randomBytes(16).toString('hex');
 };
 
-export const waitForOAuthCallback = (port: number, expectedState: string): Promise<OAuthToken> => {
+export const waitForOAuthCallback = (port: number, expectedState: string): Promise<OAuthCallbackData> => {
   return new Promise((resolve, reject) => {
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url || '', `http://localhost:${port}`);
       
       if (url.pathname === '/callback') {
         const code = url.searchParams.get('code');
+        const access_token = url.searchParams.get('access_token');
+        const token = url.searchParams.get('token');
         const state = url.searchParams.get('state');
         const error = url.searchParams.get('error');
         
@@ -54,7 +57,7 @@ export const waitForOAuthCallback = (port: number, expectedState: string): Promi
           return;
         }
         
-        if (code) {
+        if (code || access_token || token) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(`
             <html>
@@ -82,11 +85,12 @@ export const waitForOAuthCallback = (port: number, expectedState: string): Promi
           `);
           server.close();
           
-          // Return the authorization code
+          // Return the authorization code, access token, or token
           resolve({
-            access_token: code, // This is actually the authorization code
-            token_type: 'authorization_code',
-            scope: 'repo user'
+            code: code || undefined,
+            access_token: access_token || undefined,
+            token: token || undefined,
+            state: state!
           });
         }
       }

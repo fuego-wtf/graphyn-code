@@ -1,18 +1,18 @@
 export const pixelTheme = {
   colors: {
     // Background colors
-    outerFrame: '#4A4A4A',     // Outer gray
-    innerFrame: '#3A3A3A',     // Title bar gray
-    terminal: 'black',         // Terminal black
+    outerFrame: '#131313',     // Dark terminal background
+    innerFrame: '#1a1a1a',     // Slightly lighter header
+    terminal: '#131313',       // Terminal black from Figma
     
     // Text colors
-    text: '#E0E0E0',           // Light gray text
-    accent: '#FF5500',         // Orange highlight
-    dim: 'gray',               // Dimmed text
+    text: '#FFFFFF',           // White text from Figma
+    accent: '#FF5500',         // Orange highlight (unchanged)
+    dim: '#808080',            // Gray for secondary text
     
     // UI colors
-    white: 'white',
-    gray: 'gray',
+    white: '#FFFFFF',
+    gray: '#808080',
     orange: '#FF5500',
   },
   

@@ -8,10 +8,10 @@ import crypto from 'crypto';
 import { useStore } from '../store.js';
 import { useAuth, useAPI } from '../hooks/useAPI.js';
 import { config as appConfig } from '../../config.js';
-import { generateState, waitForOAuthCallback, getAvailablePort } from '../utils/auth.js';
+import { generateState, waitForOAuthCallback, getAvailablePort, OAuthCallbackData } from '../utils/auth.js';
 import { getAccentColor, getDimColor } from '../theme/colors.js';
 
-type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service';
+type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service' | 'team-selection';
 
 interface AuthState {
   mode: AuthMode;
@@ -19,6 +19,7 @@ interface AuthState {
   error?: string;
   apiKeyInput: string;
   oauthProvider?: 'github' | 'figma';
+  teams?: Array<{ id: string; name: string }>;
 }
 
 interface AuthenticationProps {
@@ -117,48 +118,48 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         .update(codeVerifier)
         .digest('base64url');
       
-      // Construct OAuth authorization URL
-      const authUrl = new URL('/v1/auth/oauth/authorize', appConfig.apiBaseUrl);
+      // Construct OAuth authorization URL - using app.graphyn.xyz for authentication
+      const authUrl = new URL('https://app.graphyn.xyz/auth');
       authUrl.searchParams.set('client_id', 'graphyn-cli-official');
-      authUrl.searchParams.set('response_type', 'code');
       authUrl.searchParams.set('redirect_uri', redirectUri);
-      authUrl.searchParams.set('scope', 'openid profile');
       authUrl.searchParams.set('state', state);
-      authUrl.searchParams.set('code_challenge', codeChallenge);
-      authUrl.searchParams.set('code_challenge_method', 'S256');
-      
-      // Store code verifier for later use
-      const oauthState = { codeVerifier, redirectUri };
+      authUrl.searchParams.set('cli', 'true'); // Indicate this is a CLI auth request
       
       // Open browser
       await open(authUrl.toString());
       
-      // Wait for callback with authorization code
+      // Wait for callback with token from cli.graphyn.xyz redirect
       const callbackData = await waitForOAuthCallback(port, state);
       
-      // Exchange authorization code for tokens
-      const tokenResponse = await api.post<{
-        access_token: string;
-        token_type: string;
-        expires_in: number;
-        refresh_token?: string;
-        scope: string;
-      }>('/v1/auth/oauth/token', {
-        grant_type: 'authorization_code',
-        code: callbackData.access_token, // This is actually the authorization code
-        redirect_uri: redirectUri,
-        client_id: 'graphyn-cli-official',
-        code_verifier: codeVerifier
-      });
+      // The callback will contain the token directly from cli.graphyn.xyz
+      const token = callbackData.code || callbackData.access_token;
       
-      // Store the OAuth tokens
-      await authenticate(tokenResponse.access_token);
+      if (!token) {
+        throw new Error('No authentication token received');
+      }
       
-      // Also store refresh token if provided
-      if (tokenResponse.refresh_token) {
+      // Store the token
+      await authenticate(token);
+      
+      // Fetch user's teams
+      const teams = await api.listTeams();
+      
+      if (teams.length > 1) {
+        // Show team selection
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          mode: 'team-selection',
+          teams
+        }));
+        return; // Exit early for team selection
+      } else if (teams.length === 1) {
+        // Auto-select single team
         const { ConfigManager } = await import('../../config-manager.js');
         const configManager = new ConfigManager();
-        await configManager.set('auth.refreshToken', tokenResponse.refresh_token);
+        await configManager.set('auth.team', teams[0]);
+      } else {
+        throw new Error('No teams found for user');
       }
       
       setState(prev => ({
@@ -209,7 +210,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       // Exchange OAuth token for CLI JWT
       const response = await api.post<{token: string}>('/api/cli/token', {
         provider,
-        token: oauthData.access_token
+        token: oauthData.code || oauthData.access_token
       });
       
       // Authenticate with the new token
@@ -291,11 +292,8 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         handleLogout();
         break;
       case 'back':
-        if (returnToBuilder) {
-          exit(); // Exit if we came from builder mode
-        } else {
-          reset();
-        }
+        // Always return to main menu instead of exiting
+        setMode('menu');
         break;
     }
   };
@@ -305,6 +303,41 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       setState(prev => ({ ...prev, mode: 'menu' }));
     } else {
       handleOAuthFlow(item.value as 'github' | 'figma');
+    }
+  };
+
+  const handleTeamSelect = async (teamId: string) => {
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      
+      // Store selected team
+      const team = state.teams?.find(t => t.id === teamId);
+      if (team) {
+        const { ConfigManager } = await import('../../config-manager.js');
+        const configManager = new ConfigManager();
+        await configManager.set('auth.team', team);
+      }
+      
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        mode: 'status'
+      }));
+      
+      // Show success for 2 seconds then return to appropriate mode
+      setTimeout(() => {
+        if (returnToBuilder) {
+          setMode('builder');
+        } else {
+          setState(prev => ({ ...prev, mode: 'menu' }));
+        }
+      }, 2000);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Failed to select team'
+      }));
     }
   };
 
@@ -506,6 +539,36 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
           </Box>
           <Box marginTop={2}>
             <Text color={getDimColor()}>Press ESC to go back</Text>
+          </Box>
+        </Box>
+      );
+
+    case 'team-selection':
+      return (
+        <Box flexDirection="column" padding={1}>
+          <Text bold color="cyan">▶ Select Team</Text>
+          {state.error && (
+            <Box marginTop={1}>
+              <Text color="red">⚠ {state.error}</Text>
+            </Box>
+          )}
+          
+          <Box marginTop={1}>
+            <Text>Which team is this repository for?</Text>
+          </Box>
+          
+          <Box marginTop={1}>
+            <SelectInput
+              items={state.teams?.map(team => ({
+                label: team.name,
+                value: team.id
+              })) || []}
+              onSelect={(item) => handleTeamSelect(item.value)}
+            />
+          </Box>
+          
+          <Box marginTop={2} flexDirection="column">
+            <Text color={getDimColor()}>↑↓ Navigate  • Enter Select  • Esc Cancel</Text>
           </Box>
         </Box>
       );

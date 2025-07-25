@@ -12,8 +12,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const [, , rawCommand, ...args] = process.argv;
-const command = rawCommand?.toLowerCase(); // Make command case-insensitive
-const query = args.join(' ');
+
+// Check if this is a natural language query (wrapped in quotes or starting with "I")
+const isNaturalLanguage = rawCommand && (
+  (rawCommand.startsWith('"') && args[args.length - 1]?.endsWith('"')) ||
+  rawCommand.toLowerCase().startsWith('i ') ||
+  (rawCommand === 'I' && args.length > 0)
+);
+
+let command: string | undefined;
+let query: string;
+
+if (isNaturalLanguage) {
+  // Treat entire input as a natural language query
+  command = 'squad';
+  query = [rawCommand, ...args].join(' ').replace(/^"|"$/g, '');
+} else {
+  command = rawCommand?.toLowerCase(); // Make command case-insensitive
+  query = args.join(' ');
+}
 
 // Define agent aliases
 const agentAliases: Record<string, string> = {
@@ -71,6 +88,21 @@ if (!normalizedCommand) {
 if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
   console.error(`The "graphyn ${normalizedCommand}" command requires an interactive terminal.`);
   console.error('Please run this command in a proper terminal (not piped or in CI).');
+  process.exit(1);
+}
+
+// Process squad command (natural language)
+if (normalizedCommand === 'squad' && query) {
+  console.log('Creating squad with natural language query...');
+  
+  // For squad mode in non-TTY, we need to show a helpful message
+  console.error('Squad creation requires an interactive terminal for authentication and team selection.');
+  console.error('');
+  console.error('Please run this command in a proper terminal:');
+  console.error(`  graphyn "${query}"`);
+  console.error('');
+  console.error('Or use a specific agent directly:');
+  console.error('  graphyn backend "add authentication"');
   process.exit(1);
 }
 

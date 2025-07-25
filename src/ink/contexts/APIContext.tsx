@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { GraphynAPIClient, Thread, Agent, AuthResponse } from '../../api-client.js';
+import { GraphynAPIClient, Thread, Agent, AuthResponse, Team, Squad, CreateSquadRequest } from '../../api-client.js';
 import { ConfigManager } from '../../config-manager.js';
 import { config as appConfig } from '../../config.js';
+import { tokenManager } from '../../utils/token-manager.js';
 import EventSource from 'eventsource';
 
 interface APIContextValue {
@@ -33,6 +34,20 @@ interface APIContextValue {
     update: (id: string, data: any) => Promise<Agent>;
     delete: (id: string) => Promise<void>;
   };
+  
+  // Team methods
+  listTeams: () => Promise<Team[]>;
+  getTeam: (id: string) => Promise<Team>;
+  
+  // Squad methods
+  listSquads: (teamId?: string) => Promise<Squad[]>;
+  createSquad: (data: CreateSquadRequest) => Promise<Squad>;
+  getSquad: (id: string) => Promise<Squad>;
+  updateSquad: (id: string, data: Partial<CreateSquadRequest>) => Promise<Squad>;
+  deleteSquad: (id: string) => Promise<void>;
+  
+  // Agent methods for squads
+  getAvailableAgents: (context?: any) => Promise<Agent[]>;
   
   // Generic methods
   get: <T>(endpoint: string) => Promise<T>;
@@ -67,8 +82,7 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
 
   const initializeClient = async () => {
     try {
-      const configManager = new ConfigManager();
-      const token = await configManager.getAuthToken();
+      const token = await tokenManager.getToken();
       
       const apiClient = new GraphynAPIClient(appConfig.apiBaseUrl);
       
@@ -81,7 +95,7 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
           setIsAuthenticated(true);
         } catch (err) {
           // Token is invalid, clear it
-          await configManager.delete('auth.token');
+          await tokenManager.clearToken();
           setIsAuthenticated(false);
         }
       }
@@ -94,18 +108,32 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     }
   };
 
-  const authenticate = async (token: string) => {
+  const authenticate = async (tokenOrCode: string) => {
     if (!client) throw new Error('API client not initialized');
     
     try {
-      client.setToken(token);
+      let accessToken = tokenOrCode;
+      let expiresIn: number | undefined;
+      let refreshToken: string | undefined;
+      
+      // Check if this is an OAuth code that needs to be exchanged
+      if (tokenOrCode.startsWith('cli_auth_')) {
+        // Extract the session token from the pseudo-code
+        const sessionToken = tokenOrCode.replace('cli_auth_', '');
+        
+        // For now, use the session token directly
+        // In production, this should exchange the code for a proper access token
+        accessToken = sessionToken;
+        expiresIn = 3600; // 1 hour default
+      }
+      
+      client.setToken(accessToken);
       
       // Validate token
       await client.ping();
       
-      // Save token
-      const configManager = new ConfigManager();
-      await configManager.setAuthToken(token);
+      // Save token with expiry info
+      await tokenManager.saveToken(accessToken, expiresIn, refreshToken);
       
       setIsAuthenticated(true);
       setError(null);
@@ -134,6 +162,8 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    await tokenManager.clearToken();
+    
     const configManager = new ConfigManager();
     await configManager.delete('auth');
     
@@ -221,6 +251,49 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     return client.delete<T>(endpoint);
   };
 
+  // Team methods
+  const listTeams = async (): Promise<Team[]> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.listTeams();
+  };
+
+  const getTeam = async (id: string): Promise<Team> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.getTeam(id);
+  };
+
+  // Squad methods
+  const listSquads = async (teamId?: string): Promise<Squad[]> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.listSquads(teamId);
+  };
+
+  const createSquad = async (data: CreateSquadRequest): Promise<Squad> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.createSquad(data);
+  };
+
+  const getSquad = async (id: string): Promise<Squad> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.getSquad(id);
+  };
+
+  const updateSquad = async (id: string, data: Partial<CreateSquadRequest>): Promise<Squad> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.updateSquad(id, data);
+  };
+
+  const deleteSquad = async (id: string): Promise<void> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.deleteSquad(id);
+  };
+
+  // Agent methods for squads
+  const getAvailableAgents = async (context?: any): Promise<Agent[]> => {
+    if (!client) throw new Error('API client not initialized');
+    return client.getAvailableAgents(context);
+  };
+
   const value: APIContextValue = {
     client,
     isAuthenticated,
@@ -231,6 +304,14 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     logout,
     threads,
     agents,
+    listTeams,
+    getTeam,
+    listSquads,
+    createSquad,
+    getSquad,
+    updateSquad,
+    deleteSquad,
+    getAvailableAgents,
     get,
     post,
     delete: deleteMethod

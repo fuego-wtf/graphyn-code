@@ -9,6 +9,7 @@ import { FigmaAuth } from './components/FigmaAuth.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { TerminalFrame } from './components/TerminalFrame.js';
+import { SquadBuilder } from './components/SquadBuilder.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
 import { useStore, AppMode } from './store.js';
 import { initGraphynFolder } from '../utils/graphyn-folder.js';
@@ -99,7 +100,11 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     } else if (command && query) {
       // Normalize command to lowercase to handle case-insensitive inputs
       const normalizedCmd = command.toLowerCase();
-      if (normalizedCmd === 'design' && query.includes('figma.com')) {
+      if (normalizedCmd === 'squad') {
+        // Natural language query - use SquadBuilder
+        setQuery(query);
+        setMode('squad');
+      } else if (normalizedCmd === 'design' && query.includes('figma.com')) {
         // Special case: Figma URL - use FigmaDesign component
         setSelectedAgent('design');
         setQuery(query);
@@ -150,6 +155,17 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
           process.exit(0);
         }, 100);
         break;
+      case 'auth':
+        setMode('auth');
+        break;
+      case 'analyze':
+        // Launch builder mode for analyzing repository
+        setMode('builder');
+        break;
+      case 'connect':
+        // Show authentication screen for connecting accounts
+        setMode('auth');
+        break;
       case 'backend':
       case 'frontend':
       case 'architect':
@@ -158,9 +174,6 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         setSelectedAgent(value);
         setQuery('');
         setMode('agent');
-        break;
-      case 'auth':
-        setMode('auth');
         break;
     }
   };
@@ -225,6 +238,9 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         });
         return <Loading message="Logging out from Figma..." />;
       
+      case 'squad':
+        return <SquadBuilder query={query || ''} />;
+        
       case 'builder':
         // Dynamic import to avoid circular dependencies
         const BuilderAgent = React.lazy(() => import('./components/BuilderAgent.js').then(m => ({ default: m.BuilderAgent })));
@@ -255,9 +271,7 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         />
       }
     >
-      <TerminalFrame title="Graphyn Code">
-        {renderContent()}
-      </TerminalFrame>
+      {renderContent()}
     </ErrorBoundary>
   );
 };

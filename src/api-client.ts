@@ -72,6 +72,31 @@ export interface RepositoryContext {
   language?: string;
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Squad {
+  id: string;
+  name: string;
+  team_id: string;
+  repository_url?: string;
+  agents: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSquadRequest {
+  name: string;
+  team_id: string;
+  repository_url?: string;
+  agents?: string[];
+}
+
 export class GraphynAPIClient {
   private baseUrl: string;
   private token?: string;
@@ -190,10 +215,22 @@ export class GraphynAPIClient {
   }
 
   // Generic POST method for custom endpoints
-  async post<T>(endpoint: string, data: any): Promise<T> {
+  async post<T>(endpoint: string, data: any, options?: RequestInit): Promise<T> {
+    const headers = options?.headers as Record<string, string> | undefined;
+    const contentType = headers?.['Content-Type'] || 'application/json';
+    
+    let body: string;
+    if (contentType === 'application/x-www-form-urlencoded') {
+      // Convert object to URL-encoded string
+      body = new URLSearchParams(data).toString();
+    } else {
+      body = JSON.stringify(data);
+    }
+    
     return this.request<T>(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body,
+      ...options,
     });
   }
 
@@ -274,6 +311,69 @@ export class GraphynAPIClient {
       body: JSON.stringify({ patterns }),
     });
     return response.agent;
+  }
+
+  // Team Management
+  async listTeams(): Promise<Team[]> {
+    const response = await this.request<{ teams: Team[] }>('/v1/auth/teams');
+    return response.teams;
+  }
+
+  async getTeam(teamId: string): Promise<Team> {
+    const response = await this.request<{ team: Team }>(`/api/teams/${teamId}`);
+    return response.team;
+  }
+
+  // Squad Management
+  async listSquads(teamId?: string): Promise<Squad[]> {
+    let endpoint = '/api/squads';
+    if (teamId) {
+      endpoint += `?team_id=${teamId}`;
+    }
+    const response = await this.request<{ squads: Squad[] }>(endpoint);
+    return response.squads;
+  }
+
+  async createSquad(data: CreateSquadRequest): Promise<Squad> {
+    const response = await this.request<{ squad: Squad }>('/api/squads', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.squad;
+  }
+
+  async getSquad(squadId: string): Promise<Squad> {
+    const response = await this.request<{ squad: Squad }>(`/api/squads/${squadId}`);
+    return response.squad;
+  }
+
+  async updateSquad(squadId: string, data: Partial<CreateSquadRequest>): Promise<Squad> {
+    const response = await this.request<{ squad: Squad }>(`/api/squads/${squadId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.squad;
+  }
+
+  async deleteSquad(squadId: string): Promise<void> {
+    await this.request<void>(`/api/squads/${squadId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addAgentToSquad(squadId: string, agentId: string): Promise<Squad> {
+    const response = await this.request<{ squad: Squad }>(`/api/squads/${squadId}/agents`, {
+      method: 'POST',
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+    return response.squad;
+  }
+
+  async removeAgentFromSquad(squadId: string, agentId: string): Promise<Squad> {
+    const response = await this.request<{ squad: Squad }>(`/api/squads/${squadId}/agents/${agentId}`, {
+      method: 'DELETE',
+    });
+    return response.squad;
   }
 }
 
