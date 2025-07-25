@@ -1,73 +1,122 @@
-import React from 'react';
-import { Box, Text } from 'ink';
-import SelectInput from 'ink-select-input';
-import { Logo } from './Logo.js';
+import React, { useState } from 'react';
+import { Box, Text, useInput } from 'ink';
+import { PixelFireLogo } from './PixelFireLogo.js';
+import { GraphynTextLogo } from './GraphynTextLogo.js';
+import { BlinkingCursor } from './BlinkingCursor.js';
+import { pixelTheme, applyPixelTheme } from '../theme/pixelart.js';
 
 interface MainMenuProps {
   onSelect: (value: string) => void;
 }
 
-// Menu items with static, semantic icons
+// Menu items with terminal-style prefixes
 const menuItems = [
-  { label: '⚙ Backend Agent', value: 'backend' },
-  { label: '◈ Frontend Agent', value: 'frontend' },
-  { label: '▣ Architect Agent', value: 'architect' },
-  { label: '◉ Design Agent', value: 'design' },
-  { label: '▸ CLI Agent', value: 'cli' },
-  { label: '─────────────────', value: 'separator1' },
-  { label: '◐ Authentication', value: 'auth' },
-  { label: '✕ Exit', value: 'exit' },
+  { label: 'Backend Agent', value: 'backend' },
+  { label: 'Frontend Agent', value: 'frontend' },
+  { label: 'Architect Agent', value: 'architect' },
+  { label: 'Design Agent', value: 'design' },
+  { label: 'CLI Agent', value: 'cli' },
+  { label: '', value: 'separator' },
+  { label: 'Authentication', value: 'auth' },
+  { label: 'Exit', value: 'exit' },
 ];
 
 export const MainMenu: React.FC<MainMenuProps> = ({ onSelect }) => {
-  const handleSelect = (item: { value: string }) => {
-    if (!item.value.startsWith('separator')) {
-      onSelect(item.value);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const selectableItems = menuItems.filter(item => item.value !== 'separator');
+  
+  useInput((input, key) => {
+    if (key.upArrow) {
+      setSelectedIndex((prev) => {
+        const newIndex = prev - 1;
+        // Skip separators when navigating
+        if (newIndex < 0) return selectableItems.length - 1;
+        return newIndex;
+      });
+    } else if (key.downArrow) {
+      setSelectedIndex((prev) => {
+        const newIndex = prev + 1;
+        // Skip separators when navigating
+        if (newIndex >= selectableItems.length) return 0;
+        return newIndex;
+      });
+    } else if (key.return) {
+      const selectedItem = selectableItems[selectedIndex];
+      if (selectedItem) {
+        onSelect(selectedItem.value);
+      }
+    } else if (input === 'q' || key.escape) {
+      onSelect('exit');
     }
-  };
+  });
 
-  const filteredItems = menuItems.filter(item => !item.value.startsWith('separator'));
+  // Get currently selected value for comparison
+  const currentValue = selectableItems[selectedIndex]?.value;
 
   return (
-    <Box flexDirection="column" alignItems="center" paddingY={2}>
-      {/* Logo Section */}
-      <Box justifyContent="center" marginBottom={1}>
-        <Logo />
+    <Box flexDirection="column" alignItems="flex-start" paddingY={1}>
+      {/* Fire Logo */}
+      <Box marginBottom={1} alignSelf="center">
+        <PixelFireLogo />
       </Box>
       
-      {/* Subtitle */}
-      <Box justifyContent="center" marginBottom={2}>
-        <Text color="gray">AI Development Tool for Claude Code</Text>
+      {/* GRAPHYN Text Logo */}
+      <Box marginBottom={2} alignSelf="center">
+        <GraphynTextLogo />
       </Box>
       
-      {/* Menu Section */}
-      <Box flexDirection="column" width={40}>
-        <SelectInput 
-          items={filteredItems} 
-          onSelect={handleSelect}
-          indicatorComponent={({ isSelected }) => (
-            <Box marginRight={1}>
-              <Text color={isSelected ? "cyan" : "gray"}>
-                {isSelected ? '▶' : ' '}
-              </Text>
-            </Box>
-          )}
-          itemComponent={({ isSelected, label }) => (
-            <Box>
-              <Text color={isSelected ? 'cyan' : 'gray'} bold={isSelected}>
-                {label}
-              </Text>
-            </Box>
-          )}
-        />
-      </Box>
-      
-      {/* Help Text */}
-      <Box marginTop={3} justifyContent="center">
-        <Text color="gray">
-          <Text color="cyan">↑↓</Text> Navigate  <Text color="cyan">↵</Text> Select  <Text color="cyan">?</Text> Help  <Text color="gray">⎋</Text> Exit
+      {/* Subtitle with terminal styling */}
+      <Box marginBottom={3} alignSelf="center">
+        <Text color={pixelTheme.colors.dim}>
+          Squad Initializer for Claude Code
         </Text>
+      </Box>
+      
+      {/* Menu Section with terminal-style items */}
+      <Box flexDirection="column" width="100%">
+        {menuItems.map((item, index) => {
+          if (item.value === 'separator') {
+            return (
+              <Box key={index} marginY={1}>
+                <Text color={pixelTheme.colors.dim}>
+                  {pixelTheme.characters.horizontal.repeat(50)}
+                </Text>
+              </Box>
+            );
+          }
+          
+          const isSelected = item.value === currentValue;
+          const menuText = applyPixelTheme.menuItem(item.label, isSelected);
+          
+          return (
+            <Box key={item.value}>
+              <Text color={isSelected ? pixelTheme.colors.accent : pixelTheme.colors.text}>
+                {menuText}
+              </Text>
+            </Box>
+          );
+        })}
+      </Box>
+      
+      {/* Help Text with terminal styling */}
+      <Box marginTop={3} alignSelf="center">
+        <Text>
+          <Text color={pixelTheme.colors.accent}>↑↓</Text>
+          <Text color={pixelTheme.colors.dim}> Navigate  </Text>
+          <Text color={pixelTheme.colors.accent}>↵</Text>
+          <Text color={pixelTheme.colors.dim}> Select  </Text>
+          <Text color={pixelTheme.colors.accent}>?</Text>
+          <Text color={pixelTheme.colors.dim}> Help  </Text>
+          <Text color={pixelTheme.colors.accent}>ESC</Text>
+          <Text color={pixelTheme.colors.dim}> Exit</Text>
+        </Text>
+      </Box>
+      
+      {/* Blinking cursor at the bottom */}
+      <Box marginTop={1}>
+        <BlinkingCursor />
       </Box>
     </Box>
   );
 };
+

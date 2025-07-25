@@ -21,20 +21,20 @@ export async function checkDocsFolder(projectPath: string = process.cwd()): Prom
  * Initialize graphyn folder structure in the current project
  */
 export async function initGraphynFolder(projectPath: string = process.cwd()): Promise<void> {
-  const graphynPath = path.join(projectPath, 'graphyn');
+  const graphynPath = path.join(projectPath, '.graphyn');
   const docsPath = path.join(graphynPath, 'docs');
   const tempPath = path.join(docsPath, 'temp');
   
-  // Create graphyn directory
+  // Create .graphyn directory (with dot prefix)
   fs.mkdirSync(graphynPath, { recursive: true });
   
   // Check if project has a /docs folder
   const projectDocsPath = path.join(projectPath, 'docs');
   if (fs.existsSync(projectDocsPath) && fs.statSync(projectDocsPath).isDirectory()) {
-    // Move existing docs folder to graphyn/docs
+    // Move existing docs folder to .graphyn/docs
     if (!fs.existsSync(docsPath)) {
       fs.renameSync(projectDocsPath, docsPath);
-      console.log('📁 Moved existing /docs folder to graphyn/docs');
+      console.log('📁 Moved existing /docs folder to .graphyn/docs');
     }
   } else {
     // Create docs structure if no existing docs folder
@@ -44,12 +44,12 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
   // Ensure temp directory exists
   fs.mkdirSync(tempPath, { recursive: true });
   
-  // Move GRAPHYN.md to graphyn folder if it exists in root
+  // Move GRAPHYN.md to .graphyn folder if it exists in root
   const rootGraphynMdPath = path.join(projectPath, 'GRAPHYN.md');
   const graphynMdPath = path.join(graphynPath, 'GRAPHYN.md');
   if (fs.existsSync(rootGraphynMdPath) && !fs.existsSync(graphynMdPath)) {
     fs.renameSync(rootGraphynMdPath, graphynMdPath);
-    console.log('📄 Moved GRAPHYN.md to graphyn folder');
+    console.log('📄 Moved GRAPHYN.md to .graphyn folder');
   }
   
   // Initialize init.md if it doesn't exist
@@ -99,7 +99,7 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
  * Append content to init.md with timestamp
  */
 export function appendToInitMd(content: string, projectPath: string = process.cwd()): void {
-  const initMdPath = path.join(projectPath, 'graphyn', 'init.md');
+  const initMdPath = path.join(projectPath, '.graphyn', 'init.md');
   const timestamp = new Date().toISOString();
   
   const entry = `\n## Session ${timestamp}\n\n${content}\n`;
@@ -111,7 +111,7 @@ export function appendToInitMd(content: string, projectPath: string = process.cw
  * Save temporary documentation
  */
 export function saveTempDoc(filename: string, content: string, projectPath: string = process.cwd()): string {
-  const tempPath = path.join(projectPath, 'graphyn', 'docs', 'temp');
+  const tempPath = path.join(projectPath, '.graphyn', 'docs', 'temp');
   const filePath = path.join(tempPath, filename);
   
   fs.writeFileSync(filePath, content);

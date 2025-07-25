@@ -8,6 +8,7 @@ import { FigmaDesign } from './components/FigmaDesign.js';
 import { FigmaAuth } from './components/FigmaAuth.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
+import { TerminalFrame } from './components/TerminalFrame.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
 import { useStore, AppMode } from './store.js';
 import { initGraphynFolder } from '../utils/graphyn-folder.js';
@@ -85,10 +86,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
 
   // Handle direct command mode
   useEffect(() => {
-    // Check if graphyn was called without any arguments (builder mode)
+    // Check if graphyn was called without any arguments - show menu
     if (!command && !query) {
-      // Launch builder mode directly
-      setMode('builder');
+      // Show menu when no arguments provided
+      setMode('menu');
     } else if (command === 'design' && query === 'auth') {
       // Special case: Figma OAuth authentication
       setMode('figma-auth');
@@ -254,7 +255,9 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         />
       }
     >
-      {renderContent()}
+      <TerminalFrame title="Graphyn Code">
+        {renderContent()}
+      </TerminalFrame>
     </ErrorBoundary>
   );
 };
