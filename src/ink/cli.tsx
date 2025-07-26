@@ -100,8 +100,8 @@ const isBuilderMode = !normalizedCommand;
 // Also check for Warp terminal which might have special TTY handling
 const isWarp = process.env.TERM_PROGRAM === 'WarpTerminal';
 
-// Debug output for terminal detection
-if (process.env.DEBUG_GRAPHYN || true) {
+// Debug output for terminal detection (only when DEBUG_GRAPHYN is set)
+if (process.env.DEBUG_GRAPHYN) {
   console.log('Terminal Debug Info:');
   console.log('- rawCommand:', rawCommand);
   console.log('- normalizedCommand:', normalizedCommand);
