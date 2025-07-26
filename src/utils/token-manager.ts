@@ -80,7 +80,7 @@ export class TokenManager {
    */
   private async refreshToken(refreshToken: string): Promise<string | null> {
     try {
-      const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+      const apiUrl = process.env.GRAPHYN_API_URL || 'http://localhost:4000';
       const response = await fetch(`${apiUrl}/v1/auth/oauth/token`, {
         method: 'POST',
         headers: {
@@ -98,7 +98,7 @@ export class TokenManager {
         return null;
       }
       
-      const data = await response.json();
+      const data: any = await response.json();
       
       // Save new token
       await this.saveToken(

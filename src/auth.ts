@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
-import GraphynAPIClient from './api-client';
-import { config } from './config';
+import GraphynAPIClient from './api-client.js';
+import { config } from './config.js';
 
 const colors = {
   success: chalk.green,

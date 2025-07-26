@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { createSquad } from './commands/squad';
-import { OAuthManager } from './auth/oauth';
+import { createSquad } from './commands/squad.js';
+import { OAuthManager } from './auth/oauth.js';
 import chalk from 'chalk';
 
 const colors = {

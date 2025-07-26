@@ -1,5 +1,6 @@
 import EventSource from 'eventsource';
 import { ConfigManager } from './config-manager.js';
+import { config } from './config.js';
 
 export interface Thread {
   id: string;
@@ -107,7 +108,7 @@ export class GraphynAPIClient {
     return this.token;
   }
 
-  constructor(baseUrl: string = 'https://api.graphyn.xyz') {
+  constructor(baseUrl: string = 'http://localhost:4000') {
     this.baseUrl = baseUrl;
     this.configManager = new ConfigManager();
   }
@@ -212,6 +213,16 @@ export class GraphynAPIClient {
   // Health Check
   async ping(): Promise<{ status: string }> {
     return this.request<{ status: string }>('/ping');
+  }
+  
+  // API Key Validation
+  async validateApiKey(): Promise<{ valid: boolean; user?: any }> {
+    try {
+      const response = await this.request<{ valid: boolean; user?: any }>(config.authEndpoint);
+      return response;
+    } catch (error) {
+      return { valid: false };
+    }
   }
 
   // Generic POST method for custom endpoints

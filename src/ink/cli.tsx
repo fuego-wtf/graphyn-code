@@ -5,7 +5,20 @@ import { App } from './App.js';
 import { APIProvider } from './contexts/APIContext.js';
 
 // Parse command line arguments
-const [, , rawCommand, ...args] = process.argv;
+let [, , rawCommand, ...args] = process.argv;
+
+// Check for --dev flag in both rawCommand and args
+let isDev = false;
+if (rawCommand === '--dev') {
+  isDev = true;
+  rawCommand = args.shift(); // Move first arg to rawCommand
+} else {
+  const devFlagIndex = args.indexOf('--dev');
+  isDev = devFlagIndex !== -1;
+  if (isDev) {
+    args.splice(devFlagIndex, 1);
+  }
+}
 
 // Check if this is a natural language query (wrapped in quotes or starting with "I")
 const isNaturalLanguage = rawCommand && (
@@ -65,6 +78,7 @@ Agents:
 Options:
   -v, --version                  Show version
   -h, --help                     Show help
+  --dev                          Use local development servers
 
 Examples:
   graphyn backend "add auth"     Backend development
@@ -87,8 +101,11 @@ const isBuilderMode = !normalizedCommand;
 const isWarp = process.env.TERM_PROGRAM === 'WarpTerminal';
 
 // Debug output for terminal detection
-if (process.env.DEBUG_GRAPHYN) {
+if (process.env.DEBUG_GRAPHYN || true) {
   console.log('Terminal Debug Info:');
+  console.log('- rawCommand:', rawCommand);
+  console.log('- normalizedCommand:', normalizedCommand);
+  console.log('- isBuilderMode:', isBuilderMode);
   console.log('- TTY:', process.stdin.isTTY ? 'YES' : 'NO');
   console.log('- TERM_PROGRAM:', process.env.TERM_PROGRAM || 'none');
   console.log('- Is Warp:', isWarp ? 'YES' : 'NO');

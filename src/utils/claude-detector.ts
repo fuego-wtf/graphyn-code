@@ -29,4 +29,34 @@ export async function detectClaude(): Promise<boolean> {
     return false;
   }
 }
-EOF < /dev/null
+
+export interface ClaudeResult {
+  found: boolean;
+  path: string | null;
+}
+
+export async function findClaude(): Promise<ClaudeResult> {
+  try {
+    const { stdout } = await execAsync('which claude');
+    return { found: true, path: stdout.trim() };
+  } catch {
+    // Check common installation paths
+    const paths = [
+      '/usr/local/bin/claude',
+      '/usr/bin/claude',
+      '~/.local/bin/claude',
+      '/opt/claude/bin/claude'
+    ];
+    
+    for (const path of paths) {
+      try {
+        await execAsync(`test -f ${path}`);
+        return { found: true, path };
+      } catch {
+        // Continue checking
+      }
+    }
+    
+    return { found: false, path: null };
+  }
+}

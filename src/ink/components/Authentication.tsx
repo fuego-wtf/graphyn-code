@@ -7,7 +7,7 @@ import open from 'open';
 import crypto from 'crypto';
 import { useStore } from '../store.js';
 import { useAuth, useAPI } from '../hooks/useAPI.js';
-import { config as appConfig } from '../../config.js';
+import { config } from '../../config.js';
 import { generateState, waitForOAuthCallback, getAvailablePort, OAuthCallbackData } from '../utils/auth.js';
 import { getAccentColor, getDimColor } from '../theme/colors.js';
 
@@ -118,28 +118,68 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         .update(codeVerifier)
         .digest('base64url');
       
-      // Construct OAuth authorization URL - using app.graphyn.xyz for authentication
-      const authUrl = new URL('https://app.graphyn.xyz/auth');
-      authUrl.searchParams.set('client_id', 'graphyn-cli-official');
+      // Determine if we're in development mode
+      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
+      const clientId = 'graphyn-cli-official';
+      
+      // Construct OAuth authorization URL
+      const authUrl = new URL(`${apiUrl}/v1/auth/oauth/authorize`);
+      authUrl.searchParams.set('client_id', clientId);
       authUrl.searchParams.set('redirect_uri', redirectUri);
       authUrl.searchParams.set('state', state);
-      authUrl.searchParams.set('cli', 'true'); // Indicate this is a CLI auth request
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('scope', 'openid profile email agents:read agents:write threads:read threads:write organizations:read teams:read');
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('cli', 'true');
+      authUrl.searchParams.set('actual_port', port.toString());
+      
+      if (isDev) {
+        authUrl.searchParams.set('dev_mode', 'true');
+      }
       
       // Open browser
       await open(authUrl.toString());
       
-      // Wait for callback with token from cli.graphyn.xyz redirect
+      // Wait for callback with authorization code
       const callbackData = await waitForOAuthCallback(port, state);
       
-      // The callback will contain the token directly from cli.graphyn.xyz
-      const token = callbackData.code || callbackData.access_token;
+      console.log('OAuth callback received:', {
+        hasCode: !!callbackData.code,
+        hasToken: !!callbackData.token,
+        hasAccessToken: !!callbackData.access_token,
+        state: callbackData.state
+      });
       
-      if (!token) {
-        throw new Error('No authentication token received');
+      if (!callbackData.code) {
+        throw new Error('No authorization code received');
       }
       
-      // Store the token
-      await authenticate(token);
+      // Exchange authorization code for tokens using PKCE
+      const tokenResponse = await fetch(`${apiUrl}/v1/auth/oauth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          code: callbackData.code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          code_verifier: codeVerifier,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        throw new Error(`Token exchange failed: ${errorText}`);
+      }
+
+      const tokens = await tokenResponse.json() as { access_token: string; token_type: string; expires_in: number; scope: string };
+      
+      // Store the access token
+      await authenticate(tokens.access_token);
       
       // Fetch user's teams
       const teams = await api.listTeams();
@@ -199,7 +239,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       const port = await getAvailablePort();
       const state = generateState();
       const redirectUri = `http://localhost:${port}/callback`;
-      const authUrl = `${appConfig.apiBaseUrl}/api/connect/${provider}/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
+      const authUrl = `${config.apiBaseUrl}/api/connect/${provider}/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
       
       // Open browser
       await open(authUrl);

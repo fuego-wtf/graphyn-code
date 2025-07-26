@@ -15,8 +15,42 @@ export const generateState = (): string => {
 
 export const waitForOAuthCallback = (port: number, expectedState: string): Promise<OAuthCallbackData> => {
   return new Promise((resolve, reject) => {
+    const requestCount = new Map<string, number>();
+    
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      // Security: Only accept local connections
+      const remoteAddress = req.socket.remoteAddress;
+      if (remoteAddress !== '127.0.0.1' && remoteAddress !== '::1') {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      
+      // Security: Rate limiting
+      const clientIp = req.socket.remoteAddress || '';
+      const requests = requestCount.get(clientIp) || 0;
+      if (requests > 10) {
+        res.writeHead(429);
+        res.end('Too Many Requests');
+        return;
+      }
+      requestCount.set(clientIp, requests + 1);
+      
       const url = new URL(req.url || '', `http://localhost:${port}`);
+      
+      // Security: Strict path and method matching
+      if (url.pathname !== '/callback' || req.method !== 'GET') {
+        res.writeHead(404);
+        res.end('Not Found');
+        return;
+      }
+      
+      // Security headers
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'");
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Pragma', 'no-cache');
       
       if (url.pathname === '/callback') {
         const code = url.searchParams.get('code');
@@ -96,13 +130,18 @@ export const waitForOAuthCallback = (port: number, expectedState: string): Promi
       }
     });
     
-    server.listen(port);
+    // Security: Bind to localhost only
+    server.listen(port, '127.0.0.1', () => {
+      console.log(`OAuth callback server listening on http://127.0.0.1:${port}`);
+    });
     
-    // Timeout after 5 minutes
-    setTimeout(() => {
+    // Timeout after 2 minutes (not 5)
+    const timeout = setTimeout(() => {
       server.close();
       reject(new Error('Authentication timeout'));
-    }, 300000);
+    }, 120000);
+    
+    server.on('close', () => clearTimeout(timeout));
   });
 };
 

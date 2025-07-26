@@ -8,8 +8,15 @@ echo "🔨 Building Graphyn Code with Ink..."
 
 # Clean dist directory
 echo "🧹 Cleaning dist directory..."
-rm -rf dist
-mkdir -p dist
+if [ -d "dist" ]; then
+  if [ -w "dist" ]; then
+    rm -rf dist 2>/dev/null || true
+  else
+    echo "⚠️  Warning: dist directory is not writable. You may need to run: sudo rm -rf dist"
+    echo "   Attempting to continue with existing dist directory..."
+  fi
+fi
+mkdir -p dist 2>/dev/null || true
 
 # Compile TypeScript files - only ink directory and necessary dependencies
 echo "📦 Compiling TypeScript..."
@@ -39,9 +46,14 @@ cat > tsconfig.ink.json << 'EOF'
     "src/utils/claude-detector.ts",
     "src/utils/agent-config-manager.ts",
     "src/utils/git.ts",
-    "src/auth/oauth.ts",
+    "src/utils/context-detector.ts",
+    "src/utils/logger.ts",
+    "src/auth/**/*.ts",
     "src/api/teams.ts",
     "src/commands/squad.ts",
+    "src/cli/**/*.ts",
+    "src/cli/**/*.tsx",
+    "src/context/**/*.ts",
     "src/cli-main.ts"
   ],
   "exclude": [

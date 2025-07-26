@@ -2,14 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import axios from 'axios';
-import { AuthManager } from './auth';
-import { config } from './config';
+import { AuthManager } from './auth.js';
+import { config } from './config.js';
 import { 
   colors, 
   createDivider,
   agentThemes
-} from './ui';
-import { findClaude } from './utils/claude-detector';
+} from './ui.js';
+import { findClaude } from './utils/claude-detector.js';
 import { AgentPromptService } from './services/agent-prompt-service.js';
 
 export class AgentManager {
