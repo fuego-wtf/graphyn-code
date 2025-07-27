@@ -1,5 +1,5 @@
 import open from 'open';
-import { generateState, waitForOAuthCallback, getAvailablePort } from '../ink/utils/auth.js';
+import { generateState, waitForOAuthCallback } from '../ink/utils/auth.js';
 import { config } from '../config.js';
 import fs from 'fs';
 import path from 'path';
@@ -91,21 +91,20 @@ export class OAuthManager {
 
   async authenticate(): Promise<void> {
     try {
-      console.log(colors.info('🔐 Starting OAuth authentication...'));
       
       // Generate PKCE values
       this.pkceValues = this.generatePKCE();
       
-      // Get an available port for the callback server
-      const port = await getAvailablePort();
-      const actualRedirectUri = `http://localhost:${port}/callback`;
+      // Use fixed port 8989 for the callback server
+      const port = 8989;
+      const actualRedirectUri = `http://127.0.0.1:${port}/callback`;
       const state = generateState();
       
       // Build the authorization URL with PKCE
       const appUrl = process.env.GRAPHYN_APP_URL || config.appUrl || 'https://app.graphyn.xyz';
       const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
       
-      const authUrl = new URL(`${apiUrl}/v1/auth/oauth/authorize`);
+      const authUrl = new URL(`${appUrl}/auth`);
       authUrl.searchParams.set('client_id', this.clientId);
       authUrl.searchParams.set('redirect_uri', actualRedirectUri);
       authUrl.searchParams.set('state', state);
@@ -115,27 +114,24 @@ export class OAuthManager {
       authUrl.searchParams.set('code_challenge_method', this.pkceValues.method);
       authUrl.searchParams.set('cli', 'true');
       authUrl.searchParams.set('actual_port', port.toString());
+      authUrl.searchParams.set('prompt', 'consent');
       
       const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
       if (isDev) {
         authUrl.searchParams.set('dev_mode', 'true');
       }
       
-      console.log(colors.info(`Opening browser for authentication...`));
-      console.log(colors.info(`If the browser doesn't open, visit: ${authUrl.toString()}`));
       
       // Open the browser
       await open(authUrl.toString());
       
       // Wait for the callback
-      console.log(colors.info('Waiting for authentication...'));
       const callbackData = await waitForOAuthCallback(port, state);
       
       if (!callbackData.code) {
         throw new Error('No authorization code received');
       }
       
-      console.log(colors.success('✓ Authorization code received'));
       
       // Exchange the code for tokens
       const tokens = await this.exchangeCodeForToken(callbackData.code, actualRedirectUri);
@@ -143,8 +139,6 @@ export class OAuthManager {
       // Store the tokens
       await this.storeTokens(tokens);
       
-      console.log(colors.success('✓ Authentication successful!'));
-      console.log(colors.info('You can now use Graphyn Code to create AI development squads.'));
       
     } catch (error) {
       console.error(colors.error('Authentication failed:'), error);
@@ -153,8 +147,6 @@ export class OAuthManager {
   }
 
   private async exchangeCodeForToken(code: string, redirectUri: string): Promise<OAuthToken> {
-    console.log(colors.info('Exchanging authorization code for access token...'));
-    console.log(colors.info(`Code: ${code.substring(0, 20)}...`));
     
     if (!this.pkceValues) {
       throw new Error('PKCE values not generated');
@@ -187,7 +179,6 @@ export class OAuthManager {
     }, {
       maxAttempts: 3,
       onRetry: (error, attempt) => {
-        console.log(colors.warning(`Retrying token exchange (attempt ${attempt}/3)...`));
       }
     });
   }
@@ -225,7 +216,6 @@ export class OAuthManager {
         fs.unlinkSync(this.authFilePath);
       }
     } catch (error) {
-      console.error(colors.warning('Failed to use secure storage, falling back to file storage'));
       // Fallback to file storage
       fs.writeFileSync(this.authFilePath, JSON.stringify(authData, null, 2), { mode: 0o600 });
     }
@@ -260,13 +250,11 @@ export class OAuthManager {
       
       return this.refreshPromise;
     } catch (error) {
-      console.error(colors.error('Failed to refresh token:'), error);
       return null;
     }
   }
   
   private async performTokenRefresh(authData: any): Promise<string | null> {
-    console.log(colors.info('Refreshing access token...'));
     
     return withRetry(async () => {
       const response = await fetch(`${config.apiBaseUrl}/v1/auth/oauth/token`, {
@@ -310,7 +298,6 @@ export class OAuthManager {
       delay: 1000,
       backoff: 2,
       onRetry: (error, attempt) => {
-        console.log(colors.warning(`Token refresh attempt ${attempt} failed: ${error.message}`));
       }
     });
   }
@@ -319,30 +306,20 @@ export class OAuthManager {
     const platform = os.platform();
     
     try {
-      console.log(colors.info('Opening browser for authentication...'));
       
       // Try to open with default browser
       await open(url, {
         wait: false,
       });
       
-      console.log(colors.success('✓ Opened browser'));
       
     } catch (error) {
       // Fallback strategies
-      console.log(colors.warning('\n⚠️  Could not open browser automatically'));
-      console.log(colors.info('\nPlease authenticate using one of these methods:\n'));
       
       // Method 1: Copy URL
-      console.log(colors.info('1. Open this URL in your browser:'));
-      console.log(chalk.bold(`   ${url}\n`));
       
       // For SSH/headless environments
       if (!process.env.DISPLAY && platform === 'linux') {
-        console.log(colors.info('\nDetected headless environment.'));
-        console.log(colors.info('You can:'));
-        console.log(colors.info('1. Copy the URL and open it on your local machine'));
-        console.log(colors.info(`2. Use SSH port forwarding: ssh -L ${options.port}:localhost:${options.port} user@server\n`));
       }
     }
   }
@@ -386,7 +363,6 @@ export class OAuthManager {
           try {
             await this.secureStorageV2.store(secureData, context);
             await this.secureStorage.clear();
-            console.log(colors.info('Migrated tokens to new secure storage'));
           } catch (error) {
             console.debug('Failed to migrate to v2 storage:', error);
           }
@@ -406,7 +382,6 @@ export class OAuthManager {
             await this.secureStorage.store(fileData);
           }
           fs.unlinkSync(this.authFilePath);
-          console.log(colors.info('Migrated tokens to secure storage'));
         } catch (error) {
           console.error(colors.warning('Failed to migrate to secure storage'));
         }
@@ -446,9 +421,7 @@ export class OAuthManager {
         fs.unlinkSync(this.authFilePath);
       }
       
-      console.log(colors.success('✓ Logged out successfully'));
     } catch (error) {
-      console.error(colors.error('Failed to logout'));
     }
   }
 }

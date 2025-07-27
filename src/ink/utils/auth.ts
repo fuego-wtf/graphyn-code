@@ -132,7 +132,6 @@ export const waitForOAuthCallback = (port: number, expectedState: string): Promi
     
     // Security: Bind to localhost only
     server.listen(port, '127.0.0.1', () => {
-      console.log(`OAuth callback server listening on http://127.0.0.1:${port}`);
     });
     
     // Timeout after 2 minutes (not 5)

@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { useStore } from '../store.js';
 import { useAuth, useAPI } from '../hooks/useAPI.js';
 import { config } from '../../config.js';
-import { generateState, waitForOAuthCallback, getAvailablePort, OAuthCallbackData } from '../utils/auth.js';
+import { generateState, waitForOAuthCallback, OAuthCallbackData } from '../utils/auth.js';
 import { getAccentColor, getDimColor } from '../theme/colors.js';
 
 type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service' | 'team-selection';
@@ -24,9 +24,10 @@ interface AuthState {
 
 interface AuthenticationProps {
   returnToBuilder?: boolean;
+  isDev?: boolean;
 }
 
-export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder = false }) => {
+export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder = false, isDev = false }) => {
   const { exit } = useApp();
   const { reset, setMode } = useStore();
   const { isAuthenticated, user, authenticate, getTestToken, logout } = useAuth();
@@ -107,7 +108,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
     }));
     
     try {
-      const port = await getAvailablePort();
+      const port = 8989; // Fixed OAuth callback port
       const state = generateState();
       const redirectUri = `http://localhost:${port}/callback`;
       
@@ -118,13 +119,13 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         .update(codeVerifier)
         .digest('base64url');
       
-      // Determine if we're in development mode
+      // Determine URLs based on environment
       const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
-      const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
+      const appUrl = process.env.GRAPHYN_APP_URL || config.appUrl || 'https://app.graphyn.xyz';
       const clientId = 'graphyn-cli-official';
       
-      // Construct OAuth authorization URL
-      const authUrl = new URL(`${apiUrl}/v1/auth/oauth/authorize`);
+      // Construct OAuth authorization URL - use app URL for OAuth flow
+      const authUrl = new URL(`${appUrl}/auth`);
       authUrl.searchParams.set('client_id', clientId);
       authUrl.searchParams.set('redirect_uri', redirectUri);
       authUrl.searchParams.set('state', state);
@@ -134,8 +135,10 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       authUrl.searchParams.set('code_challenge_method', 'S256');
       authUrl.searchParams.set('cli', 'true');
       authUrl.searchParams.set('actual_port', port.toString());
+      authUrl.searchParams.set('prompt', 'consent');
       
-      if (isDev) {
+      // Use the isDev prop passed from CLI
+      if (isDev || apiUrl.includes('localhost') || process.env.NODE_ENV === 'development') {
         authUrl.searchParams.set('dev_mode', 'true');
       }
       
@@ -145,12 +148,6 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       // Wait for callback with authorization code
       const callbackData = await waitForOAuthCallback(port, state);
       
-      console.log('OAuth callback received:', {
-        hasCode: !!callbackData.code,
-        hasToken: !!callbackData.token,
-        hasAccessToken: !!callbackData.access_token,
-        state: callbackData.state
-      });
       
       if (!callbackData.code) {
         throw new Error('No authorization code received');
@@ -236,7 +233,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
     }));
     
     try {
-      const port = await getAvailablePort();
+      const port = 8989; // Fixed OAuth callback port
       const state = generateState();
       const redirectUri = `http://localhost:${port}/callback`;
       const authUrl = `${config.apiBaseUrl}/api/connect/${provider}/authorize?cli=true&state=${state}&redirect=${encodeURIComponent(redirectUri)}`;
