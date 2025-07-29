@@ -101,8 +101,13 @@ export class OAuthManager {
       const state = generateState();
       
       // Build the authorization URL with PKCE
-      const appUrl = process.env.GRAPHYN_APP_URL || config.appUrl || 'https://app.graphyn.xyz';
       const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      
+      // In development mode, use localhost:3000 for frontend
+      const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
+      const appUrl = isDev 
+        ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
+        : (process.env.GRAPHYN_APP_URL || config.appUrl || 'https://app.graphyn.xyz');
       
       const authUrl = new URL(`${appUrl}/auth`);
       authUrl.searchParams.set('client_id', this.clientId);
@@ -116,7 +121,7 @@ export class OAuthManager {
       authUrl.searchParams.set('actual_port', port.toString());
       authUrl.searchParams.set('prompt', 'consent');
       
-      const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
+      // Always set dev_mode when using localhost
       if (isDev) {
         authUrl.searchParams.set('dev_mode', 'true');
       }
@@ -139,6 +144,8 @@ export class OAuthManager {
       // Store the tokens
       await this.storeTokens(tokens);
       
+      // After successful authentication
+      console.log(colors.success('✓ Authentication successful!'));
       
     } catch (error) {
       console.error(colors.error('Authentication failed:'), error);
@@ -153,7 +160,7 @@ export class OAuthManager {
     }
     
     return withRetry(async () => {
-      const response = await fetch(`${config.apiBaseUrl}/v1/auth/oauth/token`, {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,14 +235,8 @@ export class OAuthManager {
         return null;
       }
 
-      // Proactive refresh (5 minutes before expiry)
-      const expiryTime = new Date(authData.expiresAt).getTime();
-      const bufferTime = 5 * 60 * 1000; // 5 minutes
-      const shouldRefresh = Date.now() + bufferTime >= expiryTime;
-      
-      if (!shouldRefresh) {
-        return authData.apiKey;
-      }
+      // Always try to refresh when this method is called
+      // (getValidToken already checks if refresh is needed)
 
       // Check if already refreshing (prevent concurrent refreshes)
       if (this.refreshPromise) {
@@ -255,9 +256,9 @@ export class OAuthManager {
   }
   
   private async performTokenRefresh(authData: any): Promise<string | null> {
-    
-    return withRetry(async () => {
-      const response = await fetch(`${config.apiBaseUrl}/v1/auth/oauth/token`, {
+    try {
+      return await withRetry(async () => {
+      const response = await fetch(`${config.apiBaseUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -280,26 +281,41 @@ export class OAuthManager {
         }
         
         // Handle specific errors
-        if (errorData.error === 'invalid_grant') {
-          // Refresh token expired, need re-authentication
+        if (errorData.error === 'invalid_grant' || errorData.error === 'unauthorized_client') {
+          // Refresh token expired or invalid, need re-authentication
           await this.logout();
           throw new Error('Session expired. Please authenticate again.');
         }
         
-        throw new Error(`Token refresh failed: ${errorData.error_description || errorData.error}`);
+        if (errorData.error === 'temporarily_unavailable') {
+          // Server is temporarily unavailable, might be rate limiting
+          throw new Error('Authentication server is temporarily unavailable. Please try again in a few moments.');
+        }
+        
+        // Log the full error for debugging
+        console.debug('Token refresh error:', errorData);
+        
+        throw new Error(`Token refresh failed: ${errorData.error_description || errorData.error || 'Unknown error'}`);
       }
 
       const tokens = await response.json() as OAuthToken;
       await this.storeTokens(tokens);
       
       return tokens.access_token;
-    }, {
-      maxAttempts: 3,
-      delay: 1000,
-      backoff: 2,
-      onRetry: (error, attempt) => {
-      }
-    });
+      }, {
+        maxAttempts: 3,
+        delay: 1000,
+        backoff: 2,
+        onRetry: (error, attempt) => {
+          console.debug(`Token refresh attempt ${attempt}/3 failed:`, error instanceof Error ? error.message : error);
+        }
+      });
+    } catch (error) {
+      // If all retries fail, clear the stored token and return null
+      console.error(colors.error('All token refresh attempts failed'));
+      await this.logout();
+      throw error;
+    }
   }
   
   private async openAuthUrl(url: string, options: { port: number; state: string }): Promise<void> {
@@ -332,7 +348,31 @@ export class OAuthManager {
 
     // For OAuth tokens, check expiry and refresh if needed
     if (authData.authType === 'oauth') {
-      return await this.refreshToken();
+      try {
+        // Check if token is still valid
+        const expiryTime = new Date(authData.expiresAt).getTime();
+        const bufferTime = 5 * 60 * 1000; // 5 minutes buffer
+        const isExpired = Date.now() + bufferTime >= expiryTime;
+        
+        if (!isExpired) {
+          // Token is still valid, return it
+          return authData.accessToken || authData.apiKey;
+        }
+        
+        // Token is expired or about to expire, try to refresh
+        if (authData.refreshToken) {
+          const newToken = await this.refreshToken();
+          if (newToken) {
+            return newToken;
+          }
+        }
+        
+        // If refresh fails or no refresh token, return null
+        return null;
+      } catch (error) {
+        console.error(colors.error('Token validation failed:'), error instanceof Error ? error.message : error);
+        return null;
+      }
     }
 
     // For API keys, just return them
@@ -396,8 +436,28 @@ export class OAuthManager {
   }
 
   async isAuthenticated(): Promise<boolean> {
-    const authData = await this.loadAuthData();
-    return authData && authData.valid && authData.apiKey;
+    try {
+      const authData = await this.loadAuthData();
+      if (!authData || !authData.valid || !authData.apiKey) {
+        return false;
+      }
+      
+      // For OAuth tokens, check if they're expired
+      if (authData.authType === 'oauth' && authData.expiresAt) {
+        const expiryTime = new Date(authData.expiresAt).getTime();
+        const isExpired = Date.now() >= expiryTime;
+        
+        // If expired but we have a refresh token, we're still "authenticated"
+        // (getValidToken will handle the refresh)
+        if (isExpired && !authData.refreshToken) {
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   async logout(context: string = 'default'): Promise<void> {

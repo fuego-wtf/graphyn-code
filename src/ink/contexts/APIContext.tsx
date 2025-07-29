@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { GraphynAPIClient, Thread, Agent, AuthResponse, Team, Squad, CreateSquadRequest } from '../../api-client.js';
+import { GraphynAPIClient, Thread, Agent, AuthResponse, Squad, CreateSquadRequest } from '../../api-client.js';
 import { ConfigManager } from '../../config-manager.js';
 import { config as appConfig } from '../../config.js';
 import { tokenManager } from '../../utils/token-manager.js';
@@ -35,12 +35,9 @@ interface APIContextValue {
     delete: (id: string) => Promise<void>;
   };
   
-  // Team methods
-  listTeams: () => Promise<Team[]>;
-  getTeam: (id: string) => Promise<Team>;
   
   // Squad methods
-  listSquads: (teamId?: string) => Promise<Squad[]>;
+  listSquads: () => Promise<Squad[]>;
   createSquad: (data: CreateSquadRequest) => Promise<Squad>;
   getSquad: (id: string) => Promise<Squad>;
   updateSquad: (id: string, data: Partial<CreateSquadRequest>) => Promise<Squad>;
@@ -251,21 +248,10 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     return client.delete<T>(endpoint);
   };
 
-  // Team methods
-  const listTeams = async (): Promise<Team[]> => {
-    if (!client) throw new Error('API client not initialized');
-    return client.listTeams();
-  };
-
-  const getTeam = async (id: string): Promise<Team> => {
-    if (!client) throw new Error('API client not initialized');
-    return client.getTeam(id);
-  };
-
   // Squad methods
-  const listSquads = async (teamId?: string): Promise<Squad[]> => {
+  const listSquads = async (): Promise<Squad[]> => {
     if (!client) throw new Error('API client not initialized');
-    return client.listSquads(teamId);
+    return client.listSquads();
   };
 
   const createSquad = async (data: CreateSquadRequest): Promise<Squad> => {
@@ -304,8 +290,6 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     logout,
     threads,
     agents,
-    listTeams,
-    getTeam,
     listSquads,
     createSquad,
     getSquad,

@@ -8,7 +8,8 @@ import { useStore } from '../store.js';
 import { ConfigManager } from '../../config-manager.js';
 import { useClaude } from '../hooks/useClaude.js';
 import { getAccentColor, getDimColor, getErrorColor, getSuccessColor } from '../theme/colors.js';
-import { Team, Squad, Agent } from '../../api-client.js';
+import { Squad as APISquad, Agent } from '../../api-client.js';
+import { Squad } from '../../api/squads.js';
 
 type BuilderStep = 'loading' | 'team-check' | 'squad-create' | 'agent-select' | 'launching';
 
@@ -23,7 +24,7 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({ query }) => {
   const { setMode } = useStore();
   const { launchClaude } = useClaude();
   const [step, setStep] = useState<BuilderStep>('loading');
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [selectedSquad, setSelectedSquad] = useState<Squad | null>(null);
   const [squadName, setSquadName] = useState('');
   const [availableAgents, setAvailableAgents] = useState<Agent[]>([]);
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
@@ -46,10 +47,10 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({ query }) => {
     try {
       setLoading(true);
       const configManager = new ConfigManager();
-      const savedTeam = await configManager.get('auth.team') as Team | null;
+      const savedSquad = await configManager.get('auth.squad') as Squad | null;
       
-      if (savedTeam) {
-        setSelectedTeam(savedTeam);
+      if (savedSquad) {
+        setSelectedSquad(savedSquad);
         setStep('squad-create');
       } else {
         // No team selected, redirect to auth to select team
@@ -63,7 +64,7 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({ query }) => {
   };
 
   const handleSquadNameSubmit = async (name: string) => {
-    if (!name.trim() || !selectedTeam) return;
+    if (!name.trim() || !selectedSquad) return;
     
     setSquadName(name);
     setLoading(true);
@@ -116,14 +117,13 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({ query }) => {
   };
 
   const createSquadAndLaunch = async (name: string, agentIds: string[], repoUrl?: string) => {
-    if (!selectedTeam) throw new Error('No team selected');
+    if (!selectedSquad) throw new Error('No squad selected');
     
     setStep('launching');
     
     // Create the squad
     const squad = await api.createSquad({
       name,
-      team_id: selectedTeam.id,
       repository_url: repoUrl,
       agents: agentIds
     });
@@ -133,7 +133,7 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({ query }) => {
     await configManager.set('current.squad', squad);
     
     // Generate context for Claude
-    const context = generateSquadContext(squad, selectedTeam, query);
+    const context = generateSquadContext(squad, selectedSquad, query);
     
     // Launch Claude with the context
     await launchClaude({
@@ -155,14 +155,14 @@ export const SquadBuilder: React.FC<SquadBuilderProps> = ({ query }) => {
     }
   };
 
-  const generateSquadContext = (squad: Squad, team: Team, userQuery: string): string => {
+  const generateSquadContext = (squad: APISquad, workspace: Squad, userQuery: string): string => {
     const agentList = selectedAgents.length > 0 
       ? `with ${selectedAgents.length} agents configured`
       : 'with no agents yet';
     
     return `# Graphyn Squad Context
 
-**Team**: ${team.name}
+**Workspace**: ${workspace.name}
 **Squad**: ${squad.name}
 **Repository**: ${squad.repository_url || 'Not connected'}
 **Status**: Squad created ${agentList}
@@ -194,7 +194,7 @@ Please help them with their request while keeping in mind the squad context.`;
     case 'squad-create':
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold color="cyan">🚀 Create Squad for {selectedTeam?.name}</Text>
+          <Text bold color="cyan">🚀 Create Squad for {selectedSquad?.name}</Text>
           
           <Box marginTop={1}>
             <Text>Name your squad (e.g., "Backend API", "Frontend UI"):</Text>

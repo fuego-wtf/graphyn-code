@@ -46,7 +46,7 @@ export interface Agent {
     context?: Record<string, any>;
   };
   organization_id?: string;
-  team_id?: string;
+  squad_id?: string;
 }
 
 export interface AgentAvailableResponse {
@@ -73,27 +73,29 @@ export interface RepositoryContext {
   language?: string;
 }
 
-export interface Team {
+// Organization/Team - workspace where users belong
+export interface Organization {
   id: string;
   name: string;
-  organization_id: string;
-  created_at: string;
-  updated_at: string;
+  slug: string;
+  created_at: string | Date;
+  owner_id: string;
 }
 
+// Squad - a group of agents for a specific project
 export interface Squad {
   id: string;
   name: string;
-  team_id: string;
+  description?: string;
+  organization_id: string;
   repository_url?: string;
-  agents: string[];
-  created_at: string;
-  updated_at: string;
+  agents: Agent[];
+  created_at: string | Date;
+  updated_at?: string;
 }
 
 export interface CreateSquadRequest {
   name: string;
-  team_id: string;
   repository_url?: string;
   agents?: string[];
 }
@@ -160,7 +162,7 @@ export class GraphynAPIClient {
 
   // Authentication
   async getTestToken(): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/test-token', {
+    return this.request<AuthResponse>('/api/auth/test-token', {
       method: 'POST',
       body: JSON.stringify({}),
     });
@@ -191,6 +193,13 @@ export class GraphynAPIClient {
     });
   }
 
+  async sendMessage(threadId: string, message: { content: string; role: 'user' | 'assistant' }): Promise<void> {
+    await this.request<void>(`/api/threads/${threadId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(message),
+    });
+  }
+
   // SSE Streaming
   streamThread(threadId: string): EventSource {
     if (!this.token) {
@@ -212,7 +221,7 @@ export class GraphynAPIClient {
 
   // Health Check
   async ping(): Promise<{ status: string }> {
-    return this.request<{ status: string }>('/ping');
+    return this.request<{ status: string }>('/api/ping');
   }
   
   // API Key Validation
@@ -309,7 +318,7 @@ export class GraphynAPIClient {
     });
   }
 
-  async shareAgent(agentId: string, shareWith: 'team' | 'organization'): Promise<{ shareUrl: string }> {
+  async shareAgent(agentId: string, shareWith: 'squad' | 'organization'): Promise<{ shareUrl: string }> {
     return this.request<{ shareUrl: string }>(`/api/agents/${agentId}/share`, {
       method: 'POST',
       body: JSON.stringify({ shareWith }),
@@ -324,25 +333,17 @@ export class GraphynAPIClient {
     return response.agent;
   }
 
-  // Team Management
-  async listTeams(): Promise<Team[]> {
-    const response = await this.request<{ teams: Team[] }>('/v1/auth/teams');
-    return response.teams;
+
+  // Organization Management
+  async listOrganizations(): Promise<Organization[]> {
+    const response = await this.request<{ teams: Organization[] }>('/api/teams');
+    return response.teams || [];
   }
 
-  async getTeam(teamId: string): Promise<Team> {
-    const response = await this.request<{ team: Team }>(`/api/teams/${teamId}`);
-    return response.team;
-  }
-
-  // Squad Management
-  async listSquads(teamId?: string): Promise<Squad[]> {
-    let endpoint = '/api/squads';
-    if (teamId) {
-      endpoint += `?team_id=${teamId}`;
-    }
-    const response = await this.request<{ squads: Squad[] }>(endpoint);
-    return response.squads;
+  // Squad Management - squads don't exist yet, they're created via /ask endpoint
+  async listSquads(organizationId?: string): Promise<Squad[]> {
+    // For now, return empty array as squads are created on-demand
+    return [];
   }
 
   async createSquad(data: CreateSquadRequest): Promise<Squad> {

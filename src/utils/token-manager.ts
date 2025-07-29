@@ -81,7 +81,7 @@ export class TokenManager {
   private async refreshToken(refreshToken: string): Promise<string | null> {
     try {
       const apiUrl = process.env.GRAPHYN_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/v1/auth/oauth/token`, {
+      const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

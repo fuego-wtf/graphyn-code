@@ -11,7 +11,7 @@ import { config } from '../../config.js';
 import { generateState, waitForOAuthCallback, OAuthCallbackData } from '../utils/auth.js';
 import { getAccentColor, getDimColor } from '../theme/colors.js';
 
-type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service' | 'team-selection';
+type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service' | 'squad-selection';
 
 interface AuthState {
   mode: AuthMode;
@@ -19,7 +19,7 @@ interface AuthState {
   error?: string;
   apiKeyInput: string;
   oauthProvider?: 'github' | 'figma';
-  teams?: Array<{ id: string; name: string }>;
+  squads?: Array<{ id: string; name: string }>;
 }
 
 interface AuthenticationProps {
@@ -154,7 +154,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       }
       
       // Exchange authorization code for tokens using PKCE
-      const tokenResponse = await fetch(`${apiUrl}/v1/auth/oauth/token`, {
+      const tokenResponse = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,25 +178,26 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
       // Store the access token
       await authenticate(tokens.access_token);
       
-      // Fetch user's teams
-      const teams = await api.listTeams();
+      // Fetch user's squads
+      const squads = await api.listSquads();
       
-      if (teams.length > 1) {
-        // Show team selection
+      if (squads.length > 1) {
+        // Show squad selection
         setState(prev => ({
           ...prev,
           loading: false,
-          mode: 'team-selection',
-          teams
+          mode: 'squad-selection',
+          squads
         }));
-        return; // Exit early for team selection
-      } else if (teams.length === 1) {
-        // Auto-select single team
+        return; // Exit early for squad selection
+      } else if (squads.length === 1) {
+        // Auto-select single squad
         const { ConfigManager } = await import('../../config-manager.js');
         const configManager = new ConfigManager();
-        await configManager.set('auth.team', teams[0]);
+        await configManager.set('auth.squad', squads[0]);
       } else {
-        throw new Error('No teams found for user');
+        // No squads found, but that's okay - user can create one later
+        console.log('No squads found for user');
       }
       
       setState(prev => ({
@@ -343,16 +344,16 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
     }
   };
 
-  const handleTeamSelect = async (teamId: string) => {
+  const handleSquadSelect = async (squadId: string) => {
     try {
       setState(prev => ({ ...prev, loading: true }));
       
-      // Store selected team
-      const team = state.teams?.find(t => t.id === teamId);
-      if (team) {
+      // Store selected squad
+      const squad = state.squads?.find(s => s.id === squadId);
+      if (squad) {
         const { ConfigManager } = await import('../../config-manager.js');
         const configManager = new ConfigManager();
-        await configManager.set('auth.team', team);
+        await configManager.set('auth.squad', squad);
       }
       
       setState(prev => ({
@@ -580,10 +581,10 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         </Box>
       );
 
-    case 'team-selection':
+    case 'squad-selection':
       return (
         <Box flexDirection="column" padding={1}>
-          <Text bold color="cyan">▶ Select Team</Text>
+          <Text bold color="cyan">▶ Select Squad</Text>
           {state.error && (
             <Box marginTop={1}>
               <Text color="red">⚠ {state.error}</Text>
@@ -591,16 +592,16 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
           )}
           
           <Box marginTop={1}>
-            <Text>Which team is this repository for?</Text>
+            <Text>Which squad is this repository for?</Text>
           </Box>
           
           <Box marginTop={1}>
             <SelectInput
-              items={state.teams?.map(team => ({
-                label: team.name,
-                value: team.id
+              items={state.squads?.map(squad => ({
+                label: squad.name,
+                value: squad.id
               })) || []}
-              onSelect={(item) => handleTeamSelect(item.value)}
+              onSelect={(item) => handleSquadSelect(item.value)}
             />
           </Box>
           

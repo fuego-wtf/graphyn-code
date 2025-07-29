@@ -184,7 +184,7 @@ message_delivery: "< 100ms"
 agent_join_leave: "< 1 second"
 ```
 
-### Team Preferences
+### Squad Preferences
 - **Code Review**: All code must be reviewed before merging
 - **Testing**: Minimum 80% test coverage required
 - **Documentation**: All APIs must have OpenAPI specs
@@ -213,7 +213,7 @@ docs(readme): update installation instructions
 - **Editor**: VS Code with recommended extensions
 - **Linting**: ESLint + Prettier
 - **Type Checking**: TypeScript strict mode
-- **Package Manager**: npm (consistent across team)
+- **Package Manager**: npm (consistent across squad)
 
 ## 🔒 Security Guidelines
 
@@ -261,7 +261,7 @@ docs(readme): update installation instructions
 ### Communication
 - **Code Reviews**: GitHub/GitLab
 - **Project Management**: Linear/Notion
-- **Team Chat**: Slack/Discord
+- **Squad Chat**: Slack/Discord
 - **Documentation**: Confluence/Notion
 
 ## 📝 Documentation Standards
@@ -320,7 +320,7 @@ letta_learnings:
 sse_learnings:
   - "Auto-reconnection essential for reliability"
   - "Message buffering during disconnection"
-  - "Event types must be consistent across teams"
+  - "Event types must be consistent across squads"
   - "First token latency critical for UX"
 
 # Thread System
@@ -348,7 +348,7 @@ gotchas:
     solution: "Always filter by org_id in queries"
 ```
 
-### Team Task Tracking
+### Squad Task Tracking
 ```yaml
 # Current Sprint Tasks
 backend_tasks:
@@ -358,7 +358,7 @@ backend_tasks:
     
   - status: "in_progress"
     task: "Thread database schema"
-    assignee: "backend_team"
+    assignee: "backend_squad"
     
 frontend_tasks:
   - status: "pending"
@@ -368,7 +368,7 @@ frontend_tasks:
 cli_tasks:
   - status: "in_progress"
     task: "Project memory management"
-    assignee: "cli_team"
+    assignee: "cli_squad"
 ```
 
 ---

@@ -1,14 +1,22 @@
+// Detect development mode based on API URL
+const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
+
 export const config = {
   // API endpoints
-  apiBaseUrl: process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz',
-  appUrl: process.env.GRAPHYN_APP_URL || 'https://app.graphyn.xyz',
-  codeApiUrl: process.env.GRAPHYN_CODE_API_URL || 'https://code.graphyn.xyz',
+  apiBaseUrl: apiUrl,
+  appUrl: isDev 
+    ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
+    : (process.env.GRAPHYN_APP_URL || 'https://app.graphyn.xyz'),
+  codeApiUrl: isDev 
+    ? (process.env.GRAPHYN_CODE_API_URL || apiUrl) // Use main API in development
+    : (process.env.GRAPHYN_CODE_API_URL || 'https://code.graphyn.xyz'),
   
   // Auth endpoints
-  authEndpoint: '/auth/validate',
-  agentsEndpoint: '/agents',
-  teamsEndpoint: '/api/teams',
-  squadAskEndpoint: '/ask',
+  authEndpoint: '/api/auth/validate',
+  agentsEndpoint: '/api/agents',
+  squadsEndpoint: '/api/teams', // Backend endpoint that returns organizations/squads
+  squadAskEndpoint: '/api/code/ask',
   
   // Client configuration
   timeout: 30000,

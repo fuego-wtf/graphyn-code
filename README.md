@@ -1,6 +1,6 @@
 # Graphyn Code
 
-> **Your AI development team, one command away.**
+> **Your AI development squad, one command away.**
 
 [![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -151,7 +151,7 @@ graphyn agent deploy abc123
 
 This is the future of development: AI that truly understands your project.
 
-## Your AI Development Team
+## Your AI Development Squad
 
 ### 🔧 Backend Agent
 Expert in APIs, databases, and server architecture. Knows Encore.ts, Node.js, and cloud patterns.
@@ -240,7 +240,7 @@ Now every agent knows your project's DNA.
 ## Coming Soon
 
 - **Context Evolution**: Graphyn learns from Claude's work
-- **Team Sync**: Share knowledge across your organization
+- **Squad Sync**: Share knowledge across your organization
 - **Pattern Recognition**: Detect and suggest improvements
 - **Sleep-time Compute**: AI improves while you rest
 

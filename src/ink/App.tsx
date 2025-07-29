@@ -10,10 +10,15 @@ import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { TerminalFrame } from './components/TerminalFrame.js';
 import { SquadBuilder } from './components/SquadBuilder.js';
+import { SquadBuilderWithFlow } from './components/SquadBuilderWithFlow.js';
+import { useAPI } from './hooks/useAPI.js';
+import { AutoSetup } from './components/AutoSetup.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
 import { useStore, AppMode } from './store.js';
 import { initGraphynFolder } from '../utils/graphyn-folder.js';
+import { runDoctor } from '../utils/doctor.js';
 import { AGENT_TYPES, isAgentType } from '../constants/agents.js';
+import { ConfigManager } from '../config-manager.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -47,6 +52,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
   // Auto-initialize .graphyn folder on startup
+  // Check if first run
+  const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  
   useEffect(() => {
     const checkAndInitialize = async () => {
       try {
@@ -56,9 +65,25 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
           await initGraphynFolder();
         }
         setIsInitialized(true);
+        
+        // Check if this is first run (no global config)
+        const configPath = path.join(process.env.HOME || '', '.graphyn', 'config.json');
+        const firstRun = !fs.existsSync(configPath);
+        setIsFirstRun(firstRun);
+        
+        // Run doctor check if first run and not direct command
+        if (firstRun && !isDirectAgentCommand) {
+          const doctorResult = await runDoctor();
+          setNeedsSetup(doctorResult.needsClaudeCode || !doctorResult.canProceed);
+          
+          // Show setup mode for first run
+          if (!command && !query) {
+            setMode('setup' as AppMode);
+          }
+        }
       } catch (error) {
         // Silently handle errors - don't block the app
-        console.error('Failed to initialize .graphyn folder:', error);
+        console.error('Failed to initialize:', error);
       } finally {
         setIsInitializing(false);
       }
@@ -239,7 +264,7 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         return <Loading message="Logging out from Figma..." />;
       
       case 'squad':
-        return <SquadBuilder query={query || ''} />;
+        return <SquadBuilderWithFlow query={query || ''} />;
         
       case 'builder':
         // Dynamic import to avoid circular dependencies
@@ -253,6 +278,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       case 'builder-auth':
         // Show auth flow specifically for builder mode
         return <Authentication returnToBuilder={true} />;
+      
+      case 'setup':
+        // Auto-setup flow for first run
+        return <AutoSetup onComplete={() => setMode('menu')} />;
       
       default:
         return null;

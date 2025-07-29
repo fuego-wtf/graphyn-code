@@ -77,7 +77,7 @@ export class AgentPromptService {
       }
       
       // Fetch from API
-      const response = await this.apiClient!.get(`/v1/agents/${type}/prompt`);
+      const response = await this.apiClient!.get(`/api/agents/${type}/prompt`);
       
       if (response.data?.content) {
         // Cache the prompt
@@ -154,7 +154,7 @@ export class AgentPromptService {
     // Try to get dynamic types from API
     if (await this.initApiClient()) {
       try {
-        const response = await this.apiClient!.get('/v1/agents');
+        const response = await this.apiClient!.get('/api/agents');
         if (response.data?.agents) {
           const dynamicTypes = response.data.agents.map((a: any) => a.type);
           // Merge with local types (unique)
@@ -191,12 +191,12 @@ export class AgentPromptService {
     }
     
     try {
-      const response = await this.apiClient!.get('/v1/agents');
+      const response = await this.apiClient!.get('/api/agents');
       if (!response.data?.agents) return;
       
       for (const agent of response.data.agents) {
         try {
-          const promptResponse = await this.apiClient!.get(`/v1/agents/${agent.type}/prompt`);
+          const promptResponse = await this.apiClient!.get(`/api/agents/${agent.type}/prompt`);
           if (promptResponse.data?.content) {
             this.cachePrompt(agent.type, promptResponse.data.content);
           }

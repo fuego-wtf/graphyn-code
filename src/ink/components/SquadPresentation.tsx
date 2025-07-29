@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { AgentRecommendation, SquadRecommendation } from '../../api/teams.js';
+import { AgentRecommendation, SquadRecommendation } from '../../api/squads.js';
 
 interface SquadPresentationProps {
   squad: SquadRecommendation;
@@ -26,7 +26,7 @@ const AgentCard: React.FC<{ agent: AgentRecommendation }> = ({ agent }) => {
       </Text>
       <Box marginLeft={5} flexDirection="column">
         <Text>Skills: {Object.entries(agent.skills).map(([skill, level], i) => (
-          <SkillBar key={i} skill={skill} level={level} />
+          <SkillBar key={i} skill={skill} level={level as number} />
         )).join(' | ')}</Text>
         <Text>Role: {agent.role}</Text>
         <Text>Style: {agent.style}</Text>

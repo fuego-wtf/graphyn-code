@@ -21,14 +21,15 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onSelect }) => {
   const selectableItems = menuItems;
   
   useInput((input, key) => {
-    if (key.upArrow) {
+    // Arrow key navigation
+    if (key.upArrow || input === 'k') {
       setSelectedIndex((prev) => {
         const newIndex = prev - 1;
         // Skip separators when navigating
         if (newIndex < 0) return selectableItems.length - 1;
         return newIndex;
       });
-    } else if (key.downArrow) {
+    } else if (key.downArrow || input === 'j') {
       setSelectedIndex((prev) => {
         const newIndex = prev + 1;
         // Skip separators when navigating
@@ -42,6 +43,12 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onSelect }) => {
       }
     } else if (input === 'q' || key.escape) {
       onSelect('exit');
+    } else if (input === 'g') {
+      // Jump to first item (vim style)
+      setSelectedIndex(0);
+    } else if (input === 'G') {
+      // Jump to last item (vim style)
+      setSelectedIndex(selectableItems.length - 1);
     }
   });
 

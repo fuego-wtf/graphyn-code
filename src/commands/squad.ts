@@ -1,43 +1,35 @@
 import chalk from 'chalk';
 import { OAuthManager } from '../auth/oauth.js';
-import { TeamsAPI, AskSquadRequest } from '../api/teams.js';
-import { detectClaude } from '../utils/claude-detector.js';
-import { getRepositoryInfo } from '../utils/git.js';
-import { SSEClient } from '../utils/sse-client.js';
-import { detectTechStack } from '../context/index.js';
-import inquirer from 'inquirer';
-import path from 'path';
-import { config } from '../config.js';
+import { GraphynAPIClient } from '../api-client.js';
+import { SquadsAPI, AskSquadRequest } from '../api/squads.js';
+import { getCachedAnalysis } from './analyze.js';
+import { ConfigManager } from '../config-manager.js';
+import { buildAskRequest, detectRepository, contextBuilders } from '../services/request-builder.js';
 
 const colors = {
   success: chalk.green,
   error: chalk.red,
   warning: chalk.yellow,
   info: chalk.gray,
-  highlight: chalk.cyan
+  highlight: chalk.cyan,
 };
 
-export async function createSquad(userMessage: string) {
+export async function createSquad(userMessage: string, options: any = {}) {
+  const organizationId = options.organizationId;
+  
+  console.log(chalk.blue('\n🔍 DEBUG: createSquad called'));
+  console.log(chalk.gray('User message:'), userMessage);
+  console.log(chalk.gray('Organization ID:'), organizationId);
+  console.log(chalk.gray('Options:'), JSON.stringify(options, null, 2));
+  
   try {
-    console.log(colors.info('🚀 Graphyn Code - AI Development Squad Creator\n'));
+    console.log(colors.info('🤖 Creating your AI development squad...\n'));
 
-    // Check for Claude Code
-    console.log(colors.info('Checking for Claude Code...'));
-    const hasClaude = await detectClaude();
-    if (hasClaude) {
-      console.log(colors.success('✓ Claude Code detected'));
-    } else {
-      console.log(colors.warning('⚠️  Claude Code not detected. For best results, install Claude Code.'));
-    }
-
-    // Initialize OAuth manager
+    // Check authentication
     const oauthManager = new OAuthManager();
-
-    // Check if authenticated
     if (!(await oauthManager.isAuthenticated())) {
-      console.log(colors.info('\nConnecting to Graphyn platform...'));
-      console.log(colors.info('Opening browser for authentication...'));
-      await oauthManager.authenticate();
+      console.log(colors.error('❌ Not authenticated. Please run "graphyn auth" first.'));
+      return;
     }
 
     // Get valid token
@@ -46,187 +38,150 @@ export async function createSquad(userMessage: string) {
       throw new Error('Failed to get authentication token');
     }
 
-    // Get teams
-    console.log(colors.info('\nFetching your teams...'));
-    const teamsAPI = new TeamsAPI(token);
-    const teams = await teamsAPI.getTeams();
-
-    if (teams.length === 0) {
-      throw new Error('You are not a member of any teams. Please create a team at localhost:3000');
-    }
-
-    // Select team
-    let selectedTeam;
-    if (teams.length === 1) {
-      selectedTeam = teams[0];
-      console.log(colors.info(`Using team: ${colors.highlight(selectedTeam.name)}`));
-    } else {
-      const { teamId } = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'teamId',
-          message: 'Which team is this repository for?',
-          choices: teams.map(team => ({
-            name: team.name,
-            value: team.id
-          }))
-        }
-      ]);
-      selectedTeam = teams.find(t => t.id === teamId)!;
-    }
-
-    // Get repository context
-    console.log(colors.info('\nAnalyzing repository context...'));
-    const repoInfo = await getRepositoryInfo();
+    // Get configuration
+    const configManager = new ConfigManager();
+    const currentUser = await configManager.get('auth.user');
     
-    let context: any = {
-      detected_stack: [],
-      patterns: []
-    };
-
-    if (repoInfo) {
-      context.repo_url = repoInfo.url;
-      context.repo_branch = repoInfo.branch;
-      
-      // Use enhanced context detection
-      const techStack = await detectTechStack(process.cwd());
-      context = {
-        ...context,
-        ...techStack
-      };
-      
-      // Display detected stack
-      if (context.detected_stack.length > 0) {
-        console.log(colors.success('✓ Detected technologies:'));
-        context.detected_stack.forEach((tech: string) => {
-          console.log(colors.info(`  • ${tech}`));
-        });
-      }
-      
-      if (context.databases && context.databases.length > 0) {
-        console.log(colors.info(`\n  Databases: ${context.databases.join(', ')}`));
-      }
-      
-      if (context.authentication && context.authentication.length > 0) {
-        console.log(colors.info(`  Authentication: ${context.authentication.join(', ')}`));
-      }
+    if (!organizationId) {
+      console.log(colors.error('❌ No organization selected. This should not happen.'));
+      return;
     }
-
-    // Ask for squad recommendation
-    console.log(colors.info('\nAnalyzing your request...'));
-    console.log(colors.info(`Request: "${userMessage}"`));
     
-    const squadRequest: AskSquadRequest = {
+    // Determine context mode
+    const contextMode = options.contextMode || 'basic';
+    console.log(chalk.blue('\n🔧 DEBUG: Building context'));
+    console.log(chalk.gray('Context mode:'), contextMode);
+    
+    // Check for cached analysis
+    const cachedAnalysis = await getCachedAnalysis();
+    let context = options.context;
+    
+    if (!context && cachedAnalysis) {
+      console.log(colors.info('📊 Using cached repository analysis'));
+      console.log(chalk.gray('Cached context:'), JSON.stringify(cachedAnalysis.context, null, 2));
+      context = cachedAnalysis.context;
+    } else if (!context) {
+      // Build context using the modular system
+      console.log(colors.info('🔍 Analyzing repository...'));
+      const contextBuilder = contextBuilders[contextMode];
+      context = await contextBuilder(process.cwd());
+      console.log(chalk.gray('Built context:'), JSON.stringify(context, null, 2));
+    }
+    
+    // Build the request using the modular system
+    console.log(chalk.blue('\n🔨 DEBUG: Detecting repository info'));
+    const repoInfo = await detectRepository(process.cwd());
+    console.log(chalk.gray('Repository info:'), JSON.stringify(repoInfo, null, 2));
+    
+    // Build a minimal request - the backend seems to expect minimal parameters
+    const request: AskSquadRequest = {
       user_message: userMessage,
-      team_id: selectedTeam.id,
-      repo_url: context.repo_url,
-      repo_branch: context.repo_branch,
-      context: {
-        detected_stack: context.detected_stack || [],
-        patterns: context.patterns || [],
-        framework: context.framework,
-        language: context.primaryLanguage
-      }
+      organization_id: organizationId,
     };
     
-    const squadResponse = await teamsAPI.askForSquad(squadRequest);
+    console.log(chalk.blue('\n🎯 DEBUG: Building request'));
+    console.log(chalk.gray('Base request:'), JSON.stringify(request, null, 2));
     
-    // Display squad recommendation
-    console.log(colors.success('\n✓ I\'ve analyzed your repository. Here\'s your recommended dev squad:\n'));
+    // Only add optional fields if they exist
+    if (repoInfo.url) {
+      request.repo_url = repoInfo.url;
+      console.log(chalk.gray('Added repo_url:'), repoInfo.url);
+    }
+    if (repoInfo.branch) {
+      request.repo_branch = repoInfo.branch;
+      console.log(chalk.gray('Added repo_branch:'), repoInfo.branch);
+    }
     
-    // Football Manager style presentation
-    console.log(chalk.cyan('┌─────────────────────── Your Dev Squad for ' + userMessage.substring(0, 30) + '... ───────────────────────┐'));
-    console.log(chalk.cyan('│                                                                                  │'));
+    // Only add context if it's not empty
+    if (context && Object.keys(context).length > 0) {
+      request.context = context;
+      console.log(chalk.gray('Added context with keys:'), Object.keys(context));
+    }
+
+    // Initialize API
+    const squadsAPI = new SquadsAPI(token);
+
+    console.log(colors.info('🔄 Analyzing your request...'));
     
-    squadResponse.squad.agents.forEach((agent, index) => {
-      const emoji = agent.emoji || ['⚡', '🎨', '🧪', '🔒', '🔌', '📋'][index] || '👨‍💻';
-      console.log(chalk.cyan('│  ') + chalk.yellow.bold(`${emoji} ${agent.name} (${agent.formation})`.padEnd(78)) + chalk.cyan(' │'));
+    console.log(chalk.blue('\n📤 DEBUG: Final request to be sent'));
+    console.log(chalk.gray(JSON.stringify(request, null, 2)));
+    
+    // Call API
+    console.log(chalk.blue('\n🚀 DEBUG: Calling askForSquad API'));
+    const response = await squadsAPI.askForSquad(request);
+    
+    console.log(chalk.green('\n✔️ DEBUG: API call successful'));
+    console.log(chalk.gray('Response:'), JSON.stringify(response, null, 2));
+    
+    // The response contains a squad recommendation (group of agents)
+    // This is not persisted as a "current squad" since each request creates a new squad
+
+    // Display results
+    displaySquadCreationResponse(response);
+
+    // Save squad info if available
+    if (response.squad) {
+      await saveSquadInfo(response.squad, userMessage);
+    }
+
+  } catch (error) {
+    console.log(chalk.red('\n🚨 DEBUG: Error in createSquad'));
+    console.log(chalk.red('Error type:'), error?.constructor?.name);
+    console.log(chalk.red('Error message:'), error?.message);
+    console.log(chalk.red('Error stack:'), error?.stack);
+    
+    console.error(colors.error('❌ Failed to create squad:'), error);
+  }
+}
+
+function displaySquadCreationResponse(response: any) {
+  console.log(colors.success('\n✅ Squad Creation Started!\n'));
+  
+  console.log(colors.info('📍 Thread ID:'), colors.highlight(response.thread_id));
+  console.log(colors.info('🔗 Stream URL:'), colors.highlight(response.stream_url));
+  console.log(colors.info('💬 Message:'), response.message);
+  
+  if (response.squad && response.squad.agents && response.squad.agents.length > 0) {
+    console.log(chalk.bold('\n📋 Initial Squad Analysis:\n'));
+    console.log(chalk.bold('Formation:'), colors.highlight(response.squad.formation));
+    console.log(chalk.bold('Reasoning:'), response.squad.reasoning);
+    
+    console.log(chalk.bold('\n👥 Recommended Agents:\n'));
+    
+    response.squad.agents.forEach((agent: any, index: number) => {
+      console.log(colors.highlight(`${index + 1}. ${agent.emoji || '🤖'} ${agent.name}`));
+      console.log(`   Role: ${agent.role}`);
+      console.log(`   Style: ${agent.style}`);
+      console.log(`   Description: ${agent.description}`);
       
-      // Skills bar
-      const skillsText = Object.entries(agent.skills)
-        .slice(0, 3)
-        .map(([skill, level]) => {
-          const filled = '█'.repeat(Math.floor(level));
-          const empty = '░'.repeat(10 - Math.floor(level));
-          return `${skill} ${filled}${empty}`;
-        })
-        .join(' | ');
-      console.log(chalk.cyan('│     ') + colors.info('Skills: ' + skillsText.padEnd(72)) + chalk.cyan(' │'));
-      
-      console.log(chalk.cyan('│     ') + colors.info('Role: ' + agent.role.substring(0, 72).padEnd(74)) + chalk.cyan(' │'));
-      console.log(chalk.cyan('│     ') + colors.info('Style: ' + agent.style.substring(0, 71).padEnd(73)) + chalk.cyan(' │'));
-      
-      if (index < squadResponse.squad.agents.length - 1) {
-        console.log(chalk.cyan('│                                                                                  │'));
-      }
-    });
-    
-    console.log(chalk.cyan('└──────────────────────────────────────────────────────────────────────────────────┘'));
-    
-    console.log(`\n${squadResponse.message}`);
-    
-    // Ask if user wants to adjust the squad
-    if (squadResponse.adjustable) {
-      const { adjustSquad } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'adjustSquad',
-          message: 'Would you like to adjust the squad composition?',
-          default: false
-        }
-      ]);
-      
-      if (adjustSquad) {
-        const { adjustment } = await inquirer.prompt([
-          {
-            type: 'input',
-            name: 'adjustment',
-            message: 'What would you like to change? (e.g., "Add a DevOps specialist", "Remove testing agent")'
-          }
-        ]);
-        
-        // Make another request with the adjustment
-        const adjustedRequest = {
-          ...squadRequest,
-          user_message: `${userMessage}. ${adjustment}`
-        };
-        
-        console.log(colors.info('\nAdjusting squad...'));
-        const adjustedResponse = await teamsAPI.askForSquad(adjustedRequest);
-        
-        // Display adjusted squad (simplified)
-        console.log(colors.success('\n✓ Squad adjusted:\n'));
-        adjustedResponse.squad.agents.forEach(agent => {
-          console.log(colors.highlight(`• ${agent.emoji || '👨‍💻'} ${agent.name} - ${agent.role}`));
+      if (agent.skills && Object.keys(agent.skills).length > 0) {
+        console.log(`   Skills:`);
+        Object.entries(agent.skills).forEach(([skill, level]) => {
+          const bars = '█'.repeat(Number(level)) + '░'.repeat(10 - Number(level));
+          console.log(`     ${skill}: ${bars} ${level}/10`);
         });
       }
-    }
-    
-    console.log(colors.success('\n✓ Squad recommendation complete!'));
-    console.log(colors.info('\nNext steps:'));
-    console.log(colors.info('1. Launch Claude Code with your squad context'));
-    console.log(colors.info('2. Start implementing with your AI dev team'));
-    console.log(colors.info('3. Each agent will help with their specialized area'));
-
-  } catch (error: any) {
-    console.error(colors.error('\n❌ Failed to create squad:'));
-    
-    // Provide helpful error messages
-    if (error.message?.includes('authentication')) {
-      console.error(colors.error('Authentication failed. Please run `graphyn auth` to login again.'));
-    } else if (error.message?.includes('teams')) {
-      console.error(colors.error('Unable to fetch teams. Please check your internet connection.'));
-    } else if (error.message?.includes('network')) {
-      console.error(colors.error('Network error. Please check your internet connection and try again.'));
-    } else {
-      console.error(colors.error(error.message || 'An unknown error occurred'));
-    }
-    
-    // Show debug info if verbose
-    if (process.env.DEBUG) {
-      console.error(colors.info('\nDebug info:'), error);
-    }
-    
-    process.exit(1);
+      console.log();
+    });
+  } else {
+    console.log(colors.info('\n⏳ The Team Builder is analyzing your request...'));
+    console.log(colors.info('💡 Squad recommendations will appear in the thread.'));
   }
+  
+  console.log(colors.info('\n📺 To monitor progress:'));
+  console.log(colors.info('   Visit the thread at'), colors.highlight(`https://app.graphyn.xyz/threads/${response.thread_id}`));
+  console.log(colors.info('   Or stream updates using the API at'), colors.highlight(response.stream_url));
+}
+
+async function saveSquadInfo(squad: any, userMessage: string) {
+  const configManager = new ConfigManager();
+  
+  await configManager.set('lastSquadRecommendation', {
+    squad,
+    userMessage,
+    timestamp: new Date().toISOString(),
+  });
+  
+  console.log(colors.info('\n📌 Squad recommendation saved'));
+  console.log(colors.info('You can now create these agents in the Graphyn platform'));
 }

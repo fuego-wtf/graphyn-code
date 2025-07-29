@@ -55,3 +55,13 @@ export const getDimColor = () => 'gray';
 export const getErrorColor = () => 'red';
 
 export const getSuccessColor = () => 'green';
+
+// Terminal color constants for easy import
+export const colors = {
+  dim: 'gray',
+  error: 'red',
+  success: 'green',
+  warning: 'yellow',
+  info: 'cyan',
+  accent: 'magenta'
+};
