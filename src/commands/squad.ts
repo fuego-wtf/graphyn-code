@@ -11,7 +11,6 @@ import { debug, debugError, debugSuccess, setDebugMode } from '../utils/debug.js
 import React from 'react';
 import { InteractiveSquadBuilder } from '../components/InteractiveSquadBuilder.js';
 import { ThreadStreamHandler } from '../utils/sse-handler.js';
-import { TmuxLayoutManager } from '../utils/tmux-layout-manager.js';
 import type { Task } from '../services/claude-task-generator.js';
 import type { SquadFeedbackData } from '../ink/components/SquadFeedback.js';
 
@@ -366,17 +365,17 @@ async function handleSquadApproval(agents: any[], token: string) {
         body: JSON.stringify({
           name: squadInfo.name,
           description: squadInfo.description,
-          // Try sending just the essential fields
+          // Backend still expects 'agents' field, not 'agent_configs'
           agents: agents.map(agent => ({
-            id: agent.id || `agent_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            id: agent.id || `agent-${Date.now()}-${Math.random()}`,
             name: agent.name,
             emoji: agent.emoji || '🤖',
             role: agent.role,
             systemPrompt: agent.systemPrompt || `You are ${agent.name}, a ${agent.role} expert. ${agent.description || ''}`,
             capabilities: agent.capabilities || (agent.skills ? Object.keys(agent.skills) : []),
+            skills: agent.skills || {},
             metadata: {
               ...agent.metadata,
-              skills: agent.skills,
               style: agent.style,
               formation: agent.formation,
               description: agent.description
@@ -402,21 +401,8 @@ async function handleSquadApproval(agents: any[], token: string) {
       const lastSquadRecommendation = await configManager.get('lastSquadRecommendation');
       const userMessage = lastSquadRecommendation?.userMessage || 'Build the requested features';
       
-      // Store squad locally for future use
-      const { SquadStorage } = await import('../services/squad-storage.js');
-      const squadStorage = new SquadStorage();
-      
-      const localSquad = {
-        id: savedSquad.id,
-        name: savedSquad.name,
-        description: squadInfo.description,
-        agents: agents,
-        created_at: new Date().toISOString(),
-        workspace: process.cwd()
-      };
-      
-      await squadStorage.saveSquad(localSquad);
-      console.log(colors.info('\n📁 Squad saved locally'));
+      // Squad is now saved only on graphyn.xyz backend
+      // No local storage needed
       
       // Generate tasks using Claude
       console.log(colors.info('\n🤖 Generating tasks with Claude...'));
@@ -442,22 +428,41 @@ async function handleSquadApproval(agents: any[], token: string) {
         console.log(colors.success('\n✅ Tasks approved!'));
         console.log(colors.info(`Total tasks: ${tasks.length}`));
         
-        // Launch TMUX session with agents
-        console.log(colors.info('\n🚀 Launching squad workspace...'));
-        const tmuxManager = new TmuxLayoutManager(savedSquad.id);
+        // Launch new Squad Executor interface
+        console.log(colors.info('\n🚀 Launching Squad Executor...'));
+        const { SquadExecutor } = await import('../components/SquadExecutor.js');
         
-        const executionPlan = {
-          squad: localSquad,
-          tasks: tasks,
+        const repoContext = await analyzeRepositoryForContext();
+        
+        const squadData = {
+          id: savedSquad.id,
+          name: savedSquad.name,
+          description: squadInfo.description,
+          agents: agents,
+          created_at: new Date().toISOString(),
           workspace: process.cwd()
         };
         
-        await tmuxManager.executeSquadPlan(executionPlan);
+        // Launch the UI and wait for completion
+        await new Promise<void>((resolve) => {
+          const { unmount } = render(
+            React.createElement(SquadExecutor, {
+              tasks,
+              agents,
+              squad: squadData,
+              repoContext,
+              workDir: process.cwd(),
+              claudePath: process.env.CLAUDE_PATH || 'claude',
+              onComplete: () => {
+                unmount();
+                resolve();
+              }
+            })
+          );
+        });
         
-        console.log(colors.success('\n✨ Squad is now active!'));
-        console.log(colors.info('Your AI development team is working on the tasks.'));
-        console.log(colors.info('\nTo reattach to the session later:'));
-        console.log(colors.highlight(`  tmux attach-session -t ${tmuxManager.getSessionName()}`));
+        console.log(colors.success('\n✨ Squad session completed!'));
+        console.log(colors.info('Your AI development team has finished working on the tasks.'));
       } else {
         console.log(colors.warning('\n⚠️  Task generation was cancelled'));
       }
@@ -621,22 +626,20 @@ async function useExistingSquad(squad: any, token: string, userMessage: string) 
   const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
   
   try {
-    // Store squad locally for future use
-    const { SquadStorage } = await import('../services/squad-storage.js');
-    const squadStorage = new SquadStorage();
+    // Squad data is loaded from graphyn.xyz backend
+    console.log(colors.info('\n📁 Squad loaded from backend'));
     
-    const localSquad = {
-      id: squad.id,
-      name: squad.name,
-      description: squad.description,
-      agents: squad.agents || [],
-      created_at: squad.created_at || new Date().toISOString(),
-      last_used: new Date().toISOString(),
-      workspace: process.cwd()
-    };
-    
-    await squadStorage.saveSquad(localSquad);
-    console.log(colors.info('\n📁 Squad loaded from storage'));
+    // Normalize agents to ensure they have proper names
+    if (squad.agents && Array.isArray(squad.agents)) {
+      squad.agents = squad.agents.map((agent: any) => ({
+        ...agent,
+        name: agent.name || agent.agent_name || 'Unknown Agent',
+        emoji: agent.emoji || '🤖',
+        id: agent.id || agent.agent_id || `agent-${Date.now()}-${Math.random()}`
+      }));
+      
+      console.log(colors.info(`Squad has ${squad.agents.length} agents: ${squad.agents.map((a: any) => `${a.emoji} ${a.name}`).join(', ')}`));
+    }
     
     // Generate tasks using Claude
     console.log(colors.info('\n🤖 Generating tasks with Claude...'));
@@ -669,30 +672,61 @@ async function useExistingSquad(squad: any, token: string, userMessage: string) 
       
       let agentConfigs;
       try {
-        agentConfigs = await agentLoader.loadSquadAgents(localSquad);
+        agentConfigs = await agentLoader.loadSquadAgents(squad);
       } catch (error) {
-        console.log(colors.warning('⚠️  Failed to load agents from API, using local configs'));
-        agentConfigs = localSquad.agents;
+        console.log(colors.warning('⚠️  Failed to load agents from API, using backend configs'));
+        // Parse agents if they're stored as JSON strings and transform to AgentConfig
+        agentConfigs = (squad.agents || []).map((agent: any) => {
+          let parsedAgent = agent;
+          if (typeof agent === 'string' && agent.startsWith('{')) {
+            try {
+              parsedAgent = JSON.parse(agent);
+            } catch (e) {
+              console.error('Failed to parse agent:', e);
+              return null;
+            }
+          }
+          
+          // Transform to AgentConfig format
+          const systemPrompt = parsedAgent.systemPrompt || parsedAgent.system_prompt || 
+            `You are ${parsedAgent.name}, ${parsedAgent.role || 'an AI assistant'}.`;
+          
+          return {
+            id: parsedAgent.id || parsedAgent.agent_id || `agent-${Date.now()}-${Math.random()}`,
+            name: parsedAgent.name || 'Unknown Agent',
+            role: parsedAgent.role || 'AI Assistant',
+            emoji: parsedAgent.emoji || '🤖',
+            systemPrompt: systemPrompt,
+            capabilities: parsedAgent.capabilities || [],
+            skills: parsedAgent.skills || {},
+            metadata: parsedAgent.metadata || {}
+          };
+        }).filter(Boolean);
       }
       
-      // Launch TMUX Cockpit with Claude agents
-      console.log(colors.info('\n🚀 Launching Graphyn Cockpit...'));
-      const { TMUXCockpitOrchestrator } = await import('../utils/tmux-cockpit-orchestrator.js');
-      const cockpit = new TMUXCockpitOrchestrator();
+      // Launch new Squad Executor interface
+      console.log(colors.info('\n🚀 Launching Squad Executor...'));
+      const { SquadExecutor } = await import('../components/SquadExecutor.js');
       
       const repoContext = await analyzeRepositoryForContext();
       
-      await cockpit.launchCockpit({
-        tasks,
-        agents: agentConfigs,
-        squad: localSquad,
-        repoContext,
-        workDir: process.cwd(),
-        claudePath: process.env.CLAUDE_PATH
+      // Launch the UI and wait for completion
+      await new Promise<void>((resolve) => {
+        const { unmount } = render(
+          React.createElement(SquadExecutor, {
+            tasks,
+            agents: agentConfigs,
+            squad: squad,
+            repoContext,
+            workDir: process.cwd(),
+            claudePath: process.env.CLAUDE_PATH || 'claude',
+            onComplete: () => {
+              unmount();
+              resolve();
+            }
+          })
+        );
       });
-      
-      // Wait for completion
-      await cockpit.waitForCompletion();
       
       // Collect feedback
       console.log(colors.info('\n📝 Collecting feedback...'));
@@ -739,14 +773,7 @@ async function saveSquadFeedback(
   apiUrl: string
 ): Promise<void> {
   try {
-    // Save feedback locally
-    const { SquadStorage } = await import('../services/squad-storage.js');
-    const squadStorage = new SquadStorage();
-    
-    // TODO: Add feedback storage to squad storage
-    console.log(colors.success('✓ Feedback saved locally'));
-    
-    // Optionally send to API
+    // Send feedback to API
     try {
       const response = await fetch(`${apiUrl}/api/squads/${squadId}/feedback`, {
         method: 'POST',

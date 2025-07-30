@@ -341,22 +341,36 @@ export class GraphynAPIClient {
   }
 
   // Squad Management
-  async listSquads(organizationId?: string): Promise<Squad[]> {
-    const params = organizationId ? `?organization_id=${organizationId}` : '';
+  async listSquads(organizationId?: string, includeAgents: boolean = true): Promise<Squad[]> {
+    const queryParams = new URLSearchParams();
+    if (organizationId) queryParams.append('organization_id', organizationId);
+    if (includeAgents) queryParams.append('include_agents', 'true');
+    
+    const params = queryParams.toString() ? `?${queryParams.toString()}` : '';
     const response = await this.request<{ squads: Squad[] }>(`/api/squads${params}`);
     return response.squads || [];
   }
 
   async createSquad(data: CreateSquadRequest): Promise<Squad> {
-    const response = await this.request<{ squad: Squad }>('/api/squads', {
+    const response = await this.request<{ squad: Squad; agents?: Agent[] }>('/api/squads', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    // If agents are returned separately, attach them to the squad
+    if (response.agents) {
+      response.squad.agents = response.agents;
+    }
     return response.squad;
   }
 
-  async getSquad(squadId: string): Promise<Squad> {
-    const response = await this.request<{ squad: Squad }>(`/api/squads/${squadId}`);
+  async getSquad(squadId: string, includeAgents: boolean = true): Promise<Squad> {
+    const params = includeAgents ? '?include_agents=true' : '';
+    const response = await this.request<{ squad: Squad; agents?: Agent[] }>(`/api/squads/${squadId}${params}`);
+    
+    // If agents are returned separately, attach them to the squad
+    if (response.agents) {
+      response.squad.agents = response.agents;
+    }
     return response.squad;
   }
 

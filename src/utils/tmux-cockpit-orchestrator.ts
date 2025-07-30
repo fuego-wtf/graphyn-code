@@ -136,8 +136,16 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
     // Get the path to the cockpit monitor script
     const monitorScript = join(process.cwd(), 'dist', 'ink', 'cockpit-monitor.js');
     
-    // Create the monitor command
-    const monitorCmd = `node "${monitorScript}" --tasks='${JSON.stringify(tasks)}' --agents='${JSON.stringify(agents)}' --session="${this.getSessionName()}"`;
+    // Write tasks and agents to temporary files to avoid shell escaping issues
+    const fs = await import('fs/promises');
+    const tasksFile = `/tmp/graphyn_tasks_${this.getSessionName()}.json`;
+    const agentsFile = `/tmp/graphyn_agents_${this.getSessionName()}.json`;
+    
+    await fs.writeFile(tasksFile, JSON.stringify(tasks), 'utf-8');
+    await fs.writeFile(agentsFile, JSON.stringify(agents), 'utf-8');
+    
+    // Create the monitor command using file paths
+    const monitorCmd = `node "${monitorScript}" --tasks-file="${tasksFile}" --agents-file="${agentsFile}" --session="${this.getSessionName()}"`;
     
     // Send the command to the monitor pane
     await exec(`tmux send-keys -t ${this.getSessionName()}:0.0 "${monitorCmd}" Enter`);
@@ -263,8 +271,17 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
     }
   }
 
-  cleanup(): void {
+  async cleanup(): Promise<void> {
     this.agentLauncher.cleanup();
-    this.killSession();
+    await this.killSession();
+    
+    // Clean up temporary files
+    try {
+      const fs = await import('fs/promises');
+      await fs.unlink(`/tmp/graphyn_tasks_${this.getSessionName()}.json`).catch(() => {});
+      await fs.unlink(`/tmp/graphyn_agents_${this.getSessionName()}.json`).catch(() => {});
+    } catch {
+      // Ignore cleanup errors
+    }
   }
 }

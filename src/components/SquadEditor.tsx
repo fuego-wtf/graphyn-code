@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import chalk from 'chalk';
-import { SquadStorage } from '../services/squad-storage.js';
+// Squad storage is now handled by graphyn.xyz backend only
 
 interface Agent {
   id: string;
@@ -103,9 +103,7 @@ export const SquadEditor: React.FC<SquadEditorProps> = ({
         // Continue with local delete even if API fails
       }
 
-      // Always try to delete from local storage
-      const squadStorage = new SquadStorage();
-      await squadStorage.deleteSquad(squad.id);
+      // Squad deletion is handled by the API only
 
       // Only call onDelete, not onBack - they are mutually exclusive
       if (onDelete) {

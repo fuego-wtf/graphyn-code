@@ -3,11 +3,12 @@ import { Box, Text, useApp, useInput } from 'ink';
 // Note: SquadFindings requires different props structure
 // For now, we'll use a simplified version
 import { TaskApproval } from './TaskApproval.js';
-import { Cockpit } from './Cockpit.js';
+import { ParallelCockpit } from './ParallelCockpit.js';
 import { FeedbackSession } from './FeedbackSession.js';
 import { TaskExecutor } from '../../services/task-executor.js';
 import { GraphynAPIClient } from '../../api-client.js';
 import { colors, fuegoColors } from '../theme/colors.js';
+import { TaskExecutionResult } from '../../services/parallel-task-executor.js';
 
 type FlowStage = 'squad-findings' | 'task-approval' | 'task-execution' | 'feedback' | 'complete';
 
@@ -15,12 +16,14 @@ interface AdvancedSquadFlowProps {
   initialQuery: string;
   apiClient: GraphynAPIClient;
   organizationId: string;
+  repoPath?: string;
 }
 
 export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
   initialQuery,
   apiClient,
-  organizationId
+  organizationId,
+  repoPath = process.cwd()
 }) => {
   const { exit } = useApp();
   const [stage, setStage] = useState<FlowStage>('squad-findings');
@@ -29,6 +32,8 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
   const [tasks, setTasks] = useState<any[]>([]);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [taskExecutor, setTaskExecutor] = useState<TaskExecutor | null>(null);
+  const [sessionId] = useState<string>(() => `session-${Date.now()}`);
+  const [taskResults, setTaskResults] = useState<Map<string, TaskExecutionResult>>(new Map());
 
   // Handle squad findings completion
   const handleSquadFindingsComplete = useCallback((threadId: string, squad: any) => {
@@ -106,6 +111,12 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
     // Already handled in handleTaskSelect
   }, []);
 
+  // Handle parallel task completion
+  const handleParallelTasksComplete = useCallback((results: Map<string, TaskExecutionResult>) => {
+    setTaskResults(results);
+    setStage('feedback');
+  }, []);
+
   // Handle feedback submission
   const handleFeedback = useCallback(async (rating: number, comment: string) => {
     if (threadId) {
@@ -114,11 +125,8 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
       await apiClient.sendMessage(threadId, { content: feedbackMessage, role: 'user' });
     }
     
-    // Clean up
-    // Note: TaskExecutor handles cleanup automatically
-    
     setStage('complete');
-  }, [apiClient, threadId, taskExecutor]);
+  }, [apiClient, threadId]);
 
   // Handle input for squad findings stage
   useInput((input, key) => {
@@ -141,6 +149,14 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
             description: 'Ensures great user experience',
             skills: { design: 9, frontend: 8, accessibility: 8 },
             style: 'User-focused and detail-oriented'
+          },
+          {
+            id: 'agent-3',
+            name: 'Test Engineer',
+            role: 'Testing & QA',
+            description: 'Writes comprehensive tests',
+            skills: { testing: 9, automation: 8, debugging: 7 },
+            style: 'Thorough and meticulous'
           }
         ]
       };
@@ -175,13 +191,12 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
     
     case 'task-execution':
       return (
-        <Cockpit
+        <ParallelCockpit
           tasks={tasks}
-          onTaskSelect={handleTaskSelect}
-          onTaskComplete={handleTaskComplete}
-          onFeedback={(taskId, rating, comment) => {
-            // Store feedback for later submission
-          }}
+          apiClient={apiClient}
+          repoPath={repoPath}
+          sessionId={sessionId}
+          onComplete={handleParallelTasksComplete}
           onExit={() => exit()}
         />
       );
@@ -196,6 +211,9 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
       );
     
     case 'complete':
+      const successfulTasks = Array.from(taskResults.values()).filter(r => r.status === 'success').length;
+      const failedTasks = Array.from(taskResults.values()).filter(r => r.status === 'failed').length;
+      
       return (
         <Box flexDirection="column" padding={1}>
           <Text color={colors.success} bold>
@@ -208,7 +226,13 @@ export const AdvancedSquadFlow: React.FC<AdvancedSquadFlowProps> = ({
           </Box>
           <Box marginTop={1}>
             <Text color={fuegoColors.text.secondary}>
-              {completedTasks.size} tasks completed successfully
+              {successfulTasks} tasks completed successfully
+              {failedTasks > 0 && <Text color={colors.error}> | {failedTasks} failed</Text>}
+            </Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text color={fuegoColors.text.dimmed}>
+              Session: {sessionId}
             </Text>
           </Box>
         </Box>

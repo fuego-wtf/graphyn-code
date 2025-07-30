@@ -146,10 +146,15 @@ Now generate tasks for the given request. Return ONLY the JSON array wrapped in 
             .join(', ')
         : 'Not specified';
       
+      // Ensure capabilities is always an array
+      const capabilities = Array.isArray(agent.capabilities) 
+        ? agent.capabilities 
+        : (agent.capabilities ? [agent.capabilities] : []);
+      
       return `- **${agent.name}** (${agent.role}) [USE THIS EXACT NAME: "${agent.name}"]
   - Emoji: ${agent.emoji || '🤖'}
   - Skills: ${skills}
-  - Capabilities: ${agent.capabilities?.join(', ') || 'General development'}`;
+  - Capabilities: ${capabilities.join(', ') || 'General development'}`;
     }).join('\n');
   }
 

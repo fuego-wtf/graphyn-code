@@ -115,7 +115,7 @@ export class OAuthManager {
       authUrl.searchParams.set('redirect_uri', actualRedirectUri);
       authUrl.searchParams.set('state', state);
       authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('scope', 'openid profile email agents:read agents:write threads:read threads:write organizations:read teams:read');
+      authUrl.searchParams.set('scope', 'openid profile email agents:read agents:write threads:read threads:write organizations:read');
       authUrl.searchParams.set('code_challenge', this.pkceValues.challenge);
       authUrl.searchParams.set('code_challenge_method', this.pkceValues.method);
       authUrl.searchParams.set('cli', 'true');

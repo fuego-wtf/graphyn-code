@@ -28,6 +28,6 @@ export const config = {
     redirectUri: process.env.GRAPHYN_OAUTH_REDIRECT_URI || 'https://cli.graphyn.xyz/callback',
     localRedirectUri: 'http://localhost:8989/callback',
     clientId: process.env.GRAPHYN_OAUTH_CLIENT_ID || 'graphyn-cli-official',
-    scopes: 'openid profile email agents:read agents:write threads:read threads:write organizations:read teams:read'
+    scopes: 'openid profile email agents:read agents:write threads:read threads:write organizations:read'
   }
 };

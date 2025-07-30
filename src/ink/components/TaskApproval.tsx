@@ -121,9 +121,14 @@ export const TaskApproval: React.FC<TaskApprovalProps> = ({
                           {task.description}
                         </Text>
                         {task.dependencies && task.dependencies.length > 0 && (
-                          <Text color={fuegoColors.text.dimmed} dimColor>
-                            Dependencies: {task.dependencies.join(', ')}
-                          </Text>
+                          <Box marginTop={1}>
+                            <Text color={colors.warning}>
+                              ⚡ Dependencies: {task.dependencies.map(dep => {
+                                const depTask = tasks.find(t => t.id === dep);
+                                return depTask ? depTask.title : dep;
+                              }).join(' → ')}
+                            </Text>
+                          </Box>
                         )}
                       </Box>
                     )}

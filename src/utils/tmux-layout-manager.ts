@@ -1,4 +1,4 @@
-import { exec as execCallback } from 'child_process';
+import { exec as execCallback, spawn } from 'child_process';
 import { promisify } from 'util';
 import { SquadTask } from '../types/squad.js';
 import { generateAgentTaskFile, generateSystemPromptFile } from './task-file-generator.js';
@@ -366,7 +366,6 @@ export class TmuxLayoutManager {
         process.stdout.write(`To detach: Press Ctrl+B then d\n\n`);
         
         // Use spawn instead of exec for interactive tmux
-        const { spawn } = require('child_process');
         const tmux = spawn('tmux', ['attach-session', '-t', this.sessionName], {
           stdio: 'inherit'
         });

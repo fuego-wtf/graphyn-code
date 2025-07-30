@@ -11,6 +11,8 @@ let tasks: Task[] = [];
 let agents: AgentConfig[] = [];
 let sessionName = 'graphyn-cockpit';
 
+import { readFileSync } from 'fs';
+
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   
@@ -28,18 +30,36 @@ for (let i = 0; i < args.length; i++) {
       console.error('Failed to parse agents:', error);
       process.exit(1);
     }
+  } else if (arg.startsWith('--tasks-file=')) {
+    try {
+      const tasksFile = arg.substring(13);
+      const tasksData = readFileSync(tasksFile, 'utf-8');
+      tasks = JSON.parse(tasksData);
+    } catch (error) {
+      console.error('Failed to read tasks file:', error);
+      process.exit(1);
+    }
+  } else if (arg.startsWith('--agents-file=')) {
+    try {
+      const agentsFile = arg.substring(14);
+      const agentsData = readFileSync(agentsFile, 'utf-8');
+      agents = JSON.parse(agentsData);
+    } catch (error) {
+      console.error('Failed to read agents file:', error);
+      process.exit(1);
+    }
   } else if (arg.startsWith('--session=')) {
     sessionName = arg.substring(10);
   }
 }
 
 if (tasks.length === 0) {
-  console.error('No tasks provided. Use --tasks=\'[...]\' to specify tasks.');
+  console.error('No tasks provided. Use --tasks=\'[...]\' or --tasks-file=path to specify tasks.');
   process.exit(1);
 }
 
 if (agents.length === 0) {
-  console.error('No agents provided. Use --agents=\'[...]\' to specify agents.');
+  console.error('No agents provided. Use --agents=\'[...]\' or --agents-file=path to specify agents.');
   process.exit(1);
 }
 

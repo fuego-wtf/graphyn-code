@@ -98,8 +98,44 @@ export class AgentLoader {
     };
   }
 
-  async loadSquadAgents(squad: { agents: Array<{ id: string }> }): Promise<AgentConfig[]> {
-    const agentIds = squad.agents.map(a => a.id);
-    return this.loadAgentConfigs(agentIds);
+  async loadSquadAgents(squad: { agents: Array<any> }): Promise<AgentConfig[]> {
+    // Parse agents if they're stored as JSON strings
+    const parsedAgents = squad.agents.map((agent: any) => {
+      if (typeof agent === 'string' && agent.startsWith('{')) {
+        try {
+          return JSON.parse(agent);
+        } catch (e) {
+          console.error('Failed to parse agent string:', e);
+          return null;
+        }
+      }
+      return agent;
+    }).filter(Boolean);
+
+    // Transform parsed agents to AgentConfig format
+    const configs: AgentConfig[] = parsedAgents.map(agent => {
+      // Handle both systemPrompt and system_prompt field names
+      const systemPrompt = agent.systemPrompt || agent.system_prompt || 
+        `You are ${agent.name}, ${agent.role || 'an AI assistant'}.`;
+      
+      return {
+        id: agent.id || agent.agent_id || `agent-${Date.now()}-${Math.random()}`,
+        name: agent.name || 'Unknown Agent',
+        role: agent.role || 'AI Assistant',
+        emoji: agent.emoji || '🤖',
+        systemPrompt: systemPrompt,
+        capabilities: agent.capabilities || [],
+        skills: agent.skills || {},
+        metadata: agent.metadata || {}
+      };
+    });
+
+    if (configs.length > 0) {
+      console.log(chalk.green(`✓ Loaded ${configs.length} agents from squad data`));
+      return configs;
+    }
+
+    // If no agents found, throw error
+    throw new Error('No agents found in squad data');
   }
 }

@@ -9,9 +9,13 @@ interface Squad {
   name: string;
   description?: string;
   agents: Array<{
-    id: string;
+    id?: string;
     name: string;
     emoji?: string;
+    // The API returns the full agent_config object
+    agent_id?: string;
+    role?: string;
+    capabilities?: string[];
   }>;
   created_at: string;
 }
@@ -38,6 +42,48 @@ export const SquadSelector: React.FC<SquadSelectorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
+  // Helper function to safely get agent display info
+  const getAgentDisplay = (agent: any) => {
+    if (!agent) {
+      return { name: 'Unknown Agent', emoji: '🤖' };
+    }
+    
+    // If agent is a JSON string, parse it first
+    if (typeof agent === 'string') {
+      try {
+        // Check if it's a JSON string
+        if (agent.startsWith('{')) {
+          const parsed = JSON.parse(agent);
+          return {
+            name: parsed.name || 'Unknown Agent',
+            emoji: parsed.emoji || '🤖'
+          };
+        }
+        // Otherwise treat as ID
+        return { name: `Agent ${agent}`, emoji: '🤖' };
+      } catch (e) {
+        console.error('[DEBUG] Failed to parse agent string:', e);
+        return { name: `Agent ${agent}`, emoji: '🤖' };
+      }
+    }
+    
+    // Handle different possible agent data structures
+    const name = agent.name || 
+                 agent.agent_name || 
+                 agent.agent_config?.name || 
+                 agent.metadata?.name ||
+                 agent.agentName ||
+                 'Unknown Agent';
+    
+    const emoji = agent.emoji || 
+                  agent.agent_config?.emoji || 
+                  agent.metadata?.emoji ||
+                  agent.agentEmoji ||
+                  '🤖';
+    
+    return { name, emoji };
+  };
+
   // Fetch existing squads
   useEffect(() => {
     const fetchSquads = async () => {
@@ -47,14 +93,18 @@ export const SquadSelector: React.FC<SquadSelectorProps> = ({
         await configManager.load();
         const currentUser = await configManager.get('auth.user');
         
+        console.log('Current user from config:', currentUser);
+        
         if (!currentUser?.orgID) {
+          console.error('No orgID found in user config:', currentUser);
           setError('No organization found. Please re-authenticate.');
           setLoading(false);
           return;
         }
 
-        // Explicitly filter by the user's organization
-        const response = await fetch(`${apiUrl}/api/squads?organization_id=${currentUser.orgID}`, {
+        // Try fetching squads - backend should filter by user's organization automatically
+        console.log(`Fetching squads from: ${apiUrl}/api/squads`);
+        const response = await fetch(`${apiUrl}/api/squads`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -62,7 +112,18 @@ export const SquadSelector: React.FC<SquadSelectorProps> = ({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch squads');
+          const errorText = await response.text();
+          console.error(`Squad fetch error: ${response.status} ${response.statusText}`, errorText);
+          
+          // Check for authentication errors
+          if (response.status === 401 || response.status === 403 || 
+              (response.status === 500 && errorText.includes('OAuth token'))) {
+            setError('Authentication expired. Please run "graphyn logout" then "graphyn login" to re-authenticate.');
+            setLoading(false);
+            return;
+          }
+          
+          throw new Error(`Failed to fetch squads: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json() as { squads: Squad[] };
@@ -118,9 +179,19 @@ export const SquadSelector: React.FC<SquadSelectorProps> = ({
     return (
       <Box padding={1} flexDirection="column">
         <Text color="red">❌ {error}</Text>
-        <Box marginTop={1}>
-          <Text dimColor>Press Enter to create a new squad, or ESC to exit</Text>
-        </Box>
+        {error.includes('Authentication expired') ? (
+          <Box marginTop={1} flexDirection="column">
+            <Text color="yellow">To fix this issue:</Text>
+            <Text color="cyan">1. Exit this command (press ESC)</Text>
+            <Text color="cyan">2. Run: graphyn logout</Text>
+            <Text color="cyan">3. Run: graphyn login</Text>
+            <Text color="cyan">4. Try the squad command again</Text>
+          </Box>
+        ) : (
+          <Box marginTop={1}>
+            <Text dimColor>Press Enter to create a new squad, or ESC to exit</Text>
+          </Box>
+        )}
       </Box>
     );
   }
@@ -150,13 +221,21 @@ export const SquadSelector: React.FC<SquadSelectorProps> = ({
                     <Text dimColor>{squad.description}</Text>
                   )}
                   <Text dimColor>
-                    {squad.agents.length} agents • Created {new Date(squad.created_at).toLocaleDateString()}
+                    {squad.agents?.length || 0} agents • Created {new Date(squad.created_at).toLocaleDateString()}
                   </Text>
-                  {idx === selectedIndex && squad.agents.length > 0 && (
-                    <Box marginTop={1}>
-                      <Text dimColor>
-                        Agents: {squad.agents.map(a => `${a.emoji || '🤖'} ${a.name}`).join(', ')}
-                      </Text>
+                  {idx === selectedIndex && squad.agents && squad.agents.length > 0 && (
+                    <Box marginTop={1} flexDirection="column">
+                      <Text dimColor>Agents:</Text>
+                      <Box marginLeft={2} flexDirection="column">
+                        {squad.agents.map((agent, agentIdx) => {
+                          const { name, emoji } = getAgentDisplay(agent);
+                          return (
+                            <Box key={agentIdx}>
+                              <Text dimColor>{emoji} {name}</Text>
+                            </Box>
+                          );
+                        })}
+                      </Box>
                     </Box>
                   )}
                 </Box>
