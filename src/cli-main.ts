@@ -3,7 +3,8 @@ import { OAuthManager } from './auth/oauth.js';
 import { switchSquad, showCurrentSquad, clearSquadSelection } from './commands/squad-manage.js';
 import { analyzeRepository } from './commands/analyze.js';
 import { createSquad } from './commands/squad.js';
-import { ensureOrganizationSelected } from './utils/squad-selection.js';
+import { doctor } from './commands/doctor.js';
+import { checkSystemRequirements } from './utils/system-check.js';
 import chalk from 'chalk';
 
 const colors = {
@@ -17,8 +18,23 @@ const colors = {
 async function main() {
   const [,, ...args] = process.argv;
   
-  // Join all arguments as the user message
-  const userMessage = args.join(' ').trim();
+  // Parse options and message
+  let userMessage = '';
+  const options: any = {};
+  
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--non-interactive' || args[i] === '-n') {
+      options.nonInteractive = true;
+    } else if (args[i] === '--debug') {
+      options.debug = true;
+    } else if (args[i] === '--new') {
+      options.new = true;
+    } else {
+      // Everything else is part of the user message
+      userMessage = args.slice(i).join(' ').trim();
+      break;
+    }
+  }
   
   // Handle special commands
   if (userMessage === '--version' || userMessage === '-v') {
@@ -34,10 +50,16 @@ Usage:
   graphyn <request>              Create an AI development squad
   graphyn auth                   Authenticate with Graphyn
   graphyn logout                 Log out from Graphyn
+  graphyn doctor                 Check system requirements & setup
   graphyn analyze [--mode mode]  Analyze repository for tech stack
   graphyn squad                  Show current squad
   graphyn squad switch           Switch to a different squad
   graphyn squad clear            Clear squad selection
+
+Options:
+  --non-interactive, -n          Exit after creating thread (no interactive mode)
+  --debug                        Show debug information
+  --new                          Skip squad selection and create a new squad
   graphyn --version              Show version
   graphyn --help                 Show help
 
@@ -49,6 +71,12 @@ Examples:
   graphyn analyze --mode summary Get a summary analysis
   graphyn squad switch           Switch between your squads
 `);
+    process.exit(0);
+  }
+  
+  // Handle doctor command
+  if (userMessage === 'doctor') {
+    await doctor();
     process.exit(0);
   }
   
@@ -105,8 +133,18 @@ Examples:
     process.exit(0);
   }
   
-  // Main flow: authenticate, select squad, then create request
+  // Main flow: check system requirements, authenticate, select squad, then create request
   try {
+    // Step 0: Silently check if system is ready (no output unless there's a problem)
+    const doctorResult = await checkSystemRequirements();
+    
+    // If critical components are missing, run doctor command
+    if (!doctorResult.canProceed) {
+      console.log(colors.warning('\n⚠️  System requirements not met. Running setup...\n'));
+      await doctor();
+      process.exit(0);
+    }
+    
     // Step 1: Check authentication
     const oauthManager = new OAuthManager();
     if (!(await oauthManager.isAuthenticated())) {
@@ -137,12 +175,10 @@ Examples:
       console.log(colors.success('\n✓ Re-authentication successful!\n'));
     }
     
-    // Step 3: Ensure organization is selected
-    const organization = await ensureOrganizationSelected(token);
-    
-    // Step 4: Create a new squad for this request
-    console.log(colors.info(`\n🎆 Creating a new AI squad for: ${colors.highlight(organization.name)}\n`));
-    await createSquad(userMessage, { organizationId: organization.id });
+    // Step 3: Create a new squad for this request
+    // The backend will use the authenticated user's organization
+    console.log(colors.info(`\n🎆 Creating a new AI squad...\n`));
+    await createSquad(userMessage, options);
   } catch (error) {
     console.error(colors.error('\n❌ Error:'), error instanceof Error ? error.message : error);
     process.exit(1);

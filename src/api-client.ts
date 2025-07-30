@@ -340,10 +340,11 @@ export class GraphynAPIClient {
     return response.teams || [];
   }
 
-  // Squad Management - squads don't exist yet, they're created via /ask endpoint
+  // Squad Management
   async listSquads(organizationId?: string): Promise<Squad[]> {
-    // For now, return empty array as squads are created on-demand
-    return [];
+    const params = organizationId ? `?organization_id=${organizationId}` : '';
+    const response = await this.request<{ squads: Squad[] }>(`/api/squads${params}`);
+    return response.squads || [];
   }
 
   async createSquad(data: CreateSquadRequest): Promise<Squad> {

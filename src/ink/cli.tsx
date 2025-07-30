@@ -9,8 +9,13 @@ let [, , rawCommand, ...args] = process.argv;
 
 // Check for --dev flag in both rawCommand and args
 let isDev = false;
+let isDebug = false;
+
 if (rawCommand === '--dev') {
   isDev = true;
+  rawCommand = args.shift(); // Move first arg to rawCommand
+} else if (rawCommand === '--debug') {
+  isDebug = true;
   rawCommand = args.shift(); // Move first arg to rawCommand
 } else {
   const devFlagIndex = args.indexOf('--dev');
@@ -18,6 +23,17 @@ if (rawCommand === '--dev') {
   if (isDev) {
     args.splice(devFlagIndex, 1);
   }
+  
+  const debugFlagIndex = args.indexOf('--debug');
+  isDebug = debugFlagIndex !== -1;
+  if (isDebug) {
+    args.splice(debugFlagIndex, 1);
+  }
+}
+
+// Set debug mode globally
+if (isDebug) {
+  process.env.DEBUG_GRAPHYN = 'true';
 }
 
 // Check if this is a natural language query (wrapped in quotes or starting with "I")
@@ -79,6 +95,7 @@ Options:
   -v, --version                  Show version
   -h, --help                     Show help
   --dev                          Use local development servers
+  --debug                        Show debug information
 
 Examples:
   graphyn backend "add auth"     Backend development

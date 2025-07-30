@@ -251,7 +251,18 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
   // Squad methods
   const listSquads = async (): Promise<Squad[]> => {
     if (!client) throw new Error('API client not initialized');
-    return client.listSquads();
+    
+    // Get the current user's organization from config
+    const configManager = new ConfigManager();
+    await configManager.load();
+    const currentUser = await configManager.get('auth.user');
+    
+    if (!currentUser?.orgID) {
+      throw new Error('No organization found. Please re-authenticate.');
+    }
+    
+    // Pass the organization ID to ensure proper isolation
+    return client.listSquads(currentUser.orgID);
   };
 
   const createSquad = async (data: CreateSquadRequest): Promise<Squad> => {

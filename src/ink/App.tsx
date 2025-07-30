@@ -19,6 +19,7 @@ import { initGraphynFolder } from '../utils/graphyn-folder.js';
 import { runDoctor } from '../utils/doctor.js';
 import { AGENT_TYPES, isAgentType } from '../constants/agents.js';
 import { ConfigManager } from '../config-manager.js';
+import { debug } from '../utils/debug.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -122,6 +123,16 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     } else if (command === 'design' && query === 'logout') {
       // Special case: Figma logout
       setMode('figma-logout');
+    } else if (command === 'squad' && query === 'create-examples') {
+      // Special case: Create example agents
+      import('../commands/create-examples.js').then(({ createExampleAgentsCommand }) => {
+        createExampleAgentsCommand().then(() => {
+          exit();
+        }).catch((error) => {
+          console.error('Failed to create example agents:', error);
+          exit();
+        });
+      });
     } else if (command && query) {
       // Normalize command to lowercase to handle case-insensitive inputs
       const normalizedCmd = command.toLowerCase();
@@ -153,8 +164,8 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       };
       
       // Debug logging
-      console.log('Debug - command:', command);
-      console.log('Debug - directCommands:', Object.keys(directCommands));
+      debug('command:', command);
+      debug('directCommands:', Object.keys(directCommands));
       
       if (directCommands[command]) {
         setMode(directCommands[command]);

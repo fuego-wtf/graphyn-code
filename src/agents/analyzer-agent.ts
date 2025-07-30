@@ -2,7 +2,7 @@ import { GraphynAPIClient } from '../api-client.js';
 import { AnalysisData } from '../services/context-builder.js';
 import fs from 'fs';
 import path from 'path';
-import { glob } from 'glob';
+import glob from 'glob';
 
 export interface FileInfo {
   path: string;

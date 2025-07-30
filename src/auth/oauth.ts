@@ -9,6 +9,7 @@ import { withRetry } from '../utils/retry.js';
 import { randomBytes, createHash } from 'crypto';
 import { SecureTokenStorage } from './secure-storage.js';
 import { getSecureTokenStorage, type ISecureTokenStorage } from './secure-storage-v2.js';
+import { ConfigManager } from '../config-manager.js';
 
 const colors = {
   success: chalk.green,
@@ -143,6 +144,44 @@ export class OAuthManager {
       
       // Store the tokens
       await this.storeTokens(tokens);
+      
+      // Fetch user profile to get organization info
+      try {
+        const userResponse = await fetch(`${apiUrl}/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${tokens.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (userResponse.ok) {
+          const userData = await userResponse.json() as {
+            user: { id: string; email: string; name?: string };
+            organizations: Array<{ id: string; name: string; slug: string; role: string }>;
+            current_organization?: { id: string; name: string; slug: string };
+          };
+          
+          // Store user data in config
+          const configManager = new ConfigManager();
+          
+          // Use the first organization if no current organization is set
+          const orgToUse = userData.current_organization || userData.organizations[0];
+          
+          if (orgToUse) {
+            await configManager.set('auth.user', {
+              email: userData.user.email,
+              name: userData.user.name || userData.user.email,
+              orgID: orgToUse.id,
+              userID: userData.user.id
+            });
+            
+            console.log(colors.info(`✓ Authenticated as ${userData.user.email}`));
+            console.log(colors.info(`✓ Organization: ${orgToUse.name}`));
+          }
+        }
+      } catch (error) {
+        console.warn(colors.warning('Could not fetch user profile, but authentication succeeded'));
+      }
       
       // After successful authentication
       console.log(colors.success('✓ Authentication successful!'));

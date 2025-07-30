@@ -13,7 +13,8 @@ export async function detectClaude(): Promise<boolean> {
     const paths = [
       '/usr/local/bin/claude',
       '/usr/bin/claude',
-      '~/.local/bin/claude',
+      `${process.env.HOME}/.local/bin/claude`,
+      `${process.env.HOME}/.claude/local/claude`,
       '/opt/claude/bin/claude'
     ];
     
@@ -44,7 +45,8 @@ export async function findClaude(): Promise<ClaudeResult> {
     const paths = [
       '/usr/local/bin/claude',
       '/usr/bin/claude',
-      '~/.local/bin/claude',
+      `${process.env.HOME}/.local/bin/claude`,
+      `${process.env.HOME}/.claude/local/claude`,
       '/opt/claude/bin/claude'
     ];
     

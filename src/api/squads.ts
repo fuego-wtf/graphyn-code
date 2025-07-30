@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { withRetry, isRetryableError } from '../utils/retry.js';
 import chalk from 'chalk';
+import { debug, debugError, debugSuccess } from '../utils/debug.js';
 
 // Squad represents a group of AI agents created for a specific project
 export interface Squad {
@@ -31,16 +32,21 @@ export interface AgentRecommendation {
 
 export interface AskSquadRequest {
   user_message: string;
-  repo_url?: string;
-  repo_branch?: string;
   team_id?: string;
-  organization_id?: string;
   context?: {
     detected_stack?: string[];
     patterns?: string[];
     framework?: string;
     language?: string;
+    dependencies?: Record<string, string>;
+    structure?: {
+      hasTests?: boolean;
+      hasCI?: boolean;
+      hasDocs?: boolean;
+    };
   };
+  repo_url?: string;
+  repo_branch?: string;
 }
 
 export interface AskSquadResponse {
@@ -66,11 +72,11 @@ export class SquadsAPI {
       const apiUrl = config.apiBaseUrl;
       const endpoint = `${apiUrl}/api/code/ask`;
       
-      console.log(chalk.blue('\n🔍 DEBUG: askForSquad called'));
-      console.log(chalk.gray('Endpoint:'), endpoint);
-      console.log(chalk.gray('Request payload:'));
-      console.log(chalk.gray(JSON.stringify(request, null, 2)));
-      console.log(chalk.gray('Token (first 10 chars):'), this.token?.substring(0, 10) + '...');
+      debug('🔍 askForSquad called');
+      debug('Endpoint:', endpoint);
+      debug('Request payload:');
+      debug(JSON.stringify(request, null, 2));
+      debug('Token (first 10 chars):', this.token?.substring(0, 10) + '...');
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -81,19 +87,19 @@ export class SquadsAPI {
         body: JSON.stringify(request),
       });
       
-      console.log(chalk.blue('\n📡 DEBUG: Response received'));
-      console.log(chalk.gray('Status:'), response.status);
-      console.log(chalk.gray('Headers:'));
+      debug('📡 Response received');
+      debug('Status:', response.status);
+      debug('Headers:');
       response.headers.forEach((value, key) => {
         if (key.toLowerCase() !== 'authorization') {
-          console.log(chalk.gray(`  ${key}: ${value}`));
+          debug(`  ${key}: ${value}`);
         }
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(chalk.red('\n❌ DEBUG: Request failed'));
-        console.log(chalk.red('Error response body:'), errorText);
+        debugError('❌ Request failed');
+        debugError('Error response body:', errorText);
         
         const error: any = new Error(`Failed to get squad recommendation: ${errorText}`);
         error.status = response.status;
@@ -101,19 +107,19 @@ export class SquadsAPI {
       }
 
       const responseText = await response.text();
-      console.log(chalk.green('\n✅ DEBUG: Success response'));
-      console.log(chalk.gray('Response body:'), responseText);
+      debugSuccess('✅ Success response');
+      debug('Response body:', responseText);
       
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.log(chalk.red('Failed to parse response as JSON'));
+        debugError('Failed to parse response as JSON');
         throw new Error(`Invalid JSON response: ${responseText}`);
       }
       
-      console.log(chalk.green('Parsed response:'));
-      console.log(chalk.gray(JSON.stringify(data, null, 2)));
+      debugSuccess('Parsed response:');
+      debug(JSON.stringify(data, null, 2));
       
       return data as AskSquadResponse;
     }, {

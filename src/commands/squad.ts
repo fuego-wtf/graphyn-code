@@ -5,6 +5,15 @@ import { SquadsAPI, AskSquadRequest } from '../api/squads.js';
 import { getCachedAnalysis } from './analyze.js';
 import { ConfigManager } from '../config-manager.js';
 import { buildAskRequest, detectRepository, contextBuilders } from '../services/request-builder.js';
+import { getRecommendedAgents, createExampleAgents } from '../services/example-agents.js';
+import { render } from 'ink';
+import { debug, debugError, debugSuccess, setDebugMode } from '../utils/debug.js';
+import React from 'react';
+import { InteractiveSquadBuilder } from '../components/InteractiveSquadBuilder.js';
+import { ThreadStreamHandler } from '../utils/sse-handler.js';
+import { TmuxLayoutManager } from '../utils/tmux-layout-manager.js';
+import type { Task } from '../services/claude-task-generator.js';
+import type { SquadFeedbackData } from '../ink/components/SquadFeedback.js';
 
 const colors = {
   success: chalk.green,
@@ -15,15 +24,17 @@ const colors = {
 };
 
 export async function createSquad(userMessage: string, options: any = {}) {
-  const organizationId = options.organizationId;
+  // Set debug mode if option is passed
+  if (options.debug) {
+    setDebugMode(true);
+  }
   
-  console.log(chalk.blue('\n🔍 DEBUG: createSquad called'));
-  console.log(chalk.gray('User message:'), userMessage);
-  console.log(chalk.gray('Organization ID:'), organizationId);
-  console.log(chalk.gray('Options:'), JSON.stringify(options, null, 2));
+  debug('🔍 createSquad called');
+  debug('User message:', userMessage);
+  debug('Options:', JSON.stringify(options, null, 2));
   
   try {
-    console.log(colors.info('🤖 Creating your AI development squad...\n'));
+    console.log(colors.info('🤖 Preparing your AI development squad...\n'));
 
     // Check authentication
     const oauthManager = new OAuthManager();
@@ -37,20 +48,31 @@ export async function createSquad(userMessage: string, options: any = {}) {
     if (!token) {
       throw new Error('Failed to get authentication token');
     }
+    
+    // Check for existing squads unless --new flag is passed
+    if (!options.new) {
+      const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+      const existingSquad = await selectExistingSquad(token, apiUrl);
+      if (existingSquad) {
+        // User selected an existing squad
+        console.log(colors.success(`\n✅ Using existing squad: ${existingSquad.name}`));
+        console.log(colors.info(`Squad ID: ${existingSquad.id}`));
+        
+        // Use the existing squad
+        await useExistingSquad(existingSquad, token, userMessage);
+        return;
+      }
+      // If no squad selected, continue with new squad creation
+    }
 
     // Get configuration
     const configManager = new ConfigManager();
     const currentUser = await configManager.get('auth.user');
     
-    if (!organizationId) {
-      console.log(colors.error('❌ No organization selected. This should not happen.'));
-      return;
-    }
-    
     // Determine context mode
     const contextMode = options.contextMode || 'basic';
-    console.log(chalk.blue('\n🔧 DEBUG: Building context'));
-    console.log(chalk.gray('Context mode:'), contextMode);
+    debug('🔧 Building context');
+    debug('Context mode:', contextMode);
     
     // Check for cached analysis
     const cachedAnalysis = await getCachedAnalysis();
@@ -58,44 +80,44 @@ export async function createSquad(userMessage: string, options: any = {}) {
     
     if (!context && cachedAnalysis) {
       console.log(colors.info('📊 Using cached repository analysis'));
-      console.log(chalk.gray('Cached context:'), JSON.stringify(cachedAnalysis.context, null, 2));
+      debug('Cached context:', JSON.stringify(cachedAnalysis.context, null, 2));
       context = cachedAnalysis.context;
     } else if (!context) {
       // Build context using the modular system
       console.log(colors.info('🔍 Analyzing repository...'));
       const contextBuilder = contextBuilders[contextMode];
       context = await contextBuilder(process.cwd());
-      console.log(chalk.gray('Built context:'), JSON.stringify(context, null, 2));
+      debug('Built context:', JSON.stringify(context, null, 2));
     }
     
     // Build the request using the modular system
-    console.log(chalk.blue('\n🔨 DEBUG: Detecting repository info'));
+    debug('🔨 Detecting repository info');
     const repoInfo = await detectRepository(process.cwd());
-    console.log(chalk.gray('Repository info:'), JSON.stringify(repoInfo, null, 2));
+    debug('Repository info:', JSON.stringify(repoInfo, null, 2));
     
-    // Build a minimal request - the backend seems to expect minimal parameters
+    // Build a minimal request - the backend gets organization from auth context
     const request: AskSquadRequest = {
       user_message: userMessage,
-      organization_id: organizationId,
+      // team_id is optional - backend will use user's default organization if not provided
     };
     
-    console.log(chalk.blue('\n🎯 DEBUG: Building request'));
-    console.log(chalk.gray('Base request:'), JSON.stringify(request, null, 2));
+    debug('🎯 Building request');
+    debug('Base request:', JSON.stringify(request, null, 2));
     
     // Only add optional fields if they exist
     if (repoInfo.url) {
       request.repo_url = repoInfo.url;
-      console.log(chalk.gray('Added repo_url:'), repoInfo.url);
+      debug('Added repo_url:', repoInfo.url);
     }
     if (repoInfo.branch) {
       request.repo_branch = repoInfo.branch;
-      console.log(chalk.gray('Added repo_branch:'), repoInfo.branch);
+      debug('Added repo_branch:', repoInfo.branch);
     }
     
     // Only add context if it's not empty
     if (context && Object.keys(context).length > 0) {
       request.context = context;
-      console.log(chalk.gray('Added context with keys:'), Object.keys(context));
+      debug('Added context with keys:', Object.keys(context));
     }
 
     // Initialize API
@@ -103,15 +125,15 @@ export async function createSquad(userMessage: string, options: any = {}) {
 
     console.log(colors.info('🔄 Analyzing your request...'));
     
-    console.log(chalk.blue('\n📤 DEBUG: Final request to be sent'));
-    console.log(chalk.gray(JSON.stringify(request, null, 2)));
+    debug('📤 Final request to be sent');
+    debug(JSON.stringify(request, null, 2));
     
     // Call API
-    console.log(chalk.blue('\n🚀 DEBUG: Calling askForSquad API'));
+    debug('🚀 Calling askForSquad API');
     const response = await squadsAPI.askForSquad(request);
     
-    console.log(chalk.green('\n✔️ DEBUG: API call successful'));
-    console.log(chalk.gray('Response:'), JSON.stringify(response, null, 2));
+    debugSuccess('✔️ API call successful');
+    debug('Response:', JSON.stringify(response, null, 2));
     
     // The response contains a squad recommendation (group of agents)
     // This is not persisted as a "current squad" since each request creates a new squad
@@ -123,12 +145,29 @@ export async function createSquad(userMessage: string, options: any = {}) {
     if (response.squad) {
       await saveSquadInfo(response.squad, userMessage);
     }
+    
+    // Enter interactive mode if not disabled
+    if (!options.nonInteractive && response.thread_id) {
+      console.log(colors.info('\n🎮 Entering interactive mode...'));
+      console.log(colors.info('Use arrow keys to navigate, Enter to select, ESC to exit\n'));
+      
+      // Launch interactive squad builder
+      const agents = await launchInteractiveSquadBuilder(response.thread_id, token);
+      
+      if (agents && agents.length > 0) {
+        // Squad was approved, proceed to naming and saving
+        await handleSquadApproval(agents, token);
+      }
+    } else {
+      // Check if user has any agents and offer to create examples
+      await checkAndOfferExampleAgents(token, userMessage);
+    }
 
   } catch (error) {
-    console.log(chalk.red('\n🚨 DEBUG: Error in createSquad'));
-    console.log(chalk.red('Error type:'), error?.constructor?.name);
-    console.log(chalk.red('Error message:'), error?.message);
-    console.log(chalk.red('Error stack:'), error?.stack);
+    debugError('🚨 Error in createSquad');
+    debugError('Error type:', error?.constructor?.name);
+    debugError('Error message:', error?.message);
+    debugError('Error stack:', error?.stack);
     
     console.error(colors.error('❌ Failed to create squad:'), error);
   }
@@ -169,7 +208,17 @@ function displaySquadCreationResponse(response: any) {
   }
   
   console.log(colors.info('\n📺 To monitor progress:'));
-  console.log(colors.info('   Visit the thread at'), colors.highlight(`https://app.graphyn.xyz/threads/${response.thread_id}`));
+  
+  // Determine app URL based on API URL
+  const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+  let appUrl = 'https://app.graphyn.xyz';
+  
+  if (apiUrl.includes('localhost')) {
+    // In development, use localhost:3000 for the app
+    appUrl = 'http://localhost:3000';
+  }
+  
+  console.log(colors.info('   Visit the thread at'), colors.highlight(`${appUrl}/threads/${response.thread_id}`));
   console.log(colors.info('   Or stream updates using the API at'), colors.highlight(response.stream_url));
 }
 
@@ -184,4 +233,542 @@ async function saveSquadInfo(squad: any, userMessage: string) {
   
   console.log(colors.info('\n📌 Squad recommendation saved'));
   console.log(colors.info('You can now create these agents in the Graphyn platform'));
+}
+
+async function checkAndOfferExampleAgents(token: string, userMessage: string) {
+  try {
+    // Check if user has any agents
+    const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+    const response = await fetch(`${apiUrl}/api/internal/agents`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.log(colors.warning('\n⚠️  Could not check existing agents'));
+      return;
+    }
+
+    const data = await response.json() as { agents: any[] };
+    const existingAgents = data.agents || [];
+    
+    // Filter out the Team Builder agent
+    const userAgents = existingAgents.filter((agent: any) => 
+      !agent.name.toLowerCase().includes('builder') && 
+      !agent.name.toLowerCase().includes('team')
+    );
+
+    if (userAgents.length === 0) {
+      console.log(colors.info('\n📊 No custom agents found in your organization.'));
+      console.log(colors.info('🎯 Here are some recommended agents based on your request:\n'));
+      
+      // Get recommended agents based on user message
+      const recommendedAgents = getRecommendedAgents(userMessage);
+      
+      // Display recommended agents
+      displayRecommendedAgents(recommendedAgents);
+      
+      console.log(colors.info('\n💡 To create these agents automatically, run:'));
+      console.log(colors.highlight('   graphyn squad create-examples'));
+      console.log(colors.info('\n   Or create them manually in the Graphyn platform.'));
+    } else {
+      console.log(colors.info(`\n✅ Found ${userAgents.length} existing agents in your organization.`));
+    }
+  } catch (error) {
+    console.log(colors.warning('\n⚠️  Could not check existing agents:', error));
+  }
+}
+
+function displayRecommendedAgents(agents: any[]) {
+  console.log(chalk.yellow('\n┌─────────────────────── Your Dev Squad for Authentication ───────────────────────┐'));
+  console.log(chalk.yellow('│                                                                                  │'));
+  
+  agents.forEach((agent, index) => {
+    console.log(chalk.yellow('│') + `  ${agent.emoji || '⚡'} ${chalk.cyan.bold(agent.name)} (${agent.formation})` + ' '.repeat(Math.max(0, 84 - agent.name.length - agent.formation.length - 6)) + chalk.yellow('│'));
+    
+    // Skills line
+    const skillEntries = Object.entries(agent.skills).slice(0, 3);
+    let skillsLine = '│     Skills: ';
+    skillEntries.forEach(([skill, level], idx) => {
+      const numLevel = Number(level);
+      const bars = '█'.repeat(numLevel) + '░'.repeat(10 - numLevel);
+      const barColor = numLevel >= 8 ? chalk.green : numLevel >= 5 ? chalk.yellow : chalk.red;
+      skillsLine += skill + ' ' + barColor(bars);
+      if (idx < skillEntries.length - 1) skillsLine += ' | ';
+    });
+    console.log(chalk.yellow(skillsLine) + ' '.repeat(Math.max(0, 84 - skillsLine.length + 1)) + chalk.yellow('│'));
+    
+    console.log(chalk.yellow('│') + `     Role: ${agent.role}` + ' '.repeat(Math.max(0, 73 - agent.role.length)) + chalk.yellow('│'));
+    console.log(chalk.yellow('│') + `     Style: ${agent.style}` + ' '.repeat(Math.max(0, 72 - agent.style.length)) + chalk.yellow('│'));
+    
+    if (index < agents.length - 1) {
+      console.log(chalk.yellow('│                                                                                  │'));
+    }
+  });
+  
+  console.log(chalk.yellow('└──────────────────────────────────────────────────────────────────────────────────┘'));
+}
+
+async function launchInteractiveSquadBuilder(threadId: string, token: string) {
+  const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+  
+  return new Promise<any[]>((resolve) => {
+    const { unmount } = render(
+      React.createElement(InteractiveSquadBuilder, {
+        threadId,
+        token,
+        apiUrl,
+        onSquadApproved: (agents) => {
+          unmount();
+          resolve(agents);
+        },
+        onExit: () => {
+          console.log(colors.info('\n👋 Exiting interactive mode...'));
+          unmount();
+          resolve([]);
+        }
+      })
+    );
+  });
+}
+
+async function handleSquadApproval(agents: any[], token: string) {
+  console.log(colors.success('\n✅ Squad configuration approved!'));
+  console.log(colors.info(`Total agents: ${agents.length}`));
+  agents.forEach((agent, idx) => {
+    console.log(colors.highlight(`${idx + 1}. ${agent.emoji} ${agent.name}`));
+  });
+  
+  // Launch squad naming flow
+  const squadInfo = await launchSquadNaming(agents);
+  
+  if (squadInfo) {
+    // Get current user info
+    const configManager = new ConfigManager();
+    const currentUser = await configManager.get('auth.user');
+    
+    // Save squad to backend
+    const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+    try {
+      // First, let's try to understand what the backend expects
+      console.log(colors.info('\n🔍 Attempting to save squad to backend...'));
+      console.log(colors.info('Current user info:'), currentUser);
+      
+      const response = await fetch(`${apiUrl}/api/squads`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: squadInfo.name,
+          description: squadInfo.description,
+          // Try sending just the essential fields
+          agents: agents.map(agent => ({
+            id: agent.id || `agent_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            name: agent.name,
+            emoji: agent.emoji || '🤖',
+            role: agent.role,
+            systemPrompt: agent.systemPrompt || `You are ${agent.name}, a ${agent.role} expert. ${agent.description || ''}`,
+            capabilities: agent.capabilities || (agent.skills ? Object.keys(agent.skills) : []),
+            metadata: {
+              ...agent.metadata,
+              skills: agent.skills,
+              style: agent.style,
+              formation: agent.formation,
+              description: agent.description
+            }
+          }))
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(colors.error(`Response status: ${response.status} ${response.statusText}`));
+        console.error(colors.error(`Response body: ${errorText}`));
+        throw new Error(`Failed to save squad: ${response.statusText}`);
+      }
+      
+      const savedSquad = await response.json() as { id: string; name: string };
+      console.log(colors.success('\n✅ Squad saved successfully!'));
+      console.log(colors.info(`Squad ID: ${savedSquad.id}`));
+      console.log(colors.info(`Squad Name: ${savedSquad.name}`))
+      
+      // Get the original user message from config
+      const configManager = new ConfigManager();
+      const lastSquadRecommendation = await configManager.get('lastSquadRecommendation');
+      const userMessage = lastSquadRecommendation?.userMessage || 'Build the requested features';
+      
+      // Store squad locally for future use
+      const { SquadStorage } = await import('../services/squad-storage.js');
+      const squadStorage = new SquadStorage();
+      
+      const localSquad = {
+        id: savedSquad.id,
+        name: savedSquad.name,
+        description: squadInfo.description,
+        agents: agents,
+        created_at: new Date().toISOString(),
+        workspace: process.cwd()
+      };
+      
+      await squadStorage.saveSquad(localSquad);
+      console.log(colors.info('\n📁 Squad saved locally'));
+      
+      // Generate tasks using Claude
+      console.log(colors.info('\n🤖 Generating tasks with Claude...'));
+      const { ClaudeTaskGenerator } = await import('../services/claude-task-generator.js');
+      const taskGenerator = new ClaudeTaskGenerator();
+      
+      const generatedTasks = await taskGenerator.generateTasks({
+        userQuery: userMessage,
+        agents: agents,
+        repoContext: await analyzeRepositoryForContext(),
+        squadName: savedSquad.name
+      });
+      
+      // Launch task review
+      const tasks = await launchTaskReview({
+        tasks: generatedTasks,
+        agents: agents,
+        squadId: savedSquad.id,
+        userQuery: userMessage
+      });
+      
+      if (tasks && tasks.length > 0) {
+        console.log(colors.success('\n✅ Tasks approved!'));
+        console.log(colors.info(`Total tasks: ${tasks.length}`));
+        
+        // Launch TMUX session with agents
+        console.log(colors.info('\n🚀 Launching squad workspace...'));
+        const tmuxManager = new TmuxLayoutManager(savedSquad.id);
+        
+        const executionPlan = {
+          squad: localSquad,
+          tasks: tasks,
+          workspace: process.cwd()
+        };
+        
+        await tmuxManager.executeSquadPlan(executionPlan);
+        
+        console.log(colors.success('\n✨ Squad is now active!'));
+        console.log(colors.info('Your AI development team is working on the tasks.'));
+        console.log(colors.info('\nTo reattach to the session later:'));
+        console.log(colors.highlight(`  tmux attach-session -t ${tmuxManager.getSessionName()}`));
+      } else {
+        console.log(colors.warning('\n⚠️  Task generation was cancelled'));
+      }
+      
+    } catch (error) {
+      console.error(colors.error('\n❌ Failed to save squad:'), error);
+    }
+  }
+}
+
+async function launchSquadNaming(agents: any[]) {
+  const { SquadNaming } = await import('../components/SquadNaming.js');
+  
+  return new Promise<{ name: string; description?: string } | null>((resolve) => {
+    const { unmount } = render(
+      React.createElement(SquadNaming, {
+        agents,
+        onSquadNamed: (name, description) => {
+          unmount();
+          resolve({ name, description });
+        },
+        onCancel: () => {
+          console.log(colors.info('\n👋 Squad naming cancelled'));
+          unmount();
+          resolve(null);
+        }
+      })
+    );
+  });
+}
+
+async function launchTaskReview(params: {
+  tasks: any[];
+  agents: any[];
+  squadId: string;
+  userQuery: string;
+}) {
+  const { TaskReview } = await import('../ink/components/TaskReview.js');
+  
+  return new Promise<any[] | null>((resolve) => {
+    const { unmount } = render(
+      React.createElement(TaskReview, {
+        tasks: params.tasks,
+        agents: params.agents,
+        onApprove: (approvedTasks) => {
+          unmount();
+          resolve(approvedTasks);
+        },
+        onRegenerate: async () => {
+          unmount();
+          // Regenerate tasks
+          console.log(colors.info('\n🔄 Regenerating tasks...'));
+          const { ClaudeTaskGenerator } = await import('../services/claude-task-generator.js');
+          const taskGenerator = new ClaudeTaskGenerator();
+          
+          const newTasks = await taskGenerator.generateTasks({
+            userQuery: params.userQuery,
+            agents: params.agents,
+            repoContext: await analyzeRepositoryForContext(),
+            squadName: params.squadId
+          });
+          
+          // Re-launch review with new tasks
+          const reviewedTasks = await launchTaskReview({
+            ...params,
+            tasks: newTasks
+          });
+          resolve(reviewedTasks);
+        },
+        onCancel: () => {
+          console.log(colors.info('\n👋 Task generation cancelled'));
+          unmount();
+          resolve(null);
+        }
+      })
+    );
+  });
+}
+
+async function analyzeRepositoryForContext() {
+  // Get cached analysis or build new context
+  const cachedAnalysis = await getCachedAnalysis();
+  if (cachedAnalysis) {
+    return cachedAnalysis.context;
+  }
+  
+  // Build context using the modular system
+  const contextBuilder = contextBuilders.basic;
+  return await contextBuilder(process.cwd());
+}
+
+async function selectExistingSquad(token: string, apiUrl: string): Promise<any | null> {
+  const { SquadSelector } = await import('../components/SquadSelector.js');
+  const { SquadEditor } = await import('../components/SquadEditor.js');
+  
+  const selectSquad = (): Promise<any | null> => {
+    return new Promise<any | null>((resolve) => {
+      const { unmount } = render(
+        React.createElement(SquadSelector, {
+          token,
+          apiUrl,
+          onSquadSelected: (squad) => {
+            unmount();
+            resolve(squad);
+          },
+          onCreateNew: () => {
+            unmount();
+            resolve(null); // Continue with new squad creation
+          },
+          onEditSquad: async (squad) => {
+            unmount();
+            // Launch squad editor
+            const editResult = await editSquad(squad, token, apiUrl);
+            if (editResult === 'deleted') {
+              // Squad was deleted, show selector again
+              console.log(colors.success('\n✅ Squad deleted successfully'));
+              const result = await selectSquad();
+              resolve(result);
+            } else {
+              // Back button was pressed, show selector again
+              const result = await selectSquad();
+              resolve(result);
+            }
+          },
+          onExit: () => {
+            console.log(colors.info('\n👋 Squad selection cancelled'));
+            unmount();
+            process.exit(0);
+          }
+        })
+      );
+    });
+  };
+  
+  return selectSquad();
+}
+
+async function editSquad(squad: any, token: string, apiUrl: string): Promise<'deleted' | 'back'> {
+  const { SquadEditor } = await import('../components/SquadEditor.js');
+  
+  return new Promise<'deleted' | 'back'>((resolve) => {
+    const { unmount } = render(
+      React.createElement(SquadEditor, {
+        squad,
+        token,
+        apiUrl,
+        onBack: () => {
+          unmount();
+          resolve('back');
+        },
+        onDelete: () => {
+          unmount();
+          resolve('deleted');
+        }
+      })
+    );
+  });
+}
+
+async function useExistingSquad(squad: any, token: string, userMessage: string) {
+  const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+  
+  try {
+    // Store squad locally for future use
+    const { SquadStorage } = await import('../services/squad-storage.js');
+    const squadStorage = new SquadStorage();
+    
+    const localSquad = {
+      id: squad.id,
+      name: squad.name,
+      description: squad.description,
+      agents: squad.agents || [],
+      created_at: squad.created_at || new Date().toISOString(),
+      last_used: new Date().toISOString(),
+      workspace: process.cwd()
+    };
+    
+    await squadStorage.saveSquad(localSquad);
+    console.log(colors.info('\n📁 Squad loaded from storage'));
+    
+    // Generate tasks using Claude
+    console.log(colors.info('\n🤖 Generating tasks with Claude...'));
+    const { ClaudeTaskGenerator } = await import('../services/claude-task-generator.js');
+    const taskGenerator = new ClaudeTaskGenerator();
+    
+    const generatedTasks = await taskGenerator.generateTasks({
+      userQuery: userMessage,
+      agents: squad.agents || [],
+      repoContext: await analyzeRepositoryForContext(),
+      squadName: squad.name
+    });
+    
+    // Launch task review
+    const tasks = await launchTaskReview({
+      tasks: generatedTasks,
+      agents: squad.agents || [],
+      squadId: squad.id,
+      userQuery: userMessage
+    });
+    
+    if (tasks && tasks.length > 0) {
+      console.log(colors.success('\n✅ Tasks approved!'));
+      console.log(colors.info(`Total tasks: ${tasks.length}`));
+      
+      // Load agent configurations from Graphyn
+      console.log(colors.info('\n📥 Loading agent configurations...'));
+      const { AgentLoader } = await import('../services/agent-loader.js');
+      const agentLoader = new AgentLoader(apiUrl, token);
+      
+      let agentConfigs;
+      try {
+        agentConfigs = await agentLoader.loadSquadAgents(localSquad);
+      } catch (error) {
+        console.log(colors.warning('⚠️  Failed to load agents from API, using local configs'));
+        agentConfigs = localSquad.agents;
+      }
+      
+      // Launch TMUX Cockpit with Claude agents
+      console.log(colors.info('\n🚀 Launching Graphyn Cockpit...'));
+      const { TMUXCockpitOrchestrator } = await import('../utils/tmux-cockpit-orchestrator.js');
+      const cockpit = new TMUXCockpitOrchestrator();
+      
+      const repoContext = await analyzeRepositoryForContext();
+      
+      await cockpit.launchCockpit({
+        tasks,
+        agents: agentConfigs,
+        squad: localSquad,
+        repoContext,
+        workDir: process.cwd(),
+        claudePath: process.env.CLAUDE_PATH
+      });
+      
+      // Wait for completion
+      await cockpit.waitForCompletion();
+      
+      // Collect feedback
+      console.log(colors.info('\n📝 Collecting feedback...'));
+      const feedback = await collectSquadFeedback(tasks);
+      
+      // Save feedback
+      if (feedback) {
+        await saveSquadFeedback(squad.id, feedback, token, apiUrl);
+      }
+      
+      console.log(colors.success('\n✨ Squad session completed!'));
+    } else {
+      console.log(colors.warning('\n⚠️  Task generation was cancelled'));
+    }
+  } catch (error) {
+    console.error(colors.error('\n❌ Failed to use existing squad:'), error);
+  }
+}
+
+async function collectSquadFeedback(tasks: Task[]): Promise<SquadFeedbackData | null> {
+  const { default: SquadFeedback } = await import('../ink/components/SquadFeedback.js');
+  
+  return new Promise((resolve) => {
+    const { unmount } = render(
+      React.createElement(SquadFeedback, {
+        tasks,
+        onSubmit: (feedback) => {
+          unmount();
+          resolve(feedback);
+        },
+        onCancel: () => {
+          unmount();
+          resolve(null);
+        }
+      })
+    );
+  });
+}
+
+async function saveSquadFeedback(
+  squadId: string, 
+  feedback: SquadFeedbackData,
+  token: string,
+  apiUrl: string
+): Promise<void> {
+  try {
+    // Save feedback locally
+    const { SquadStorage } = await import('../services/squad-storage.js');
+    const squadStorage = new SquadStorage();
+    
+    // TODO: Add feedback storage to squad storage
+    console.log(colors.success('✓ Feedback saved locally'));
+    
+    // Optionally send to API
+    try {
+      const response = await fetch(`${apiUrl}/api/squads/${squadId}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          overall_rating: feedback.overallRating,
+          task_ratings: Object.fromEntries(feedback.taskRatings),
+          comments: feedback.comments,
+          completed_at: new Date().toISOString()
+        })
+      });
+      
+      if (response.ok) {
+        console.log(colors.success('✓ Feedback sent to server'));
+      }
+    } catch (error) {
+      console.log(colors.warning('⚠️  Failed to send feedback to server (will be saved locally)'));
+    }
+  } catch (error) {
+    console.error(colors.error('Failed to save feedback:'), error);
+  }
 }

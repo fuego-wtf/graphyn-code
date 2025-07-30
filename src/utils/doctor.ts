@@ -27,6 +27,7 @@ export interface DoctorResult {
   checks: SystemCheck[];
   canProceed: boolean;
   needsClaudeCode: boolean;
+  needsTmux: boolean;
   needsFigmaMCP: boolean;
   hasRepository: boolean;
 }
@@ -48,9 +49,17 @@ async function commandExists(command: string): Promise<boolean> {
  */
 async function checkClaudeCode(): Promise<SystemCheck> {
   try {
-    // Check multiple possible Claude Code commands
+    // Check multiple possible Claude Code commands and locations
     const claudeCommands = ['claude', 'claude-code', 'claudecode'];
+    const homeDir = os.homedir();
+    const additionalPaths = [
+      path.join(homeDir, '.claude', 'local', 'claude'),
+      path.join(homeDir, '.local', 'bin', 'claude'),
+      '/usr/local/bin/claude',
+      '/opt/claude/claude'
+    ];
     
+    // First check standard commands
     for (const cmd of claudeCommands) {
       if (await commandExists(cmd)) {
         try {
@@ -70,6 +79,32 @@ async function checkClaudeCode(): Promise<SystemCheck> {
             required: true
           };
         }
+      }
+    }
+    
+    // Check additional paths
+    for (const claudePath of additionalPaths) {
+      try {
+        await fs.access(claudePath, fs.constants.X_OK);
+        try {
+          const { stdout } = await execAsync(`"${claudePath}" --version`);
+          return {
+            name: 'Claude Code',
+            status: 'pass',
+            message: `✓ Claude Code installed at ${claudePath}`,
+            required: true
+          };
+        } catch {
+          // File exists and is executable
+          return {
+            name: 'Claude Code',
+            status: 'pass',
+            message: `✓ Claude Code found at ${claudePath}`,
+            required: true
+          };
+        }
+      } catch {
+        // Continue checking other paths
       }
     }
     
@@ -118,6 +153,30 @@ async function checkNodeVersion(): Promise<SystemCheck> {
       name: 'Node.js',
       status: 'fail',
       message: '✗ Node.js not found',
+      required: true
+    };
+  }
+}
+
+/**
+ * Check tmux installation
+ */
+async function checkTmux(): Promise<SystemCheck> {
+  try {
+    const { stdout } = await execAsync('tmux -V');
+    const version = stdout.trim();
+    
+    return {
+      name: 'tmux',
+      status: 'pass',
+      message: `✓ ${version}`,
+      required: true
+    };
+  } catch {
+    return {
+      name: 'tmux',
+      status: 'fail',
+      message: '✗ tmux not found (required for squad workspace)',
       required: true
     };
   }
@@ -280,6 +339,9 @@ export async function runDoctor(): Promise<DoctorResult> {
   const claudeCheck = await checkClaudeCode();
   checks.push(claudeCheck);
   
+  const tmuxCheck = await checkTmux();
+  checks.push(tmuxCheck);
+  
   const gitCheck = await checkGit();
   checks.push(gitCheck);
   
@@ -304,6 +366,7 @@ export async function runDoctor(): Promise<DoctorResult> {
   const requiredFailed = checks.filter(c => c.required && c.status === 'fail');
   const canProceed = requiredFailed.length === 0;
   const needsClaudeCode = claudeCheck.status === 'fail';
+  const needsTmux = tmuxCheck.status === 'fail';
   const needsFigmaMCP = mcpCheck.status !== 'pass' || figmaCheck.status !== 'pass';
   const hasRepository = gitCheck.isRepo;
   
@@ -319,6 +382,7 @@ export async function runDoctor(): Promise<DoctorResult> {
     checks,
     canProceed,
     needsClaudeCode,
+    needsTmux,
     needsFigmaMCP,
     hasRepository
   };
