@@ -21,6 +21,7 @@ export const useNaturalLanguage = () => {
     try {
       // For local development, you can use:
       // GRAPHYN_API_URL=http://localhost:3000 graphyn "add auth"
+      const fs = await import('fs');
       const response = await api.post<IntentResponse>('/api/analyze-intent', {
         query: naturalQuery,
         repository: process.cwd(),
@@ -30,6 +31,16 @@ export const useNaturalLanguage = () => {
           hasPackageJson: await fileExists('package.json'),
           hasGoMod: await fileExists('go.mod'),
           hasCargo: await fileExists('Cargo.toml'),
+          hasGemfile: await fileExists('Gemfile'),
+          hasComposer: await fileExists('composer.json'),
+          hasCMake: await fileExists('CMakeLists.txt'),
+          hasCsproj: (await fs.promises.readdir('.')).some(f => f.endsWith('.csproj')),
+          hasSwiftPackage: await fileExists('Package.swift'),
+          hasGradleKts: await fileExists('build.gradle.kts'),
+          hasMixExs: await fileExists('mix.exs'),
+          hasPubspec: await fileExists('pubspec.yaml'),
+          hasBuildSbt: await fileExists('build.sbt'),
+          hasStackYaml: await fileExists('stack.yaml'),
         }
       });
 

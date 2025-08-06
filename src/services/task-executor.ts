@@ -18,7 +18,23 @@ export class TaskExecutor extends EventEmitter {
     this.client = client;
   }
 
-  async executeTask(taskId: string, agentId: string, taskPrompt: string): Promise<void> {
+  async executeTask(task: any, threadId?: string, organizationId?: string): Promise<any> {
+    // Support both old and new signatures
+    let taskId: string;
+    let agentId: string;
+    let taskPrompt: string;
+    
+    if (typeof task === 'string') {
+      // Old signature: executeTask(taskId, agentId, taskPrompt)
+      taskId = task;
+      agentId = threadId!;
+      taskPrompt = organizationId!;
+    } else {
+      // New signature: executeTask(task, threadId, organizationId)
+      taskId = task.id;
+      agentId = task.agentId || task.assigned_agent;
+      taskPrompt = `Task: ${task.title}\nDescription: ${task.description}`;
+    }
     try {
       // Create a thread for this specific task
       const thread = await this.client.createThread({
@@ -73,6 +89,11 @@ export class TaskExecutor extends EventEmitter {
         await this.destroyAgent(agentId);
       }
     }
+  }
+
+  // Overloaded method for backward compatibility
+  async executeTaskOld(taskId: string, agentId: string, taskPrompt: string): Promise<void> {
+    return this.executeTask(taskId, agentId, taskPrompt);
   }
 
   private async destroyAgent(agentId: string): Promise<void> {

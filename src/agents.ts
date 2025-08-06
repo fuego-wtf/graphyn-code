@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import axios from 'axios';
-import { AuthManager } from './auth.js';
+import { OAuthManager } from './auth/oauth.js';
 import { config } from './config.js';
 import { 
   colors, 
@@ -13,11 +13,11 @@ import { findClaude } from './utils/claude-detector.js';
 import { AgentPromptService } from './services/agent-prompt-service.js';
 
 export class AgentManager {
-  private authManager: AuthManager;
+  private oauthManager: OAuthManager;
   private promptService: AgentPromptService;
 
   constructor() {
-    this.authManager = new AuthManager();
+    this.oauthManager = new OAuthManager();
     this.promptService = new AgentPromptService();
   }
 
@@ -91,19 +91,27 @@ You are now in an interactive session. The user will provide queries and you sho
   }
 
   async queryAgent(type: string, query: string): Promise<string> {
-    const apiKey = this.authManager.getApiKey();
+    // Check if authenticated with OAuth
+    const isAuthenticated = await this.oauthManager.isAuthenticated();
     
-    if (!apiKey) {
+    if (!isAuthenticated) {
+      console.log(colors.warning('⚠️  Not authenticated. Please run "graphyn auth" first.'));
       return await this.getLocalPrompt(type, query);
     }
 
     try {
+      // Get valid OAuth token
+      const token = await this.oauthManager.getValidToken();
+      if (!token) {
+        throw new Error('Failed to get authentication token');
+      }
+
       const response = await axios.post(`${config.apiBaseUrl}/agents/${type}`, {
         query: query,
         context: this.getProjectContext()
       }, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'User-Agent': config.userAgent
         },

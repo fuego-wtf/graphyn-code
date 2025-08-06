@@ -125,10 +125,10 @@ export class RepositoryAnalyzerService {
     if (result.context.detected_stack && result.context.detected_stack.length > 0) {
       const stack = result.context.detected_stack;
       // Group by category
-      const frontend = stack.filter(s => ['react', 'vue', 'angular', 'nextjs', 'svelte'].some(f => s.includes(f)));
-      const backend = stack.filter(s => ['express', 'fastify', 'nestjs', 'django', 'flask'].some(f => s.includes(f)));
-      const databases = stack.filter(s => ['postgresql', 'mysql', 'mongodb', 'redis'].some(f => s.includes(f)));
-      const languages = stack.filter(s => ['typescript', 'javascript', 'python', 'go', 'rust'].some(f => s.includes(f)));
+      const frontend = stack.filter(s => ['react', 'vue', 'angular', 'nextjs', 'svelte', 'blazor', 'flutter'].some(f => s.includes(f)));
+      const backend = stack.filter(s => ['express', 'fastify', 'nestjs', 'django', 'flask', 'rails', 'sinatra', 'laravel', 'symfony', 'aspnetcore', 'springboot', 'phoenix'].some(f => s.includes(f)));
+      const databases = stack.filter(s => ['postgresql', 'mysql', 'mongodb', 'redis', 'sqlite', 'cassandra', 'elasticsearch'].some(f => s.includes(f)));
+      const languages = stack.filter(s => ['typescript', 'javascript', 'python', 'go', 'rust', 'ruby', 'php', 'cpp', 'csharp', 'swift', 'kotlin', 'elixir', 'dart', 'scala', 'haskell', 'java'].some(f => s.includes(f)));
       
       if (frontend.length > 0) {
         lines.push(`  Frontend: ${frontend.map(s => chalk.green(s)).join(', ')}`);

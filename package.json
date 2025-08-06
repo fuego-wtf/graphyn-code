@@ -17,6 +17,8 @@
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
     "test:package": "./scripts/test-package.sh",
+    "test:squad": "node scripts/run-squad-test-info.js",
+    "test:squad:mock": "node scripts/run-squad-test-info.js",
     "validate": "node scripts/validate-package.cjs",
     "prepublishOnly": "npm run build && npm run test:package",
     "postinstall": "node scripts/postinstall.js || true"

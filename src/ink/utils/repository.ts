@@ -147,6 +147,85 @@ export const detectFramework = async (): Promise<FrameworkInfo> => {
   } catch {
     // Not Ruby
   }
+
+  // PHP
+  try {
+    await fs.access('composer.json');
+    return { name: 'php', language: 'php' };
+  } catch {
+    // Not PHP
+  }
+
+  // C/C++
+  try {
+    await fs.access('CMakeLists.txt');
+    return { name: 'cpp', language: 'cpp' };
+  } catch {
+    try {
+      await fs.access('Makefile');
+      return { name: 'c', language: 'c' };
+    } catch {
+      // Not C/C++
+    }
+  }
+
+  // C#/.NET
+  try {
+    const files = await fs.readdir('.');
+    if (files.some(f => f.endsWith('.csproj') || f.endsWith('.sln'))) {
+      return { name: 'dotnet', language: 'csharp' };
+    }
+  } catch {
+    // Not C#
+  }
+
+  // Swift
+  try {
+    await fs.access('Package.swift');
+    return { name: 'swift', language: 'swift' };
+  } catch {
+    // Not Swift
+  }
+
+  // Kotlin
+  try {
+    await fs.access('build.gradle.kts');
+    return { name: 'kotlin', language: 'kotlin' };
+  } catch {
+    // Not Kotlin
+  }
+
+  // Elixir
+  try {
+    await fs.access('mix.exs');
+    return { name: 'elixir', language: 'elixir' };
+  } catch {
+    // Not Elixir
+  }
+
+  // Dart/Flutter
+  try {
+    await fs.access('pubspec.yaml');
+    return { name: 'flutter', language: 'dart' };
+  } catch {
+    // Not Dart
+  }
+
+  // Scala
+  try {
+    await fs.access('build.sbt');
+    return { name: 'scala', language: 'scala' };
+  } catch {
+    // Not Scala
+  }
+
+  // Haskell
+  try {
+    await fs.access('stack.yaml');
+    return { name: 'haskell', language: 'haskell' };
+  } catch {
+    // Not Haskell
+  }
   
   return { name: 'unknown', language: 'unknown' };
 };

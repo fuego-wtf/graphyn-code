@@ -430,7 +430,7 @@ async function handleSquadApproval(agents: any[], token: string) {
         
         // Launch new Squad Executor interface
         console.log(colors.info('\n🚀 Launching Squad Executor...'));
-        const { SquadExecutor } = await import('../components/SquadExecutor.js');
+        const { SquadExecutorV3 } = await import('../ink/components/SquadExecutorV3.js');
         
         const repoContext = await analyzeRepositoryForContext();
         
@@ -446,7 +446,7 @@ async function handleSquadApproval(agents: any[], token: string) {
         // Launch the UI and wait for completion
         await new Promise<void>((resolve) => {
           const { unmount } = render(
-            React.createElement(SquadExecutor, {
+            React.createElement(SquadExecutorV3, {
               tasks,
               agents,
               squad: squadData,
@@ -706,14 +706,13 @@ async function useExistingSquad(squad: any, token: string, userMessage: string) 
       
       // Launch new Squad Executor interface
       console.log(colors.info('\n🚀 Launching Squad Executor...'));
-      const { SquadExecutor } = await import('../components/SquadExecutor.js');
+      const { SquadExecutorV3 } = await import('../ink/components/SquadExecutorV3.js');
       
       const repoContext = await analyzeRepositoryForContext();
       
-      // Launch the UI and wait for completion
       await new Promise<void>((resolve) => {
         const { unmount } = render(
-          React.createElement(SquadExecutor, {
+          React.createElement(SquadExecutorV3, {
             tasks,
             agents: agentConfigs,
             squad: squad,

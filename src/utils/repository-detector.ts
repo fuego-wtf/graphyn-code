@@ -224,6 +224,87 @@ export class RepositoryDetector {
     } catch {
       return undefined;
     }
+
+    // Additional framework detection for non-JS languages
+    // Ruby frameworks
+    if (fs.existsSync(path.join(projectPath, 'Gemfile'))) {
+      try {
+        const gemfile = fs.readFileSync(path.join(projectPath, 'Gemfile'), 'utf-8');
+        if (gemfile.includes('rails')) return 'rails';
+        if (gemfile.includes('sinatra')) return 'sinatra';
+        if (gemfile.includes('hanami')) return 'hanami';
+      } catch {}
+    }
+
+    // PHP frameworks
+    if (fs.existsSync(path.join(projectPath, 'artisan'))) return 'laravel';
+    if (fs.existsSync(path.join(projectPath, 'composer.json'))) {
+      try {
+        const composer = JSON.parse(fs.readFileSync(path.join(projectPath, 'composer.json'), 'utf-8'));
+        const deps = { ...composer.require, ...composer['require-dev'] };
+        if (deps['laravel/framework']) return 'laravel';
+        if (deps['symfony/framework-bundle']) return 'symfony';
+        if (deps['wordpress/wordpress']) return 'wordpress';
+        if (deps['drupal/core']) return 'drupal';
+      } catch {}
+    }
+
+    // Python frameworks
+    if (fs.existsSync(path.join(projectPath, 'manage.py'))) return 'django';
+    if (fs.existsSync(path.join(projectPath, 'requirements.txt'))) {
+      try {
+        const requirements = fs.readFileSync(path.join(projectPath, 'requirements.txt'), 'utf-8');
+        if (requirements.includes('django')) return 'django';
+        if (requirements.includes('flask')) return 'flask';
+        if (requirements.includes('fastapi')) return 'fastapi';
+      } catch {}
+    }
+
+    // C# frameworks
+    if (fs.readdirSync(projectPath).some(file => file.endsWith('.csproj'))) {
+      try {
+        const csprojFiles = fs.readdirSync(projectPath).filter(file => file.endsWith('.csproj'));
+        for (const file of csprojFiles) {
+          const content = fs.readFileSync(path.join(projectPath, file), 'utf-8');
+          if (content.includes('Microsoft.AspNetCore')) return 'aspnetcore';
+          if (content.includes('Microsoft.NET.Sdk.BlazorWebAssembly')) return 'blazor';
+        }
+      } catch {}
+    }
+
+    // Elixir frameworks
+    if (fs.existsSync(path.join(projectPath, 'mix.exs'))) {
+      try {
+        const mixFile = fs.readFileSync(path.join(projectPath, 'mix.exs'), 'utf-8');
+        if (mixFile.includes('phoenix')) return 'phoenix';
+      } catch {}
+    }
+
+    // Mobile frameworks
+    if (fs.existsSync(path.join(projectPath, 'pubspec.yaml'))) {
+      try {
+        const pubspec = fs.readFileSync(path.join(projectPath, 'pubspec.yaml'), 'utf-8');
+        if (pubspec.includes('flutter:')) return 'flutter';
+      } catch {}
+    }
+
+    // Java frameworks
+    if (fs.existsSync(path.join(projectPath, 'pom.xml'))) {
+      try {
+        const pom = fs.readFileSync(path.join(projectPath, 'pom.xml'), 'utf-8');
+        if (pom.includes('spring-boot')) return 'springboot';
+      } catch {}
+    }
+    if (fs.existsSync(path.join(projectPath, 'build.gradle')) || fs.existsSync(path.join(projectPath, 'build.gradle.kts'))) {
+      try {
+        const buildFile = fs.existsSync(path.join(projectPath, 'build.gradle')) 
+          ? fs.readFileSync(path.join(projectPath, 'build.gradle'), 'utf-8')
+          : fs.readFileSync(path.join(projectPath, 'build.gradle.kts'), 'utf-8');
+        if (buildFile.includes('spring-boot')) return 'springboot';
+      } catch {}
+    }
+
+    return undefined;
   }
 
   /**
@@ -243,7 +324,8 @@ export class RepositoryDetector {
     // Check for Python
     if (fs.existsSync(path.join(projectPath, 'requirements.txt')) ||
         fs.existsSync(path.join(projectPath, 'setup.py')) ||
-        fs.existsSync(path.join(projectPath, 'pyproject.toml'))) {
+        fs.existsSync(path.join(projectPath, 'pyproject.toml')) ||
+        fs.existsSync(path.join(projectPath, 'Pipfile'))) {
       return 'python';
     }
 
@@ -259,8 +341,79 @@ export class RepositoryDetector {
 
     // Check for Java
     if (fs.existsSync(path.join(projectPath, 'pom.xml')) ||
-        fs.existsSync(path.join(projectPath, 'build.gradle'))) {
+        fs.existsSync(path.join(projectPath, 'build.gradle')) ||
+        fs.existsSync(path.join(projectPath, 'build.gradle.kts'))) {
       return 'java';
+    }
+
+    // Check for Ruby
+    if (fs.existsSync(path.join(projectPath, 'Gemfile')) ||
+        fs.existsSync(path.join(projectPath, '.ruby-version')) ||
+        fs.existsSync(path.join(projectPath, 'Rakefile'))) {
+      return 'ruby';
+    }
+
+    // Check for PHP
+    if (fs.existsSync(path.join(projectPath, 'composer.json')) ||
+        fs.existsSync(path.join(projectPath, 'index.php')) ||
+        fs.existsSync(path.join(projectPath, 'artisan'))) {
+      return 'php';
+    }
+
+    // Check for C/C++
+    if (fs.existsSync(path.join(projectPath, 'CMakeLists.txt')) ||
+        fs.existsSync(path.join(projectPath, 'Makefile')) ||
+        fs.existsSync(path.join(projectPath, 'configure')) ||
+        fs.existsSync(path.join(projectPath, 'main.cpp')) ||
+        fs.existsSync(path.join(projectPath, 'main.c'))) {
+      return 'cpp';
+    }
+
+    // Check for C#/.NET
+    if (fs.existsSync(path.join(projectPath, 'Program.cs')) ||
+        fs.existsSync(path.join(projectPath, 'project.json')) ||
+        fs.readdirSync(projectPath).some(file => file.endsWith('.csproj')) ||
+        fs.readdirSync(projectPath).some(file => file.endsWith('.sln'))) {
+      return 'csharp';
+    }
+
+    // Check for Swift
+    if (fs.existsSync(path.join(projectPath, 'Package.swift')) ||
+        fs.existsSync(path.join(projectPath, 'Podfile')) ||
+        fs.readdirSync(projectPath).some(file => file.endsWith('.xcodeproj'))) {
+      return 'swift';
+    }
+
+    // Check for Kotlin
+    if (fs.existsSync(path.join(projectPath, 'build.gradle.kts')) ||
+        fs.existsSync(path.join(projectPath, 'settings.gradle.kts')) ||
+        fs.readdirSync(projectPath).some(file => file.endsWith('.kt'))) {
+      return 'kotlin';
+    }
+
+    // Check for Elixir
+    if (fs.existsSync(path.join(projectPath, 'mix.exs')) ||
+        fs.existsSync(path.join(projectPath, '.formatter.exs'))) {
+      return 'elixir';
+    }
+
+    // Check for Dart/Flutter
+    if (fs.existsSync(path.join(projectPath, 'pubspec.yaml')) ||
+        fs.existsSync(path.join(projectPath, 'pubspec.lock'))) {
+      return 'dart';
+    }
+
+    // Check for Scala
+    if (fs.existsSync(path.join(projectPath, 'build.sbt')) ||
+        fs.existsSync(path.join(projectPath, 'project/build.properties'))) {
+      return 'scala';
+    }
+
+    // Check for Haskell
+    if (fs.existsSync(path.join(projectPath, 'stack.yaml')) ||
+        fs.existsSync(path.join(projectPath, 'cabal.project')) ||
+        fs.readdirSync(projectPath).some(file => file.endsWith('.cabal'))) {
+      return 'haskell';
     }
 
     return undefined;

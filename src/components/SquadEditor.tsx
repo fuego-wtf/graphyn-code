@@ -61,6 +61,9 @@ export const SquadEditor: React.FC<SquadEditorProps> = ({
         // Delete squad option
         setShowConfirmDelete(true);
       }
+    } else if (input === 'd' || input === 'D') {
+      // Direct delete keybinding
+      setShowConfirmDelete(true);
     } else if (key.escape || input === 'q') {
       onBack();
     }
@@ -189,7 +192,7 @@ export const SquadEditor: React.FC<SquadEditorProps> = ({
 
       <Box marginTop={2} flexDirection="column">
         <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
-        <Text dimColor>↑↓/jk Navigate • ↵/l Select • ESC/q Back</Text>
+        <Text dimColor>↑↓/jk Navigate • ↵/l Select • d Delete • ESC/q Back</Text>
       </Box>
     </Box>
   );

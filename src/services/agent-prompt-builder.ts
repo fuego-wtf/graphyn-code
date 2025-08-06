@@ -47,13 +47,21 @@ ${this.formatRepoContext(repoContext)}
 ## Working Directory
 You are working in: ${workingDirectory}
 
+## Git Worktree Information
+You are working in your own Git worktree branch. This means:
+- You have an isolated workspace separate from other agents
+- All your changes are automatically tracked in your branch
+- You can make commits without affecting other agents' work
+- Your branch will be reviewed and merged after completion
+
 ## Task-Specific Instructions
 1. Focus on completing this specific task according to the acceptance criteria
 2. Follow the existing code patterns and conventions in the repository
 3. Ensure your work integrates well with the overall project structure
 4. If you have dependencies on other tasks, assume they will be completed by other agents
 5. Test your implementation to ensure it meets the acceptance criteria
-6. When you complete the task, summarize what was accomplished
+6. Make frequent commits as you progress to track your work
+7. When you complete the task, summarize what was accomplished
 
 Let's begin working on your task.`;
 
