@@ -46,5 +46,26 @@ export function createParser() {
       if (argv.dev) {
         process.env.GRAPHYN_ENV = 'development';
       }
-    });
+    })
+    .command(
+      'spawn <agentTypes..> [query]',
+      'Spawn multiple Graphyn agents concurrently with a query',
+      (yargs) => {
+        return yargs
+          .positional('agentTypes', {
+            describe: 'A space-separated list of agent types (e.g., "backend frontend")',
+            type: 'string',
+            array: true,
+            demandOption: true,
+          })
+          .positional('query', {
+            describe: 'The query to send to the agents',
+            type: 'string',
+            demandOption: false,
+            default: ''
+          });
+      }
+    )
+    .help()
+    .alias('h', 'help');
 }

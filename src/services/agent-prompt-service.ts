@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { GraphynAPIClient } from '../ink/services/graphynApi.js';
+import { GraphynAPIClient } from '../api-client.js';
 import { ConfigManager } from '../config-manager.js';
 
 export interface AgentPrompt {
@@ -77,12 +77,12 @@ export class AgentPromptService {
       }
       
       // Fetch from API
-      const response = await this.apiClient!.get(`/api/agents/${type}/prompt`);
+      const response = await this.apiClient!.get<{ content?: string }>(`/api/agents/${type}/prompt`);
       
-      if (response.data?.content) {
+      if (response?.content) {
         // Cache the prompt
-        this.cachePrompt(type, response.data.content);
-        return response.data.content;
+        this.cachePrompt(type, response.content);
+        return response.content;
       }
       
       return null;
@@ -154,9 +154,9 @@ export class AgentPromptService {
     // Try to get dynamic types from API
     if (await this.initApiClient()) {
       try {
-        const response = await this.apiClient!.get('/api/agents');
-        if (response.data?.agents) {
-          const dynamicTypes = response.data.agents.map((a: any) => a.type);
+        const response = await this.apiClient!.get<{ agents?: any[] }>('/api/agents');
+        if (response?.agents) {
+          const dynamicTypes = response.agents.map((a: any) => a.type);
           // Merge with local types (unique)
           return [...new Set([...localTypes, ...dynamicTypes])];
         }
@@ -191,14 +191,14 @@ export class AgentPromptService {
     }
     
     try {
-      const response = await this.apiClient!.get('/api/agents');
-      if (!response.data?.agents) return;
+      const response = await this.apiClient!.get<{ agents?: any[] }>('/api/agents');
+      if (!response?.agents) return;
       
-      for (const agent of response.data.agents) {
+      for (const agent of response.agents) {
         try {
-          const promptResponse = await this.apiClient!.get(`/api/agents/${agent.type}/prompt`);
-          if (promptResponse.data?.content) {
-            this.cachePrompt(agent.type, promptResponse.data.content);
+          const promptResponse = await this.apiClient!.get<{ content?: string }>(`/api/agents/${agent.type}/prompt`);
+          if (promptResponse?.content) {
+            this.cachePrompt(agent.type, promptResponse.content);
           }
         } catch {
           // Skip individual failures

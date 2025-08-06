@@ -178,7 +178,7 @@ Please analyze the above query in the context of the ${type} agent role and prov
     fs.writeFileSync(tmpFile, fullContext);
     
     // Log the interaction
-    const { GraphynLogger } = await import('./logger');
+    const { GraphynLogger } = await import('./logger.js');
     const logger = new GraphynLogger();
     logger.logInteraction({
       agent: type,
@@ -248,6 +248,41 @@ Please analyze the above query in the context of the ${type} agent role and prov
     
     console.log();
     console.log(colors.success.bold('✅ Agent chain completed!'));
+  }
+
+  async spawnAgents(agentTypes: string[], query: string): Promise<void> {
+    console.log();
+    console.log(colors.bold('✨ Spawning multiple agents...'));
+    console.log(createDivider());
+
+    const agentPromises = agentTypes.map(async (agentType) => {
+      const theme = agentThemes[agentType as keyof typeof agentThemes];
+      console.log(theme ? theme.gradient(`▸ Spawning ${agentType} agent...`) : colors.info(`▸ Spawning ${agentType} agent...`));
+      try {
+        const response = await this.queryAgent(agentType, query);
+        console.log(colors.success(`✓ ${agentType} agent completed`));
+        console.log();
+        return { agentType, response };
+      } catch (error) {
+        console.error(colors.error(`✖ ${agentType} agent failed: ${error instanceof Error ? error.message : String(error)}`));
+        return { agentType, response: colors.error(`Error: ${error instanceof Error ? error.message : String(error)}`) };
+      }
+    });
+
+    const results = await Promise.all(agentPromises);
+
+    console.log();
+    console.log(colors.success.bold('✅ All agents responded!'));
+    console.log(createDivider());
+    console.log(colors.bold('Consolidated Responses:'));
+    console.log();
+
+    results.forEach(({ agentType, response }) => {
+      const theme = agentThemes[agentType as keyof typeof agentThemes];
+      console.log(theme ? theme.gradient(`--- ${agentType.toUpperCase()} AGENT RESPONSE ---`) : colors.primary(`--- ${agentType.toUpperCase()} AGENT RESPONSE ---`));
+      console.log(response);
+      console.log();
+    });
   }
 
   private async getLocalPrompt(type: string, query: string): Promise<string> {

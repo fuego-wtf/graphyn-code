@@ -96,6 +96,8 @@ export class GraphynInkApp {
           <App 
             command={command}
             query={args.join(' ')}
+            agentTypes={(argv as any).agentTypes || []}
+            cliQuery={(argv as any).query || ''}
           />
         </GraphynProvider>
       </ErrorBoundary>

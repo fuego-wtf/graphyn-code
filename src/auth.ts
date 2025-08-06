@@ -38,7 +38,7 @@ export class AuthManager {
       // For gph_ keys, validate directly with the platform
       if (apiKey.startsWith('gph_')) {
         // Set the token and validate with a test API call
-        const client = new GraphynAPIClient(config.apiBaseUrl);
+        const client = new GraphynAPIClient({ baseURL: config.apiBaseUrl });
         client.setToken(apiKey);
         
         try {
@@ -80,7 +80,7 @@ export class AuthManager {
       // For test_ keys, get it from the test endpoint
       if (apiKey.startsWith('test_') || apiKey === 'test') {
         // Get test token from backend
-        const client = new GraphynAPIClient(config.apiBaseUrl);
+        const client = new GraphynAPIClient({ baseURL: config.apiBaseUrl });
         const authResponse = await client.getTestToken();
         validatedKey = authResponse.token;
         user = authResponse.user;

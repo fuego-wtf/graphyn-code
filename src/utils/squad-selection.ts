@@ -74,7 +74,7 @@ export async function ensureOrganizationSelected(token: string): Promise<Selecte
   // Fetch available organizations
   console.log(colors.info('\n🔄 Fetching your organizations...'));
   
-  const apiClient = new GraphynAPIClient(process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz');
+  const apiClient = new GraphynAPIClient({ baseURL: process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz' });
   apiClient.setToken(token);
   
   const organizations = await apiClient.listOrganizations();

@@ -110,8 +110,9 @@ export class GraphynAPIClient {
     return this.token;
   }
 
-  constructor(baseUrl: string = 'http://localhost:4000') {
-    this.baseUrl = baseUrl;
+  constructor(options?: { apiKey?: string; baseURL?: string }) {
+    this.baseUrl = options?.baseURL || 'http://localhost:4000';
+    this.token = options?.apiKey;
     this.configManager = new ConfigManager();
   }
 
