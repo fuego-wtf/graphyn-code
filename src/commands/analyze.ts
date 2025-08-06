@@ -39,7 +39,7 @@ export async function analyzeRepository(options: AnalyzeOptions = {}) {
 
     // Initialize API client
     const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
-    const apiClient = new GraphynAPIClient(apiUrl);
+    const apiClient = new GraphynAPIClient({ baseURL: apiUrl });
     apiClient.setToken(token);
 
     // Create analyzer service

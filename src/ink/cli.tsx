@@ -45,11 +45,37 @@ const isNaturalLanguage = rawCommand && (
 
 let command: string | undefined;
 let query: string;
+let agentTypes: string[] = [];
+let cliQuery: string = '';
 
 if (isNaturalLanguage) {
   // Treat entire input as a natural language query
   command = 'squad';
   query = [rawCommand, ...args].join(' ').replace(/^"|"$/g, '');
+} else if (rawCommand?.toLowerCase() === 'spawn') {
+  // Handle spawn command with multiple agent types
+  command = 'spawn';
+  query = ''; // Set to empty as the App component will handle spawn differently
+  
+  // Parse agentTypes and optional query from args
+  // Find the last argument that starts with a quote or contains spaces (likely the query)
+  let queryStartIndex = -1;
+  for (let i = args.length - 1; i >= 0; i--) {
+    if (args[i].includes(' ') || args[i].startsWith('"') || args[i].startsWith("'")) {
+      queryStartIndex = i;
+      break;
+    }
+  }
+  
+  if (queryStartIndex === -1) {
+    // No quoted query found, treat all args as agent types
+    agentTypes = args;
+    cliQuery = '';
+  } else {
+    // Split between agent types and query
+    agentTypes = args.slice(0, queryStartIndex);
+    cliQuery = args.slice(queryStartIndex).join(' ').replace(/^["']|["']$/g, '');
+  }
 } else {
   command = rawCommand?.toLowerCase(); // Make command case-insensitive
   query = args.join(' ');
@@ -83,6 +109,7 @@ Usage:
   graphyn <agent> <query>        Direct agent query
   graphyn design <figma-url>     Extract Figma components
   graphyn auth [key]             Set API key (optional)
+  graphyn spawn <agents...> [query]  Spawn multiple agents with query
 
 Agents:
   backend (b)                    Backend development agent
@@ -102,6 +129,7 @@ Examples:
   graphyn frontend "react hook"  Frontend development
   graphyn architect "design api" Architecture review
   graphyn design figma.com/...   Extract components
+  graphyn spawn backend frontend "add auth feature"  Multi-agent spawn
 `);
   process.exit(0);
 }
@@ -149,7 +177,12 @@ if (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || (isDirectAgent
   try {
     const { unmount } = render(
       <APIProvider>
-        <App command={normalizedCommand} query={query} />
+        <App 
+          command={normalizedCommand} 
+          query={query} 
+          agentTypes={agentTypes}
+          cliQuery={cliQuery}
+        />
       </APIProvider>
     );
 

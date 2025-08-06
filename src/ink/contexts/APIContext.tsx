@@ -81,7 +81,7 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     try {
       const token = await tokenManager.getToken();
       
-      const apiClient = new GraphynAPIClient(appConfig.apiBaseUrl);
+      const apiClient = new GraphynAPIClient({ baseURL: appConfig.apiBaseUrl });
       
       if (token) {
         apiClient.setToken(token);

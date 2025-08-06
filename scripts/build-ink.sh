@@ -36,6 +36,7 @@ cat > tsconfig.ink.json << 'EOF'
   },
   "include": [
     "src/ink/**/*",
+    "src/agents.ts",
     "src/api-client.ts",
     "src/config.ts",
     "src/config-manager.ts",
@@ -54,7 +55,8 @@ cat > tsconfig.ink.json << 'EOF'
     "src/cli/**/*.ts",
     "src/cli/**/*.tsx",
     "src/context/**/*.ts",
-    "src/cli-main.ts"
+    "src/cli-main.ts",
+    "src/services/**/*.ts"
   ],
   "exclude": [
     "src/ink/**/*.test.tsx",
@@ -65,7 +67,7 @@ cat > tsconfig.ink.json << 'EOF'
 }
 EOF
 
-npx tsc -p tsconfig.ink.json --noEmitOnError false || true
+./node_modules/.bin/tsc -p tsconfig.ink.json --noEmitOnError false || true
 
 # Clean up temp tsconfig
 rm tsconfig.ink.json
@@ -103,7 +105,7 @@ const isNaturalLanguageQuery = args.length > 0 && (
   firstArg?.startsWith('i ') ||
   ['create', 'help', 'add', 'build', 'make', 'setup', 'implement'].includes(firstArg) ||
   // Not a known command
-  !['backend', 'frontend', 'architect', 'design', 'cli', 'auth', 'logout', '--version', '-v', '--help', '-h'].includes(firstArg)
+  !['backend', 'frontend', 'architect', 'design', 'cli', 'auth', 'logout', 'spawn', '--version', '-v', '--help', '-h'].includes(firstArg)
 );
 
 // Route to appropriate CLI

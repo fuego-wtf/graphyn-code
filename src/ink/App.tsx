@@ -20,15 +20,18 @@ import { runDoctor } from '../utils/doctor.js';
 import { AGENT_TYPES, isAgentType } from '../constants/agents.js';
 import { ConfigManager } from '../config-manager.js';
 import { debug } from '../utils/debug.js';
+import { AgentManager } from '../agents.js';
 import fs from 'fs';
 import path from 'path';
 
 interface AppProps {
   command?: string;
   query?: string;
+  agentTypes?: string[];
+  cliQuery?: string;
 }
 
-export const App: React.FC<AppProps> = ({ command, query }) => {
+export const App: React.FC<AppProps> = ({ command, query, agentTypes, cliQuery }) => {
   const { exit } = useApp();
   
   // Check for direct agent command early
@@ -36,6 +39,11 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
   const initialMode = isDirectAgentCommand ? 'agent' : 'menu';
   const initialAgent = isDirectAgentCommand ? command : '';
   const initialQuery = isDirectAgentCommand ? query : '';
+
+  // For 'spawn' command
+  const isSpawnCommand = command === 'spawn' && agentTypes && agentTypes.length > 0;
+  const initialSpawnAgentTypes = isSpawnCommand ? agentTypes : [];
+  const initialSpawnQuery = isSpawnCommand ? cliQuery : '';
   
   const {
     mode,
@@ -133,6 +141,11 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
           exit();
         });
       });
+    } else if (command === 'spawn' && agentTypes && agentTypes.length > 0) {
+      const agentManager = new AgentManager();
+      agentManager.spawnAgents(agentTypes, cliQuery || '').then(() => {
+        exit();
+      }).catch(handleError);
     } else if (command && query) {
       // Normalize command to lowercase to handle case-insensitive inputs
       const normalizedCmd = command.toLowerCase();
