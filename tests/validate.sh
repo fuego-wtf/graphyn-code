@@ -78,9 +78,9 @@ test_directory_structure() {
 test_prompt_files() {
     test_start "prompt files"
     local required_prompts=(
-        "$ROOT_DIR/prompts/backend.md"
-        "$ROOT_DIR/prompts/frontend.md"
-        "$ROOT_DIR/prompts/architect.md"
+        "$ROOT_DIR/code/prompts/backend.md"
+        "$ROOT_DIR/code/prompts/frontend.md"
+        "$ROOT_DIR/code/prompts/architect.md"
     )
     
     local all_exist=true
