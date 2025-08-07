@@ -146,3 +146,5 @@ firebase-debug.log*
 .dynamodb/
 .tern-port
 .vscode-test
+\n+# Claude flow
+.claude-flow/
