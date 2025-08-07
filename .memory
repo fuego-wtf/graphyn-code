@@ -1,8 +1,0 @@
-# Memory Log
-
-## 2025-08-07 - gitignore: add claude flow
-- added `.claude-flow/` to repo `.gitignore`
-- purpose: ignore local Claude flow artifacts
-- learning: ensure consistent ignore rules for AI tooling
-
-
