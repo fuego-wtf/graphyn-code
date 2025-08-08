@@ -3,9 +3,16 @@ import { Box, Text, useInput } from 'ink';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import { colors } from '../theme/colors.js';
-import type { TaskStatus } from './SquadExecutorV3.js';
+// TaskStatus type definition
+type TaskStatus = {
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  output?: string;
+  error?: string;
+  worktreePath?: string;
+  branchName?: string;
+};
 import type { Task } from '../../services/claude-task-generator.js';
-import type { AgentConfig } from '../../services/squad-storage.js';
+import type { AgentConfig } from '../../types/agent.js';
 
 const exec = promisify(execCallback);
 

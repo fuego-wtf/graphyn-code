@@ -13,12 +13,12 @@ For comprehensive technical documentation:
 - **User Flows**: See `/code/temp/USER_FLOW.md` - Detailed interaction patterns and entry points
 - **Service Architecture**: See `/code/servicemap.md` - Technical architecture and integration patterns
 
-## v10 Architecture: Claude Code Squad Initializer
+## v10 Architecture: Claude Code Multi-Agent Initializer
 
 ### Core Philosophy
-**Transform Claude Code into a multi-agent development team** through dynamic squad creation, intelligent agent orchestration, and seamless MCP integration.
+**Transform Claude Code into a multi-agent development team** through dynamic agent composition, intelligent orchestration, and seamless MCP integration.
 
-**KEY PRINCIPLE**: Graphyn Code is a squad initializer for Claude Code, NOT a wrapper!
+**KEY PRINCIPLE**: Graphyn Code is a multi-agent initializer for Claude Code, NOT a wrapper!
 
 ### Key Components
 
@@ -102,11 +102,11 @@ The CLI automatically understands your project:
    - Thread-based memory
 ```
 
-### v10 Implementation Plan - Squad Initializer
+### v10 Implementation Plan - Multi-Agent Initializer
 
-#### Phase 1: Squad System Core (Immediate - 4 hours) ✅ COMPLETED
+#### Phase 1: Multi-Agent System Core (Immediate - 4 hours) ✅ COMPLETED
 - **Repository Analysis Module**: Detect stack, patterns, conventions ✅
-- **Squad Recommendation Engine**: Dynamic squad creation based on task ✅
+- **Agent Recommendation Engine**: Dynamic agent composition based on task ✅
 - **MCP Coordination Protocol**: Thread messages with metadata ✅
 - **Git Worktree Manager**: Isolated workspaces for each agent ✅
 
@@ -114,33 +114,33 @@ The CLI automatically understands your project:
 
 #### Phase 2: Team Builder Integration (4 hours) 🔄 IN PROGRESS
 - **API Connection**: Connect to live api.graphyn.xyz ⏳
-- **Squad Creation Flow**: Natural language to squad deployment ✅
+- **Multi-Agent Creation Flow**: Natural language to agent team deployment ✅
 - **Agent Configuration**: Dynamic agent setup based on context ✅
-- **Thread Management**: Create and monitor squad threads ⏳
+- **Thread Management**: Create and monitor multi-agent threads ⏳
 
 **Next Steps**:
 1. Test connection to production api.graphyn.xyz
 2. Verify Team Builder agent responds correctly
 3. Add thread monitoring UI
-4. Test end-to-end squad creation flow
+4. Test end-to-end multi-agent creation flow
 
 #### Phase 3: MCP Server Enhancement (2 hours)
-- **Squad Context Provider**: Share squad info with Claude
+- **Multi-Agent Context Provider**: Share agent team info with Claude
 - **Task Coordination**: Track agent progress via MCP
 - **Repository Context**: Enhanced code understanding
 - **Learning Capture**: Track accepted solutions
 
 **Implementation Tasks**:
 1. Update MCP server configuration
-2. Add squad-aware context providers
+2. Add multi-agent-aware context providers
 3. Implement task tracking protocol
 4. Add learning feedback mechanism
 
 #### Phase 4: Production Deployment (2 hours)
 - **Connect to api.graphyn.xyz**: Live backend integration
-- **Authentication Flow**: Seamless OAuth with squad permissions
+- **Authentication Flow**: Seamless OAuth with multi-agent permissions
 - **Error Handling**: Graceful degradation if backend unavailable
-- **Performance**: Optimize for instant squad creation
+- **Performance**: Optimize for instant multi-agent team creation
 
 #### Integration Pattern
 ```typescript
@@ -160,16 +160,16 @@ await mcp.provideContext(context);
 
 ## Current State
 
-### CLI Status: SQUAD INITIALIZER READY ✅
-- **Dynamic Squad Creation** - NO TEMPLATES, every squad is unique
+### CLI Status: MULTI-AGENT INITIALIZER READY ✅
+- **Dynamic Multi-Agent Creation** - NO TEMPLATES, every agent team is unique
 - **Repository Analysis** - Detects stack, patterns, conventions
-- **Team Builder Integration** - Creates perfect squad for each task
+- **Team Builder Integration** - Creates perfect agent team for each task
 - **MCP Coordination** - Agents work together via thread messages
 - **Git Worktree Isolation** - Each agent has separate workspace
 - **Zero-Config Intelligence** - Just type `graphyn "add auth"`
 
 ### Key Understanding: Graphyn Code is NOT a wrapper!
-- **Squad Initializer**: Creates dynamic Claude Code teams
+- **Multi-Agent Initializer**: Creates dynamic Claude Code teams
 - **NO Special Endpoints**: Everything uses existing thread APIs
 - **Exception**: code.graphyn.xyz/ask for Team Builder access
 - **Coordination**: Via thread messages with MCP metadata
@@ -177,7 +177,7 @@ await mcp.provideContext(context);
 ### Platform Progress: 95% Complete
 - **Backend**: 95% complete (Strands fully integrated)
 - **Frontend**: 95% complete (Just /api → /admin fixes needed)
-- **Squad System**: 80% complete (Team Builder testing needed)
+- **Multi-Agent System**: 80% complete (Team Builder testing needed)
 - **Infrastructure**: Production ready
 
 ## Living Documentation Notes
@@ -188,11 +188,11 @@ This file evolves with the project. Update it when:
 - Discovering integration patterns
 - Implementing v10 features
 
-Last updated: 2025-01-24 - Squad Initializer Architecture
+Last updated: 2025-01-27 - Multi-Agent Architecture
 
 ## Key Architectural Decisions
 
-1. **NO FIXED TEMPLATES** - Every squad is dynamically created
+1. **NO FIXED TEMPLATES** - Every agent team is dynamically created
 2. **Thread-Based Coordination** - No special endpoints needed
 3. **Repository Context** - Analyzed locally, sent to Team Builder
 4. **Learning System** - Captures successful solutions automatically

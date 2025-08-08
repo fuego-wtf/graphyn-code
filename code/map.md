@@ -23,14 +23,14 @@ graphyn-code/
 ```bash
 graphyn                    # Interactive mode (Ink UI)
 graphyn init              # Initialize with OAuth
-graphyn "task description" # Create AI dev squad (NEW)
+graphyn "task description" # Create AI dev team (NEW)
 graphyn design <url>      # Figma to code
 graphyn backend <query>   # Backend agent + Claude
 graphyn frontend <query>  # Frontend agent + Claude
 graphyn architect <query> # Architecture agent + Claude
 ```
 
-### Squad Creation Flow (NEW)
+### Multi-Agent Creation Flow (NEW)
 ```bash
 # User types natural language request
 graphyn "I need to add user authentication to my Next.js app"
@@ -38,9 +38,9 @@ graphyn "I need to add user authentication to my Next.js app"
 # System:
 1. Analyzes repository (stack, patterns, conventions)
 2. Sends to code.graphyn.xyz/ask with context
-3. Team Builder creates custom squad (3-10 agents)
+3. Team Builder creates custom agent team (3-10 agents)
 4. Agents coordinate via MCP protocol
-5. Squad delivers working code
+5. Agent team delivers working code
 ```
 
 ### Interactive UI Routes
@@ -59,11 +59,11 @@ graphyn "I need to add user authentication to my Next.js app"
 - **AgentOrchestrator** (`src/agents.ts`) - Multi-agent coordination
 - **ClaudeIntegration** (`src/utils/claude-detector.ts`) - Direct Claude Code launching
 
-### Squad System Architecture (NEW)
+### Multi-Agent System Architecture (NEW)
 - **RepositoryAnalyzer** (`src/squad/analyzer.ts`) - Detects stack and patterns
-- **SquadBuilder** (`src/squad/builder.ts`) - Dynamic squad composition
-- **TeamBuilderClient** (`src/squad/team-builder-client.ts`) - API integration
-- **MCPCoordinator** (`src/squad/coordinator.ts`) - Agent task coordination
+- **AgentBuilder** (`src/agents/builder.ts`) - Dynamic agent composition
+- **TeamBuilderClient** (`src/agents/team-builder-client.ts`) - API integration
+- **MCPCoordinator** (`src/agents/coordinator.ts`) - Agent task coordination
 
 ### API Endpoints (Backend)
 ```
@@ -74,7 +74,7 @@ GET    /api/threads/:id        # Get thread + SSE stream
 POST   /api/agents/create      # Create custom agent
 POST   /api/agents/:id/query   # Query specific agent
 GET    /api/figma/extract      # Extract Figma designs
-POST   /api/code/ask           # Squad creation (code.graphyn.xyz)
+POST   /api/code/ask           # Multi-agent team creation (code.graphyn.xyz)
 ```
 
 ### Frontend Routes
@@ -132,7 +132,7 @@ encore deploy      # Deploy to cloud
 ## Architecture Principles
 
 1. **Zero Configuration** - Works out of the box
-2. **Dynamic Squad Creation** - NO FIXED TEMPLATES, every squad is unique
+2. **Dynamic Multi-Agent Creation** - NO FIXED TEMPLATES, every agent team is unique
 3. **Intelligence Through Agents** - CLI consumes platform agents
 4. **Living Documentation** - This map evolves with the code
 5. **Direct Claude Integration** - No intermediate files needed
@@ -140,12 +140,12 @@ encore deploy      # Deploy to cloud
 ## Quick Start Paths
 
 - **New Users**: Run `graphyn` for interactive mode
-- **Squad Creation**: Run `graphyn "your task description"`
+- **Multi-Agent Team**: Run `graphyn "your task description"`
 - **API Integration**: See `GraphynAPIClient` in `src/api-client.ts`
 - **Add New Command**: Edit `src/ink/components/MainMenu.tsx`
 - **Customize Agents**: Modify prompts in `prompts/` directory
 
-## Squad System Implementation Status
+## Multi-Agent System Implementation Status
 
 ### ✅ Backend Ready
 - Team Builder agent exists at api.graphyn.xyz
@@ -154,14 +154,14 @@ encore deploy      # Deploy to cloud
 
 ### 🔄 CLI Implementation Needed (12 hours total)
 1. **Repository Analyzer** (2h) - Extract patterns and stack
-2. **Squad Builder** (3h) - Dynamic agent selection
+2. **Agent Builder** (3h) - Dynamic agent selection
 3. **API Integration** (2h) - Connect to live backend
 4. **MCP Coordination** (3h) - Agent task tracking
-5. **UI Components** (2h) - Squad status display
+5. **UI Components** (2h) - Multi-agent status display
 
 ### 📝 Key Implementation Files
-- `src/squad/analyzer.ts` - TO CREATE
-- `src/squad/builder.ts` - TO CREATE
-- `src/squad/team-builder-client.ts` - TO CREATE
-- `src/squad/coordinator.ts` - TO CREATE
+- `src/agents/analyzer.ts` - TO CREATE
+- `src/agents/builder.ts` - TO CREATE
+- `src/agents/team-builder-client.ts` - TO CREATE
+- `src/agents/coordinator.ts` - TO CREATE
 - `src/api-client.ts` - TO UPDATE (add code.graphyn.xyz/ask)

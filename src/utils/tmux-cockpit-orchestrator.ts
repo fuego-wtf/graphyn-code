@@ -1,7 +1,7 @@
 import { TmuxLayoutManager } from './tmux-layout-manager.js';
 import { ClaudeAgentLauncher } from '../services/claude-agent-launcher.js';
 import type { Task } from '../services/claude-task-generator.js';
-import type { AgentConfig, LocalSquad } from '../services/squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 import type { RepositoryContext } from '../services/claude-task-generator.js';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
@@ -14,7 +14,6 @@ const exec = promisify(execCallback);
 export interface CockpitConfig {
   tasks: Task[];
   agents: AgentConfig[];
-  squad: LocalSquad;
   repoContext: RepositoryContext;
   workDir: string;
   claudePath?: string;
@@ -58,7 +57,7 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
   }
 
   async launchCockpit(config: CockpitConfig): Promise<void> {
-    const { tasks, agents, squad, repoContext, workDir, claudePath } = config;
+    const { tasks, agents, repoContext, workDir, claudePath } = config;
     
     console.log(chalk.blue('\n🚀 Launching Graphyn Cockpit...'));
     
@@ -88,7 +87,7 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
           agent,
           task,
           paneIndex,
-          { tasks, squad, repoContext, workDir, claudePath }
+          { tasks, repoContext, workDir, claudePath }
         );
         paneIndex++;
       }
@@ -157,13 +156,12 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
     paneIndex: number,
     context: {
       tasks: Task[];
-      squad: LocalSquad;
       repoContext: RepositoryContext;
       workDir: string;
       claudePath?: string;
     }
   ): Promise<void> {
-    const { tasks, squad, repoContext, workDir, claudePath } = context;
+    const { tasks, repoContext, workDir, claudePath } = context;
     
     // Get the Claude command from the agent launcher
     const command = await this.agentLauncher.launchAgentInTmuxPane(
@@ -172,7 +170,7 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
         task,
         workDir,
         repoContext,
-        squadName: squad.name,
+        agentGroupName: 'Agent Team',
         allTasks: tasks,
         claudePath
       },

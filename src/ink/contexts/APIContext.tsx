@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { GraphynAPIClient, Thread, Agent, AuthResponse, Squad, CreateSquadRequest } from '../../api-client.js';
+import { GraphynAPIClient, Thread, Agent, AuthResponse } from '../../api-client.js';
 import { ConfigManager } from '../../config-manager.js';
 import { config as appConfig } from '../../config.js';
 import { tokenManager } from '../../utils/token-manager.js';
@@ -36,12 +36,14 @@ interface APIContextValue {
   };
   
   
-  // Squad methods
+  // Squad methods - deprecated
+  /*
   listSquads: () => Promise<Squad[]>;
   createSquad: (data: CreateSquadRequest) => Promise<Squad>;
   getSquad: (id: string) => Promise<Squad>;
   updateSquad: (id: string, data: Partial<CreateSquadRequest>) => Promise<Squad>;
   deleteSquad: (id: string) => Promise<void>;
+  */
   
   // Agent methods for squads
   getAvailableAgents: (context?: any) => Promise<Agent[]>;
@@ -248,7 +250,8 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     return client.delete<T>(endpoint);
   };
 
-  // Squad methods
+  // Squad methods - deprecated
+  /*
   const listSquads = async (): Promise<Squad[]> => {
     if (!client) throw new Error('API client not initialized');
     
@@ -284,6 +287,7 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     if (!client) throw new Error('API client not initialized');
     return client.deleteSquad(id);
   };
+  */
 
   // Agent methods for squads
   const getAvailableAgents = async (context?: any): Promise<Agent[]> => {
@@ -301,11 +305,7 @@ export const APIProvider: React.FC<APIProviderProps> = ({ children }) => {
     logout,
     threads,
     agents,
-    listSquads,
-    createSquad,
-    getSquad,
-    updateSquad,
-    deleteSquad,
+    // Squad methods removed
     getAvailableAgents,
     get,
     post,

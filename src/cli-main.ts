@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { OAuthManager } from './auth/oauth.js';
-import { switchSquad, showCurrentSquad, clearSquadSelection } from './commands/squad-manage.js';
 import { analyzeRepository } from './commands/analyze.js';
-import { createSquad } from './commands/squad.js';
 import { doctor } from './commands/doctor.js';
 import { checkSystemRequirements } from './utils/system-check.js';
+import { GraphynAPIClient } from './api-client.js';
+import { config } from './config.js';
+import { AskService } from './services/ask-service.js';
 import chalk from 'chalk';
 
 const colors = {
@@ -47,29 +48,25 @@ async function main() {
 Graphyn Code - AI Development Tool
 
 Usage:
-  graphyn <request>              Create an AI development squad
+  graphyn                        Launch GUI (Ink)
+  graphyn <request>              Run non-GUI flow: analyze → /api/ask → tmux
   graphyn auth                   Authenticate with Graphyn
   graphyn logout                 Log out from Graphyn
   graphyn doctor                 Check system requirements & setup
   graphyn analyze [--mode mode]  Analyze repository for tech stack
-  graphyn squad                  Show current squad
-  graphyn squad switch           Switch to a different squad
-  graphyn squad clear            Clear squad selection
 
 Options:
-  --non-interactive, -n          Exit after creating thread (no interactive mode)
+  --non-interactive, -n          Skip launching agents (prepare only)
   --debug                        Show debug information
-  --new                          Skip squad selection and create a new squad
   graphyn --version              Show version
   graphyn --help                 Show help
 
 Examples:
-  graphyn "I need to add user authentication to my Next.js app"
-  graphyn "Create a REST API with Express and PostgreSQL"
-  graphyn "Help me refactor this React component to use hooks"
+  graphyn "Implement signup with email OTP"
+  graphyn "Create a REST API with PostgreSQL"
+  graphyn "Build dashboard UI from Figma design"
   graphyn analyze                Analyze your repository
   graphyn analyze --mode summary Get a summary analysis
-  graphyn squad switch           Switch between your squads
 `);
     process.exit(0);
   }
@@ -95,21 +92,7 @@ Examples:
   }
   
   
-  // Handle squad commands
-  if (userMessage === 'squad') {
-    await showCurrentSquad();
-    process.exit(0);
-  }
-  
-  if (userMessage === 'squad switch') {
-    await switchSquad();
-    process.exit(0);
-  }
-  
-  if (userMessage === 'squad clear') {
-    await clearSquadSelection();
-    process.exit(0);
-  }
+  // Multi-agent approach (no squad commands)
   
   // Handle analyze command
   if (userMessage.startsWith('analyze')) {
@@ -175,10 +158,21 @@ Examples:
       console.log(colors.success('\n✓ Re-authentication successful!\n'));
     }
     
-    // Step 3: Create a new squad for this request
-    // The backend will use the authenticated user's organization
-    console.log(colors.info(`\n🎆 Creating a new AI squad...\n`));
-    await createSquad(userMessage, options);
+    // Step 3: Initialize API client with token
+    const apiClient = new GraphynAPIClient(config.apiBaseUrl);
+    apiClient.setToken(token);
+    await apiClient.initialize();
+    
+    // Step 4: Process query with Ask service
+    const askService = new AskService(apiClient);
+    const response = await askService.processQuery(userMessage, process.cwd());
+    
+    // Step 5: Launch agents (if in interactive mode)
+    if (!options.nonInteractive) {
+      await askService.launchAgents(response, process.cwd());
+    } else {
+      console.log(colors.info('\n📝 Request processed. Use interactive mode to launch agents.'));
+    }
   } catch (error) {
     console.error(colors.error('\n❌ Error:'), error instanceof Error ? error.message : error);
     process.exit(1);

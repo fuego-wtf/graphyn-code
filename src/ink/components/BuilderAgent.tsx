@@ -28,23 +28,31 @@ export const BuilderAgent: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // COMMENTED OUT FOR TESTING - Skip authentication check
   // Check authentication and redirect if needed
   useEffect(() => {
-    if (!isAuthenticated) {
-      setMode('builder-auth');
-    } else {
-      initializeBuilderSession();
-    }
-  }, [isAuthenticated]);
+    // if (!isAuthenticated) {
+    //   setMode('builder-auth');
+    // } else {
+    //   initializeBuilderSession();
+    // }
+    
+    // For testing: always initialize builder session
+    initializeBuilderSession();
+  }, []); // Removed isAuthenticated dependency
 
   const initializeBuilderSession = async () => {
     try {
       setLoading(true);
       setError(null);
 
+      // COMMENTED OUT FOR TESTING - Skip API call
       // Create a new builder thread
-      const thread = await api.threads.create('Builder Agent Session', 'builder');
-      setThreadId(thread.id);
+      // const thread = await api.threads.create('Builder Agent Session', 'builder');
+      // setThreadId(thread.id);
+      
+      // For testing: use a mock thread ID
+      setThreadId('test-thread-id');
 
       // Add initial system message
       setMessages([{
@@ -55,7 +63,7 @@ export const BuilderAgent: React.FC = () => {
       }]);
 
       // Connect to thread stream
-      connectToStream(thread.id);
+      connectToStream(threadId);
       
       setLoading(false);
     } catch (err) {

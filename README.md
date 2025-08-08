@@ -1,6 +1,6 @@
 # Graphyn Code
 
-> **Your AI development squad, one command away.**
+> **Your AI development team, one command away.**
 
 [![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

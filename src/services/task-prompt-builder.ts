@@ -1,19 +1,16 @@
 import type { TaskGenerationParams, RepositoryContext } from './claude-task-generator.js';
-import type { AgentConfig } from './squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 
 export class TaskPromptBuilder {
   buildPrompt(params: TaskGenerationParams): string {
-    const { userQuery, agents, repoContext, squadName } = params;
+    const { userQuery, agents, repoContext } = params;
     
     return `# Task Generation Request
 
-You are a technical project manager breaking down a development request into specific tasks for an AI development squad.
+You are a technical project manager breaking down a development request into specific tasks for an AI development team.
 
 ## User Request
 "${userQuery}"
-
-## Squad Information
-Squad Name: ${squadName}
 
 ## Available Agents
 ${this.formatAgents(agents)}
@@ -140,11 +137,7 @@ Now generate tasks for the given request. Return ONLY the JSON array wrapped in 
     }
     
     return agents.map((agent, index) => {
-      const skills = agent.skills 
-        ? Object.entries(agent.skills)
-            .map(([skill, level]) => `${skill} (${level}/10)`)
-            .join(', ')
-        : 'Not specified';
+      const skills = 'Not specified';
       
       // Ensure capabilities is always an array
       const capabilities = Array.isArray(agent.capabilities) 

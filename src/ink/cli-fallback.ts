@@ -91,18 +91,8 @@ if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
   process.exit(1);
 }
 
-// Check for squad create-examples subcommand
-if (normalizedCommand === 'squad' && args[0] === 'create-examples') {
-  // Import and run the create-examples command
-  import('../commands/create-examples.js').then(({ createExampleAgentsCommand }) => {
-    createExampleAgentsCommand().then(() => {
-      process.exit(0);
-    }).catch((error) => {
-      console.error('Failed to create example agents:', error);
-      process.exit(1);
-    });
-  });
-} else if (normalizedCommand === 'squad' && query) {
+// Handle natural language (legacy squad label)
+if (normalizedCommand === 'squad' && query) {
   // Process squad command (natural language)
   console.log('Creating squad with natural language query...');
   

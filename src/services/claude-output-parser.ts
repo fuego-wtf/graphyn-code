@@ -1,5 +1,5 @@
 import type { Task } from './claude-task-generator.js';
-import type { AgentConfig } from './squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 import chalk from 'chalk';
 
 export class ClaudeOutputParser {

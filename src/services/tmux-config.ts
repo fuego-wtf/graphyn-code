@@ -16,7 +16,7 @@ export const TMUX_CONFIG_COMMANDS = [
   
   // Set status bar with exit instructions
   '-g status-style "bg=black,fg=white"',
-  '-g status-left "[Squad] "',
+  '-g status-left "[Cockpit] "',
   '-g status-right "Exit: Ctrl+B d | Zoom: Ctrl+B z"'
 ];
 

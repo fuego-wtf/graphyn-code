@@ -5,8 +5,7 @@ import { runDoctor, DoctorResult } from '../../utils/doctor.js';
 import { installClaudeCode } from '../../setup/claude-installer.js';
 import { setupFigmaMCP } from '../../setup/figma-mcp-setup.js';
 import { analyzeRepository } from '../../commands/analyze.js';
-import { InteractiveSquadBuilder } from './InteractiveSquadBuilder.js';
-import { TaskGenerator } from './TaskGenerator.js';
+// TaskGenerator removed
 import { colors } from '../theme/colors.js';
 import { useAPI } from '../hooks/useAPI.js';
 import inquirer from 'inquirer';
@@ -18,8 +17,7 @@ type SetupStage =
   | 'figma-check'
   | 'figma-setup'
   | 'repo-analyze'
-  | 'squad-builder'
-  | 'task-generation'
+  | 'repo-summary'
   | 'complete';
 
 interface AutoSetupProps {
@@ -30,7 +28,6 @@ export const AutoSetup: React.FC<AutoSetupProps> = ({ onComplete }) => {
   const [stage, setStage] = useState<SetupStage>('doctor');
   const [doctorResult, setDoctorResult] = useState<DoctorResult | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [squad, setSquad] = useState<any>(null);
   const [tasks, setTasks] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,33 +103,15 @@ export const AutoSetup: React.FC<AutoSetupProps> = ({ onComplete }) => {
         setLoading(false);
       }
 
-      // Continue to squad builder
-      setStage('squad-builder');
+      // Show repository summary stage if needed
+      setStage('repo-summary');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed');
       setLoading(false);
     }
   };
 
-  const handleSquadAccept = (acceptedSquad: any) => {
-    setSquad(acceptedSquad);
-    setStage('task-generation');
-  };
-
-  const handleSquadFeedback = async (feedback: string) => {
-    // Send feedback to API and get updated squad
-    try {
-      // This would call the actual API
-      console.log('Squad feedback:', feedback);
-      // For now, just show loading
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
-      }, 2000);
-    } catch (err) {
-      setError('Failed to update squad');
-    }
-  };
+  // Removed squad-related handlers
 
   const handleTaskAccept = (acceptedTasks: any) => {
     setTasks(acceptedTasks);
@@ -212,38 +191,15 @@ export const AutoSetup: React.FC<AutoSetupProps> = ({ onComplete }) => {
     );
   }
 
-  // Squad builder
-  if (stage === 'squad-builder') {
-    if (!analysisResult) {
-      return (
-        <Box flexDirection="column" padding={1}>
-          <Text bold color="yellow">⚠️  No Repository Analysis</Text>
-          <Text>Would you like to proceed without repository context?</Text>
-          <Text color={colors.dim}>Squad recommendations will be less accurate.</Text>
-        </Box>
-      );
-    }
-
-    return (
-      <InteractiveSquadBuilder
-        threadId="setup-thread"
-        initialSquad={squad}
-        onAccept={handleSquadAccept}
-        onRequestChanges={handleSquadFeedback}
-        onBack={() => setStage('repo-analyze')}
-      />
-    );
-  }
+  // Squad builder stage removed
 
   // Task generation
-  if (stage === 'task-generation') {
+  if (stage === 'repo-summary') {
     return (
-      <TaskGenerator
-        squad={squad}
-        onAccept={handleTaskAccept}
-        onRequestChanges={handleTaskFeedback}
-        onBack={() => setStage('squad-builder')}
-      />
+      <Box flexDirection="column" padding={1}>
+        <Text bold color="green">Repository analysis complete.</Text>
+        <Text color={colors.dim}>Use direct flow to run multi-agent execution.</Text>
+      </Box>
     );
   }
 
@@ -253,7 +209,7 @@ export const AutoSetup: React.FC<AutoSetupProps> = ({ onComplete }) => {
       <Box flexDirection="column" padding={1}>
         <Text bold color="green">🎉 Setup Complete!</Text>
         <Box marginTop={1}>
-          <Text>Your development squad is ready with {tasks?.tasks?.length || 0} tasks.</Text>
+          <Text>Your development setup is ready with {tasks?.tasks?.length || 0} tasks.</Text>
         </Box>
         <Box marginTop={1}>
           <Text color={colors.dim}>Launching Graphyn Code...</Text>

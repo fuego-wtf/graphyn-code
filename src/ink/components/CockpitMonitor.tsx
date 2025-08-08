@@ -3,7 +3,7 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import type { Task } from '../../services/claude-task-generator.js';
-import type { AgentConfig } from '../../services/squad-storage.js';
+import type { AgentConfig } from '../../types/agent.js';
 
 const exec = promisify(execCallback);
 
@@ -120,7 +120,7 @@ const CockpitMonitor: React.FC<CockpitMonitorProps> = ({ tasks, agents, sessionN
   return (
     <Box flexDirection="column" padding={1}>
       <Box marginBottom={1}>
-        <Text bold color="cyan">🚀 Graphyn Cockpit - Squad Task Monitor</Text>
+        <Text bold color="cyan">🚀 Graphyn Cockpit - Agent Task Monitor</Text>
       </Box>
 
       <Box marginBottom={1}>

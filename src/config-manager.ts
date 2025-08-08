@@ -12,11 +12,7 @@ interface GraphynConfig {
       orgID: string;
       userID: string;
     };
-    squad?: {
-      id: string;
-      name: string;
-      slug?: string;
-    };
+    // squad removed
   };
   figma?: {
     accessToken?: string;
@@ -135,17 +131,7 @@ export class ConfigManager {
     }
   }
 
-  async setSquad(squad: { id: string; name: string; slug?: string }): Promise<void> {
-    await this.set('auth.squad', squad);
-  }
-
-  async getSquad(): Promise<{ id: string; name: string; slug?: string } | undefined> {
-    return await this.get('auth.squad');
-  }
-
-  async clearSquad(): Promise<void> {
-    await this.delete('auth.squad');
-  }
+  // Removed squad methods
 
   getConfigDir(): string {
     return path.join(os.homedir(), '.graphyn');

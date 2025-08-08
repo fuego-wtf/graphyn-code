@@ -577,7 +577,7 @@ Provide the analysis in a structured format.`;
       eventSource.onerror = (error) => {
         clearTimeout(timeoutId);
         eventSource.close();
-        reject(new APIError(`Streaming error: ${error.message || 'Connection failed'}`));
+        reject(new APIError(`Streaming error: ${(error as any).message || 'Connection failed'}`));
       };
     });
   }

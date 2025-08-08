@@ -5,7 +5,7 @@ import { join } from 'path';
 import { TaskPromptBuilder } from './task-prompt-builder.js';
 import { ClaudeOutputParser } from './claude-output-parser.js';
 import { detectClaude } from '../utils/claude-detector.js';
-import type { AgentConfig } from './squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 import chalk from 'chalk';
 
 export interface Task {
@@ -37,7 +37,6 @@ export interface TaskGenerationParams {
   userQuery: string;
   agents: AgentConfig[];
   repoContext: RepositoryContext;
-  squadName: string;
 }
 
 export class ClaudeTaskGenerator {

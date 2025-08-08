@@ -1,9 +1,8 @@
 import { exec as execCallback, spawn } from 'child_process';
 import { promisify } from 'util';
-import { SquadTask } from '../types/squad.js';
 import { generateAgentTaskFile, generateSystemPromptFile } from './task-file-generator.js';
-import type { LocalSquad } from '../services/squad-storage.js';
 import type { Task } from '../services/claude-task-generator.js';
+import type { AgentConfig } from '../types/agent.js';
 
 const exec = promisify(execCallback);
 
@@ -16,7 +15,7 @@ export interface Agent {
 }
 
 export interface ExecutionPlan {
-  squad: LocalSquad;
+  agents: AgentConfig[];
   tasks: Task[];
   workspace: string;
 }
@@ -29,24 +28,11 @@ export class TmuxLayoutManager {
     this.sessionName = `graphyn_${sessionId.substring(0, 8)}`;
   }
   
-  async executeSquadPlan(plan: ExecutionPlan) {
-    const { squad, tasks, workspace } = plan;
+  async executeAgentPlan(plan: ExecutionPlan) {
+    const { agents, tasks, workspace } = plan;
     
-    // Convert Task[] to SquadTask[] format
-    const squadTasks: SquadTask[] = tasks.map(task => ({
-      id: task.id,
-      session_id: squad.id,
-      title: task.title,
-      description: task.description,
-      assigned_agent_id: task.assigned_agent_id || '',
-      assigned_agent_name: task.assigned_agent,
-      status: 'pending',
-      dependencies: task.dependencies || [],
-      created_at: new Date().toISOString()
-    }));
-    
-    // Convert agents to the expected format
-    const agents: Agent[] = squad.agents.map(agent => ({
+    // Convert AgentConfig to Agent format for display
+    const displayAgents: Agent[] = agents.map(agent => ({
       id: agent.id,
       name: agent.name,
       emoji: agent.emoji || '🤖',
@@ -55,19 +41,19 @@ export class TmuxLayoutManager {
     }));
     
     // Create TMUX layout with agents and tasks
-    await this.createSquadLayout(agents, squadTasks);
+    await this.createAgentLayout(displayAgents, tasks);
   }
 
-  async createSquadLayout(agents: Agent[], tasks: SquadTask[]) {
+  async createAgentLayout(agents: Agent[], tasks: Task[]) {
     try {
       // Kill existing session if it exists (ignore errors)
       await this.exec(`tmux kill-session -t ${this.sessionName} 2>/dev/null || true`);
       
-      // Create new session with first window for squad overview
-      await this.exec(`tmux new-session -d -s ${this.sessionName} -n "🎯 Squad Overview"`);
+      // Create new session with first window for agent overview
+      await this.exec(`tmux new-session -d -s ${this.sessionName} -n "🎯 Agent Overview"`);
       
-      // Set up the squad overview pane
-      await this.setupSquadOverviewPane(agents, tasks);
+      // Set up the agent overview pane
+      await this.setupAgentOverviewPane(agents, tasks);
       
       // Create layout based on number of agents
       if (agents.length <= 2) {
@@ -95,10 +81,10 @@ export class TmuxLayoutManager {
     }
   }
 
-  private async setupSquadOverviewPane(agents: Agent[], tasks: SquadTask[]) {
-    // Display squad summary in the first pane
+  private async setupAgentOverviewPane(agents: Agent[], tasks: Task[]) {
+    // Display agent team summary in the first pane
     const summary = [
-      `echo "🎯 Squad Session: ${this.sessionName}"`,
+      `echo "🎯 Agent Team Session: ${this.sessionName}"`,
       `echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"`,
       `echo ""`,
       `echo "📋 Total Tasks: ${tasks.length}"`,
@@ -119,7 +105,7 @@ export class TmuxLayoutManager {
     }
   }
 
-  private async createHorizontalLayout(agents: Agent[], tasks: SquadTask[]) {
+  private async createHorizontalLayout(agents: Agent[], tasks: Task[]) {
     // Create a new window for agents
     await this.exec(`tmux new-window -t ${this.sessionName} -n "👥 Agents"`);
     
@@ -136,7 +122,7 @@ export class TmuxLayoutManager {
     }
   }
 
-  private async create2x2Layout(agents: Agent[], tasks: SquadTask[]) {
+  private async create2x2Layout(agents: Agent[], tasks: Task[]) {
     // Create a new window for agents
     await this.exec(`tmux new-window -t ${this.sessionName} -n "👥 Agents"`);
     
@@ -167,7 +153,7 @@ export class TmuxLayoutManager {
     await this.exec(`tmux select-layout -t ${this.sessionName}:1 tiled`);
   }
 
-  private async create2x3Layout(agents: Agent[], tasks: SquadTask[]) {
+  private async create2x3Layout(agents: Agent[], tasks: Task[]) {
     // Create a new window for agents
     await this.exec(`tmux new-window -t ${this.sessionName} -n "👥 Agents"`);
     
@@ -207,7 +193,7 @@ export class TmuxLayoutManager {
     await this.exec(`tmux select-layout -t ${this.sessionName}:1 tiled`);
   }
 
-  private async createGridLayout(agents: Agent[], tasks: SquadTask[]) {
+  private async createGridLayout(agents: Agent[], tasks: Task[]) {
     // For more than 6 agents, create multiple windows
     const agentsPerWindow = 6;
     const windowCount = Math.ceil(agents.length / agentsPerWindow);
@@ -249,7 +235,7 @@ export class TmuxLayoutManager {
     }
   }
 
-  private async setupAgentPane(windowIndex: number, paneIndex: number, agent: Agent, tasks: SquadTask[]) {
+  private async setupAgentPane(windowIndex: number, paneIndex: number, agent: Agent, tasks: Task[]) {
     const agentTasks = tasks.filter(t => t.assigned_agent_id === agent.id);
     
     // Set pane title (requires tmux 2.3+)
@@ -270,7 +256,7 @@ export class TmuxLayoutManager {
       },
       agentTasks,
       this.sessionName,
-      'Squad Session'
+'Cockpit Session'
     );
     
     // Generate system prompt file
@@ -317,7 +303,7 @@ export class TmuxLayoutManager {
     
     // Display cockpit placeholder
     const cockpitCommands = [
-      `echo "🎮 SQUAD COCKPIT - Real-time Dashboard"`,
+      `echo "🎮 COCKPIT - Real-time Dashboard"`,
       `echo "════════════════════════════════════════════════════════════════"`,
       `echo ""`,
       `echo "📊 Task Progress:"`,
@@ -327,7 +313,7 @@ export class TmuxLayoutManager {
       `echo "  Completed: -"`,
       `echo ""`,
       `echo "🔄 Activity Feed:"`,
-      `echo "  Waiting for squad activity..."`,
+      `echo "  Waiting for agent activity..."`,
       `echo ""`,
       `echo "Navigation:"`,
       `echo "  • Ctrl+B then 0-${windowCount} to switch windows"`,

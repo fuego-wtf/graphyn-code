@@ -4,7 +4,7 @@ import { join } from 'path';
 import { tmpdir, homedir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { promisify } from 'util';
-import type { AgentConfig } from './squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 import type { Task } from './claude-task-generator.js';
 import { AgentPromptBuilder, AgentPromptContext } from './agent-prompt-builder.js';
 import type { RepositoryContext } from './claude-task-generator.js';
@@ -16,7 +16,7 @@ export interface LaunchAgentParams {
   task: Task;
   workDir: string;
   repoContext: RepositoryContext;
-  squadName: string;
+  agentGroupName: string;
   allTasks: Task[];
   claudePath?: string;
   squadId?: string;
@@ -56,14 +56,14 @@ export class ClaudeAgentLauncher {
   }
 
   async launchAgent(params: LaunchAgentParams): Promise<AgentProcess> {
-    const { agent, task, workDir, repoContext, squadName, allTasks, claudePath = 'claude' } = params;
+    const { agent, task, workDir, repoContext, agentGroupName, allTasks, claudePath = 'claude' } = params;
     
     // Build the agent prompt with task context
     const promptContext: AgentPromptContext = {
       agent,
       task,
       repoContext,
-      squadName,
+      agentGroupName,
       otherTasks: allTasks,
       workingDirectory: workDir
     };
@@ -117,7 +117,7 @@ export class ClaudeAgentLauncher {
   }
 
   async launchAgentInTmuxPane(params: LaunchAgentParams, tmuxSession: string, paneIndex: number): Promise<string> {
-    const { agent, task, workDir, repoContext, squadName, allTasks, claudePath = 'claude', squadId } = params;
+    const { agent, task, workDir, repoContext, agentGroupName, allTasks, claudePath = 'claude', squadId } = params;
     
     // Create git worktree for this agent
     const worktreeInfo = await this.createGitWorktree(workDir, squadId || 'default', agent, task);
@@ -127,7 +127,7 @@ export class ClaudeAgentLauncher {
       agent,
       task,
       repoContext,
-      squadName,
+      agentGroupName,
       otherTasks: allTasks,
       workingDirectory: worktreeInfo.path
     };

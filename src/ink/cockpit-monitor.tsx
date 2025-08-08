@@ -3,7 +3,7 @@ import React from 'react';
 import { render } from 'ink';
 import CockpitMonitor from './components/CockpitMonitor.js';
 import type { Task } from '../services/claude-task-generator.js';
-import type { AgentConfig } from '../services/squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 
 // Parse command line arguments
 const args = process.argv.slice(2);

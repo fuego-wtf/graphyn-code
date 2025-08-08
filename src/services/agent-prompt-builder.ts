@@ -1,19 +1,19 @@
 import type { Task } from './claude-task-generator.js';
-import type { AgentConfig } from './squad-storage.js';
+import type { AgentConfig } from '../types/agent.js';
 import type { RepositoryContext } from './claude-task-generator.js';
 
 export interface AgentPromptContext {
   agent: AgentConfig;
   task: Task;
   repoContext: RepositoryContext;
-  squadName: string;
+  agentGroupName: string;
   otherTasks?: Task[];
   workingDirectory: string;
 }
 
 export class AgentPromptBuilder {
   buildAgentPrompt(context: AgentPromptContext): string {
-    const { agent, task, repoContext, squadName, otherTasks = [], workingDirectory } = context;
+    const { agent, task, repoContext, agentGroupName, otherTasks = [], workingDirectory } = context;
     
     // Start with the agent's custom prompt from Graphyn
     let prompt = '';
@@ -26,7 +26,7 @@ export class AgentPromptBuilder {
     // Add task-specific context
     prompt += `# Current Task Assignment
 
-You are working as part of the "${squadName}" squad.
+You are working as part of the "${agentGroupName}" agent team.
 
 ## Task Details
 **Task ID**: ${task.id}

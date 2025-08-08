@@ -9,8 +9,6 @@ import { FigmaAuth } from './components/FigmaAuth.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { TerminalFrame } from './components/TerminalFrame.js';
-import { SquadBuilder } from './components/SquadBuilder.js';
-import { SquadBuilderWithFlow } from './components/SquadBuilderWithFlow.js';
 import { useAPI } from './hooks/useAPI.js';
 import { AutoSetup } from './components/AutoSetup.js';
 import { useErrorHandler } from './hooks/useErrorHandler.js';
@@ -123,24 +121,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     } else if (command === 'design' && query === 'logout') {
       // Special case: Figma logout
       setMode('figma-logout');
-    } else if (command === 'squad' && query === 'create-examples') {
-      // Special case: Create example agents
-      import('../commands/create-examples.js').then(({ createExampleAgentsCommand }) => {
-        createExampleAgentsCommand().then(() => {
-          exit();
-        }).catch((error) => {
-          console.error('Failed to create example agents:', error);
-          exit();
-        });
-      });
     } else if (command && query) {
       // Normalize command to lowercase to handle case-insensitive inputs
       const normalizedCmd = command.toLowerCase();
-      if (normalizedCmd === 'squad') {
-        // Natural language query - use SquadBuilder
-        setQuery(query);
-        setMode('squad');
-      } else if (normalizedCmd === 'design' && query.includes('figma.com')) {
+      if (normalizedCmd === 'design' && query.includes('figma.com')) {
         // Special case: Figma URL - use FigmaDesign component
         setSelectedAgent('design');
         setQuery(query);
@@ -274,9 +258,6 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         });
         return <Loading message="Logging out from Figma..." />;
       
-      case 'squad':
-        return <SquadBuilderWithFlow query={query || ''} />;
-        
       case 'builder':
         // Dynamic import to avoid circular dependencies
         const BuilderAgent = React.lazy(() => import('./components/BuilderAgent.js').then(m => ({ default: m.BuilderAgent })));

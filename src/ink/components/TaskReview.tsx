@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { Task } from '../../services/claude-task-generator.js';
-import { AgentConfig } from '../../services/squad-storage.js';
+import { AgentConfig } from '../../types/agent.js';
 import chalk from 'chalk';
 
 interface TaskReviewProps {

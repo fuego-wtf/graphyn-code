@@ -82,7 +82,8 @@ export interface Organization {
   owner_id: string;
 }
 
-// Squad - a group of agents for a specific project
+// Squad interfaces removed - deprecated functionality
+/*
 export interface Squad {
   id: string;
   name: string;
@@ -99,6 +100,7 @@ export interface CreateSquadRequest {
   repository_url?: string;
   agents?: string[];
 }
+*/
 
 export class GraphynAPIClient {
   private baseUrl: string;
@@ -340,7 +342,8 @@ export class GraphynAPIClient {
     return response.teams || [];
   }
 
-  // Squad Management
+  // Squad Management - deprecated functionality
+  /*
   async listSquads(organizationId?: string, includeAgents: boolean = true): Promise<Squad[]> {
     const queryParams = new URLSearchParams();
     if (organizationId) queryParams.append('organization_id', organizationId);
@@ -402,6 +405,7 @@ export class GraphynAPIClient {
     });
     return response.squad;
   }
+  */
 }
 
 export default GraphynAPIClient;

@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { SquadTask } from '../types/squad.js';
+import { Task } from '../services/claude-task-generator.js';
 
 export interface AgentConfig {
   id: string;
@@ -13,14 +13,14 @@ export interface AgentConfig {
 
 export async function generateAgentTaskFile(
   agent: AgentConfig,
-  tasks: SquadTask[],
+  tasks: Task[],
   sessionId: string,
-  squadName: string
+  agentGroupName: string
 ): Promise<string> {
-  const taskContent = generateTaskContent(agent, tasks, squadName, sessionId);
+  const taskContent = generateTaskContent(agent, tasks, agentGroupName, sessionId);
   
-  // Create temp directory for squad session
-  const tempDir = path.join(os.tmpdir(), 'graphyn-squads', sessionId);
+  // Create temp directory for agent session
+  const tempDir = path.join(os.tmpdir(), 'graphyn-agents', sessionId);
   await fs.mkdir(tempDir, { recursive: true });
   
   // Generate filename
@@ -34,15 +34,15 @@ export async function generateAgentTaskFile(
 
 function generateTaskContent(
   agent: AgentConfig,
-  tasks: SquadTask[],
-  squadName: string,
+  tasks: Task[],
+  agentGroupName: string,
   sessionId: string
 ): string {
   const content = [];
   
   // Header
   content.push(`# ${agent.emoji} ${agent.name} - Task List`);
-  content.push(`## Squad: ${squadName}`);
+  content.push(`## Agent Group: ${agentGroupName}`);
   content.push(`## Role: ${agent.role}`);
   content.push('');
   content.push('---');
@@ -99,8 +99,8 @@ function generateTaskContent(
       content.push('');
       completedTasks.forEach((task, idx) => {
         content.push(`#### ${idx + 1}. ~~${task.title}~~`);
-        if (task.output) {
-          content.push(`   **Output:** ${task.output}`);
+        if ((task as any).output) {
+          content.push(`   **Output:** ${(task as any).output}`);
         }
         content.push('');
       });
@@ -108,9 +108,9 @@ function generateTaskContent(
   }
   
   // Coordination section
-  content.push('## Squad Coordination');
+  content.push('## Agent Coordination');
   content.push('');
-  content.push('You are working as part of a squad. Remember to:');
+  content.push('You are working as part of an agent team. Remember to:');
   content.push('- Communicate progress on tasks');
   content.push('- Ask for help when blocked');
   content.push('- Share important findings with the team');
@@ -129,8 +129,8 @@ export async function generateSystemPromptFile(
   agent: AgentConfig,
   sessionId: string
 ): Promise<string> {
-  // Create temp directory for squad session
-  const tempDir = path.join(os.tmpdir(), 'graphyn-squads', sessionId);
+  // Create temp directory for agent session
+  const tempDir = path.join(os.tmpdir(), 'graphyn-agents', sessionId);
   await fs.mkdir(tempDir, { recursive: true });
   
   // Generate filename

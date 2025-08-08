@@ -11,7 +11,7 @@ import { config } from '../../config.js';
 import { generateState, waitForOAuthCallback, OAuthCallbackData } from '../utils/auth.js';
 import { getAccentColor, getDimColor } from '../theme/colors.js';
 
-type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service' | 'squad-selection';
+type AuthMode = 'menu' | 'api-key' | 'oauth-select' | 'oauth-flow' | 'status' | 'connect-service';
 
 interface AuthState {
   mode: AuthMode;
@@ -210,27 +210,23 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         }
       }
       
-      // Fetch user's squads
-      const squads = await api.listSquads();
+      // Proceed directly to authenticated
+      // const squads = await api.listSquads();
       
-      if (squads.length > 1) {
-        // Show squad selection
-        setState(prev => ({
-          ...prev,
-          loading: false,
-          mode: 'squad-selection',
-          squads
-        }));
-        return; // Exit early for squad selection
-      } else if (squads.length === 1) {
-        // Auto-select single squad
-        const { ConfigManager } = await import('../../config-manager.js');
-        const configManager = new ConfigManager();
-        await configManager.set('auth.squad', squads[0]);
-      } else {
-        // No squads found, but that's okay - user can create one later
-        console.log('No squads found for user');
-      }
+      // Squad selection removed - proceed directly
+      // if (squads.length > 1) {
+      //   setState(prev => ({
+      //     ...prev,
+      //     loading: false,
+      //     mode: 'squad-selection',
+      //     squads
+      //   }));
+      //   return;
+      // } else if (squads.length === 1) {
+      //   const { ConfigManager } = await import('../../config-manager.js');
+      //   const configManager = new ConfigManager();
+      //   await configManager.set('auth.squad', squads[0]);
+      // }
       
       setState(prev => ({
         ...prev,
@@ -376,40 +372,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
     }
   };
 
-  const handleSquadSelect = async (squadId: string) => {
-    try {
-      setState(prev => ({ ...prev, loading: true }));
-      
-      // Store selected squad
-      const squad = state.squads?.find(s => s.id === squadId);
-      if (squad) {
-        const { ConfigManager } = await import('../../config-manager.js');
-        const configManager = new ConfigManager();
-        await configManager.set('auth.squad', squad);
-      }
-      
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        mode: 'status'
-      }));
-      
-      // Show success for 2 seconds then return to appropriate mode
-      setTimeout(() => {
-        if (returnToBuilder) {
-          setMode('builder');
-        } else {
-          setState(prev => ({ ...prev, mode: 'menu' }));
-        }
-      }, 2000);
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : 'Failed to select team'
-      }));
-    }
-  };
+  // Removed squad selection code block
 
   // Loading state
   if (state.loading && state.mode !== 'oauth-flow') {
@@ -613,35 +576,7 @@ export const Authentication: React.FC<AuthenticationProps> = ({ returnToBuilder 
         </Box>
       );
 
-    case 'squad-selection':
-      return (
-        <Box flexDirection="column" padding={1}>
-          <Text bold color="cyan">▶ Select Squad</Text>
-          {state.error && (
-            <Box marginTop={1}>
-              <Text color="red">⚠ {state.error}</Text>
-            </Box>
-          )}
-          
-          <Box marginTop={1}>
-            <Text>Which squad is this repository for?</Text>
-          </Box>
-          
-          <Box marginTop={1}>
-            <SelectInput
-              items={state.squads?.map(squad => ({
-                label: squad.name,
-                value: squad.id
-              })) || []}
-              onSelect={(item) => handleSquadSelect(item.value)}
-            />
-          </Box>
-          
-          <Box marginTop={2} flexDirection="column">
-            <Text color={getDimColor()}>↑↓ Navigate  • Enter Select  • Esc Cancel</Text>
-          </Box>
-        </Box>
-      );
+    // squad-selection removed
 
     default:
       return null;
