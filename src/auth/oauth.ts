@@ -93,7 +93,7 @@ export class OAuthManager {
   async authenticate(): Promise<void> {
     try {
       
-      // Generate PKCE values
+      // Generate PKCE values locally
       this.pkceValues = this.generatePKCE();
       
       // Use fixed port 8989 for the callback server
@@ -101,16 +101,20 @@ export class OAuthManager {
       const actualRedirectUri = `http://127.0.0.1:${port}/callback`;
       const state = generateState();
       
-      // Build the authorization URL with PKCE
+      // Build the authorization URL using the OAuth authorize endpoint
       const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
       
-      // In development mode, use localhost:3000 for frontend
+      // In development mode, detect by API URL
       const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
-      const appUrl = isDev 
-        ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
-        : (process.env.GRAPHYN_APP_URL || config.appUrl || 'https://app.graphyn.xyz');
       
-      const authUrl = new URL(`${appUrl}/auth`);
+      console.log('Building OAuth authorization URL...', {
+        apiUrl,
+        isDev,
+        port,
+        client_id: this.clientId
+      });
+
+      const authUrl = new URL(`${apiUrl}/api/auth/oauth/authorize`);
       authUrl.searchParams.set('client_id', this.clientId);
       authUrl.searchParams.set('redirect_uri', actualRedirectUri);
       authUrl.searchParams.set('state', state);
@@ -120,13 +124,14 @@ export class OAuthManager {
       authUrl.searchParams.set('code_challenge_method', this.pkceValues.method);
       authUrl.searchParams.set('cli', 'true');
       authUrl.searchParams.set('actual_port', port.toString());
-      authUrl.searchParams.set('prompt', 'consent');
       
       // Always set dev_mode when using localhost
       if (isDev) {
         authUrl.searchParams.set('dev_mode', 'true');
       }
       
+      
+      console.log('Opening browser for authentication...', { authUrl: authUrl.toString() });
       
       // Open the browser
       await open(authUrl.toString());
@@ -138,6 +143,10 @@ export class OAuthManager {
         throw new Error('No authorization code received');
       }
       
+      console.log('Authorization code received, exchanging for tokens...', {
+        code_length: callbackData.code?.length,
+        state: callbackData.state
+      });
       
       // Exchange the code for tokens
       const tokens = await this.exchangeCodeForToken(callbackData.code, actualRedirectUri);
@@ -147,10 +156,11 @@ export class OAuthManager {
       
       // Fetch user profile to get organization info
       try {
-        const userResponse = await fetch(`${apiUrl}/auth/me`, {
+        const userResponse = await fetch(`${apiUrl}/api/auth/me`, {
           headers: {
             'Authorization': `Bearer ${tokens.access_token}`,
             'Content-Type': 'application/json',
+            'User-Agent': config.userAgent,
           },
         });
         
@@ -198,11 +208,23 @@ export class OAuthManager {
       throw new Error('PKCE values not generated');
     }
     
+    const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+    
     return withRetry(async () => {
-      const response = await fetch(`${config.apiBaseUrl}/api/auth/oauth/token`, {
+      console.log('Exchanging authorization code for tokens...', {
+        endpoint: `${apiUrl}/api/auth/oauth/token`,
+        grant_type: 'authorization_code',
+        client_id: this.clientId,
+        redirect_uri: redirectUri,
+        has_code_verifier: !!this.pkceValues?.verifier,
+        code_length: code?.length
+      });
+
+      const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': config.userAgent,
         },
         body: JSON.stringify({
           grant_type: 'authorization_code',
@@ -215,16 +237,31 @@ export class OAuthManager {
 
       if (!response.ok) {
         const errorText = await response.text();
-        const error: any = new Error(`Token exchange failed: ${errorText}`);
+        console.error('Token exchange failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        const error: any = new Error(`Token exchange failed (${response.status}): ${errorText}`);
         error.status = response.status;
         throw error;
       }
 
       const tokens = await response.json() as OAuthToken;
+      console.log('Token exchange successful:', {
+        access_token: tokens.access_token?.substring(0, 10) + '...',
+        token_type: tokens.token_type,
+        expires_in: tokens.expires_in,
+        has_refresh_token: !!tokens.refresh_token,
+        scope: tokens.scope
+      });
       return tokens;
     }, {
       maxAttempts: 3,
+      delay: 1000,
+      backoff: 2,
       onRetry: (error, attempt) => {
+        console.warn(`Token exchange attempt ${attempt}/3 failed:`, error instanceof Error ? error.message : error);
       }
     });
   }
@@ -296,12 +333,14 @@ export class OAuthManager {
   
   private async performTokenRefresh(authData: any): Promise<string | null> {
     try {
+      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      
       return await withRetry(async () => {
-      const response = await fetch(`${config.apiBaseUrl}/api/auth/oauth/token`, {
+      const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': `Graphyn-CLI/${process.env.npm_package_version || '0.0.0'}`
+          'User-Agent': config.userAgent
         },
         body: JSON.stringify({
           grant_type: 'refresh_token',

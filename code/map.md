@@ -165,3 +165,91 @@ encore deploy      # Deploy to cloud
 - `src/squad/team-builder-client.ts` - TO CREATE
 - `src/squad/coordinator.ts` - TO CREATE
 - `src/api-client.ts` - TO UPDATE (add code.graphyn.xyz/ask)
+
+## 📦 Prompts Folder Deprecation Strategy
+
+### Current State
+```
+/prompts/
+├── architect.md    # System architect agent prompt
+├── backend.md      # Backend developer agent prompt
+├── cli.md          # CLI interaction agent prompt
+├── design.md       # Design-to-code agent prompt
+└── frontend.md     # Frontend developer agent prompt
+```
+
+### Deprecation Timeline
+
+#### Phase 1: Documentation (January 2025)
+- Mark prompts folder as "Legacy - Being Deprecated"
+- Add deprecation notice to each prompt file
+- Document migration path in README
+
+#### Phase 2: Team Builder Migration (February 2025)
+- Convert each prompt to Team Builder knowledge base:
+  ```typescript
+  // Extract key patterns from each prompt
+  const backendPatterns = extractPatterns('backend.md');
+  const frontendPatterns = extractPatterns('frontend.md');
+  
+  // Store in Team Builder configuration
+  await teamBuilder.addKnowledge({
+    domain: 'backend',
+    patterns: backendPatterns,
+    basePrompt: legacyPrompts.backend
+  });
+  ```
+
+#### Phase 3: Archive & Remove (March 2025)
+- Move prompts to `/archive/legacy-prompts/`
+- Update all references in codebase
+- Remove from active documentation
+
+### Migration Mapping
+
+| Static Prompt | Team Builder Capability |
+|--------------|------------------------|
+| architect.md | System design patterns, architecture decisions |
+| backend.md   | API patterns, database design, service architecture |
+| frontend.md  | UI patterns, component architecture, state management |
+| design.md    | Figma extraction, design tokens, accessibility |
+| cli.md       | Command patterns, tool integration, automation |
+
+### Code Changes Required
+
+1. **Remove prompt loading in CLI**:
+   ```typescript
+   // OLD: Load static prompts
+   const prompts = loadPrompts('./prompts/');
+   
+   // NEW: Request from Team Builder
+   const squad = await teamBuilder.createSquad(context);
+   ```
+
+2. **Update agent creation**:
+   ```typescript
+   // OLD: Use static prompt
+   const agent = createAgent({
+     prompt: prompts.backend,
+     name: 'Backend Developer'
+   });
+   
+   // NEW: Dynamic configuration
+   const agent = await teamBuilder.configureAgent({
+     role: 'backend',
+     context: projectContext
+   });
+   ```
+
+3. **Remove prompt references**:
+   - `src/agents.ts` - Remove prompt imports
+   - `src/commands/*.ts` - Update to use Team Builder
+   - `package.json` - Remove prompt copying scripts
+
+### Benefits of Deprecation
+
+1. **Dynamic Adaptation**: Agents configured per project
+2. **Continuous Learning**: Improvements automatically applied
+3. **Reduced Maintenance**: No manual prompt updates
+4. **Better Personalization**: Team-specific agent behavior
+5. **Simplified Codebase**: Less static configuration

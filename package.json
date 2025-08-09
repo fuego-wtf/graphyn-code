@@ -67,6 +67,7 @@
     "meow": "^13.0.0",
     "node-fetch": "^3.3.2",
     "open": "^10.0.0",
+    "ora": "^8.2.0",
     "react": "^18.2.0",
     "simple-git": "^3.20.0",
     "uuid": "^11.1.0",
@@ -76,6 +77,7 @@
   "devDependencies": {
     "@types/eventsource": "^1.1.15",
     "@types/figlet": "^1.7.0",
+    "@types/inquirer": "^9.0.7",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@vitest/coverage-v8": "^1.6.1",
@@ -92,5 +94,6 @@
     "scripts/postinstall.js",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "packageManager": "pnpm@10.11.0+sha512.6540583f41cc5f628eb3d9773ecee802f4f9ef9923cc45b69890fb47991d4b092964694ec3a4f738a420c918a333062c8b925d312f42e4f0c263eb603551f977"
 }

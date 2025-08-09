@@ -4,6 +4,7 @@ import { switchSquad, showCurrentSquad, clearSquadSelection } from './commands/s
 import { analyzeRepository } from './commands/analyze.js';
 import { createSquad } from './commands/squad.js';
 import { doctor } from './commands/doctor.js';
+import { mcpCommand } from './commands/mcp-simple.js';
 import { checkSystemRequirements } from './utils/system-check.js';
 import chalk from 'chalk';
 
@@ -55,6 +56,14 @@ Usage:
   graphyn squad                  Show current squad
   graphyn squad switch           Switch to a different squad
   graphyn squad clear            Clear squad selection
+  graphyn mcp <command>          MCP (Model Context Protocol) integration
+
+MCP Commands:
+  graphyn mcp init               Initialize MCP with Claude Flow
+  graphyn mcp servers            List registered MCP servers
+  graphyn mcp swarm init         Initialize a swarm
+  graphyn mcp swarm spawn        Spawn an agent
+  graphyn mcp swarm task         Orchestrate a task
 
 Options:
   --non-interactive, -n          Exit after creating thread (no interactive mode)
@@ -70,6 +79,7 @@ Examples:
   graphyn analyze                Analyze your repository
   graphyn analyze --mode summary Get a summary analysis
   graphyn squad switch           Switch between your squads
+  graphyn mcp init               Initialize MCP integration
 `);
     process.exit(0);
   }
@@ -108,6 +118,13 @@ Examples:
   
   if (userMessage === 'squad clear') {
     await clearSquadSelection();
+    process.exit(0);
+  }
+  
+  // MCP commands disabled - use direct file editing instead
+  if (userMessage === 'mcp' || userMessage.startsWith('mcp ')) {
+    console.log(colors.info('MCP commands are disabled. Use natural language requests instead.'));
+    console.log(colors.info('Example: graphyn "fix duplicate components in thread detail page"'));
     process.exit(0);
   }
   

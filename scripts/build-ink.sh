@@ -50,7 +50,8 @@ cat > tsconfig.ink.json << 'EOF'
     "src/utils/logger.ts",
     "src/auth/**/*.ts",
     "src/api/teams.ts",
-    "src/commands/squad.ts",
+    "src/commands/*.ts",
+    "src/mcp/*.ts",
     "src/cli/**/*.ts",
     "src/cli/**/*.tsx",
     "src/context/**/*.ts",
@@ -108,8 +109,8 @@ const isNaturalLanguageQuery = args.length > 0 && (
 
 // Route to appropriate CLI
 let cliPath;
-if (isNaturalLanguageQuery || firstArg === 'auth' || firstArg === 'logout') {
-  // Use the new OAuth-based CLI for natural language queries
+if (isNaturalLanguageQuery || firstArg === 'auth' || firstArg === 'logout' || firstArg === 'mcp' || firstArg === 'squad' || firstArg === 'analyze' || firstArg === 'doctor') {
+  // Use the new OAuth-based CLI for natural language queries and MCP commands
   cliPath = join(__dirname, 'cli-main.js');
 } else {
   // Use the original Ink CLI for agent commands

@@ -5,6 +5,23 @@ Graphyn Code is a radically simplified CLI that transforms Claude Code into an i
 
 **Current Status**: SIMPLIFIED & PRODUCTION READY - Zero config, pure intelligence.
 
+## Code Documentation Structure
+
+For architectural deliveries and comprehensive documentation:
+- **@code/init.md** - System design & architecture overview
+- **@code/journeys.md** - User journeys and interaction flows
+- **@code/personas.md** - User personas and use cases
+- **@code/squads.md** - Squad system documentation
+
+Key folders to maintain:
+- `/graphyn-monorepo/frontend/code/` - Frontend-specific documentation
+- `/graphyn-monorepo/backend/code/` - Backend service documentation
+- `/graphyn-monorepo/code/` - Platform-wide documentation
+- `/graphyn-monorepo/platform/` - Platform admin panel documentation
+- `/graphyn-code/code/` - CLI/SDK documentation
+
+Use map.md and focus.md in each location for architectural context.
+
 ## Documentation Structure
 
 **Active Documentation**:
@@ -16,6 +33,16 @@ Graphyn Code is a radically simplified CLI that transforms Claude Code into an i
 **Archived Documentation**:
 - Files in `/docs/temp/` - Historical migration guides, old roadmaps, and completed task tracking
 - These are preserved for reference but not actively maintained
+
+## Platform Configuration Impact
+
+For white-label deployments, the CLI behavior can be influenced by platform admin settings:
+- **Team Builder Configuration**: Platform owners set default Team Builder agent via Appsmith panel
+- **Squad Rules**: Max squad size, specialization preferences set at platform level
+- **Learning Parameters**: Platform admin controls whether learning is enabled
+- **Custom Prompts**: Platform-specific agent templates can be configured
+
+The CLI respects these platform-level settings when creating squads.
 
 ## Core Intelligence Strategy
 
