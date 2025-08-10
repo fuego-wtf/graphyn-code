@@ -146,3 +146,13 @@ firebase-debug.log*
 .dynamodb/
 .tern-port
 .vscode-test
+
+# Claude flow
+.claude-flow/
+
+# Disallow local AI tooling state
+.swarm/
+.hive-mind/
+.memory
+memory/
+claude-flow
