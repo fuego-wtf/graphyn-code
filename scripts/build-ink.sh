@@ -68,7 +68,7 @@ cat > tsconfig.ink.json << EOF
 }
 EOF
 
-npx tsc -p tsconfig.ink.json --noEmitOnError false || true
+./node_modules/.bin/tsc -p tsconfig.ink.json --noEmitOnError false
 
 # Clean up temp tsconfig
 rm tsconfig.ink.json
