@@ -1,4 +1,4 @@
-import { GraphynAPIClient } from '../api-client.js';
+import { apiClient } from '../api/client.js';
 import { TMUXCockpitOrchestrator } from '../utils/tmux-cockpit-orchestrator.js';
 import { RepositoryContextExtractor, ExtractedContext } from './repository-context-extractor.js';
 import { RepositoryAnalyzerService } from './repository-analyzer.js';
@@ -45,7 +45,7 @@ export class AskService {
   private agentLauncher: ClaudeAgentLauncher;
   private cockpit: TMUXCockpitOrchestrator;
 
-  constructor(private apiClient: GraphynAPIClient) {
+  constructor() {
     const analyzer = new RepositoryAnalyzerService();
     this.contextExtractor = new RepositoryContextExtractor(analyzer);
     this.agentLauncher = new ClaudeAgentLauncher();
@@ -80,12 +80,34 @@ export class AskService {
 
   private async sendAskRequest(request: AskRequest): Promise<AskResponse> {
     try {
-      const response = await this.apiClient.post<AskResponse>('/api/ask', request);
+      const response = await apiClient.post<AskResponse>('/api/ask', request);
       return response;
     } catch (error) {
-      // If backend endpoint doesn't exist yet, return mock response
-      console.log(chalk.yellow('⚠️  Using mock response (backend endpoint not implemented)'));
-      return this.getMockResponse(request);
+      // Handle specific error cases with user-friendly messages
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 404) {
+          throw new Error(
+            'The AI orchestration service is not available yet. ' +
+            'Please contact support or try again later.'
+          );
+        }
+        if (axiosError.response?.status === 401) {
+          throw new Error(
+            'Authentication failed. Please run "graphyn auth" to re-authenticate.'
+          );
+        }
+        if (axiosError.response?.status >= 500) {
+          throw new Error(
+            'The AI service is temporarily unavailable. Please try again in a few minutes.'
+          );
+        }
+      }
+      
+      // Generic network or unknown error
+      throw new Error(
+        'Unable to connect to Graphyn AI services. Please check your internet connection and try again.'
+      );
     }
   }
 

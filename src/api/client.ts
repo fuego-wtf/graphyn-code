@@ -421,6 +421,26 @@ export class GraphynAPIClient {
       return response.data;
     });
   }
+
+  /**
+   * Send a request to the /ask endpoint for AI agent orchestration
+   */
+  async ask(request: any): Promise<any> {
+    return this.withRetry(async () => {
+      const response = await this.client.post('/api/ask', request);
+      return response.data;
+    });
+  }
+
+  /**
+   * Generic post method for API requests
+   */
+  async post<T>(path: string, data: any): Promise<T> {
+    return this.withRetry(async () => {
+      const response = await this.client.post<T>(path, data);
+      return response.data;
+    });
+  }
 }
 
 // Export a singleton instance

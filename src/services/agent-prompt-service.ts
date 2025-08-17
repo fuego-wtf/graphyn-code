@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { GraphynAPIClient } from '../ink/services/graphynApi.js';
+import { apiClient } from '../api/client.js';
 import { ConfigManager } from '../config-manager.js';
 
 export interface AgentPrompt {
@@ -13,7 +13,6 @@ export interface AgentPrompt {
 }
 
 export class AgentPromptService {
-  private apiClient: GraphynAPIClient | null = null;
   private promptsDir: string;
   private config: ConfigManager;
   private cacheDir: string;
@@ -33,17 +32,8 @@ export class AgentPromptService {
    * Initialize API client if authenticated
    */
   private async initApiClient(): Promise<boolean> {
-    if (this.apiClient) return true;
-    
-    const tokens = await this.config.get('tokens') as any;
-    if (!tokens?.access_token) return false;
-    
-    this.apiClient = new GraphynAPIClient({
-      apiKey: tokens.access_token,
-      baseURL: process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz'
-    });
-    
-    return true;
+    // Check if apiClient is authenticated
+    return await apiClient.isAuthenticated();
   }
   
   /**
@@ -77,13 +67,16 @@ export class AgentPromptService {
       }
       
       // Fetch from API
-      const response = await this.apiClient!.get(`/api/agents/${type}/prompt`);
+      // TODO: Add this endpoint to apiClient
+      // const response = await apiClient.get(`/api/agents/${type}/prompt`);
+      // For now, return null
+      return null;
       
-      if (response.data?.content) {
-        // Cache the prompt
-        this.cachePrompt(type, response.data.content);
-        return response.data.content;
-      }
+      // if (response.data?.content) {
+      //   // Cache the prompt
+      //   this.cachePrompt(type, response.data.content);
+      //   return response.data.content;
+      // }
       
       return null;
     } catch (error) {
@@ -154,9 +147,9 @@ export class AgentPromptService {
     // Try to get dynamic types from API
     if (await this.initApiClient()) {
       try {
-        const response = await this.apiClient!.get('/api/agents');
-        if (response.data?.agents) {
-          const dynamicTypes = response.data.agents.map((a: any) => a.type);
+        const response = await apiClient.listAgents();
+        if (response && Array.isArray(response)) {
+          const dynamicTypes = response.map((a: any) => a.type || a.id);
           // Merge with local types (unique)
           return [...new Set([...localTypes, ...dynamicTypes])];
         }
@@ -191,15 +184,16 @@ export class AgentPromptService {
     }
     
     try {
-      const response = await this.apiClient!.get('/api/agents');
-      if (!response.data?.agents) return;
+      const response = await apiClient.listAgents();
+      if (!response || !Array.isArray(response)) return;
       
-      for (const agent of response.data.agents) {
+      for (const agent of response) {
         try {
-          const promptResponse = await this.apiClient!.get(`/api/agents/${agent.type}/prompt`);
-          if (promptResponse.data?.content) {
-            this.cachePrompt(agent.type, promptResponse.data.content);
-          }
+          // TODO: Add this endpoint to apiClient
+          // const promptResponse = await apiClient.get(`/api/agents/${agent.type}/prompt`);
+          // if (promptResponse.data?.content) {
+          //   this.cachePrompt(agent.type, promptResponse.data.content);
+          // }
         } catch {
           // Skip individual failures
         }
