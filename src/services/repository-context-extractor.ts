@@ -46,27 +46,35 @@ export class RepositoryContextExtractor {
     console.log(chalk.gray('🔍 Extracting repository context based on query...'));
     
     // Analyze the repository first
-    const analysis = await this.analyzer.analyze(repoPath, 'detailed');
+    const analysis = await this.analyzer.analyze({ path: repoPath });
     
     // Extract keywords from query
     const keywords = this.extractKeywords(query.toLowerCase());
     
+    // Create a context object from the analysis
+    const context = {
+      framework: analysis.framework || 'unknown',
+      language: analysis.language || 'unknown',
+      dependencies: {},
+      patterns: []
+    };
+    
     // Find relevant files based on query
-    const relevantFiles = await this.findRelevantFiles(repoPath, keywords, analysis.context);
+    const relevantFiles = await this.findRelevantFiles(repoPath, keywords, context as any);
     
     // Build file structure (limited depth)
     const fileStructure = await this.buildFileStructure(repoPath, 2);
     
     // Generate suggestions based on context
-    const suggestions = this.generateSuggestions(query, analysis.context, relevantFiles);
+    const suggestions = this.generateSuggestions(query, context as any, relevantFiles);
     
     return {
       query,
-      framework: analysis.context.framework || 'unknown',
-      language: analysis.context.language || 'unknown',
-      dependencies: analysis.context.dependencies || {},
+      framework: context.framework,
+      language: context.language,
+      dependencies: context.dependencies,
       fileStructure,
-      patterns: analysis.context.patterns || [],
+      patterns: context.patterns,
       relevantFiles: relevantFiles.slice(0, 10), // Limit to top 10 most relevant
       suggestions,
     };
