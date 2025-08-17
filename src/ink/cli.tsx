@@ -110,9 +110,36 @@ const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
 // Check if graphyn was called without any arguments (builder mode)
 const isBuilderMode = !normalizedCommand;
 
-// Check if we can use raw mode
-// Also check for Warp terminal which might have special TTY handling
-const isWarp = process.env.TERM_PROGRAM === 'WarpTerminal';
+// Enhanced TTY detection for better terminal support
+const isInteractive = Boolean(
+  process.stdin.isTTY || 
+  process.env.FORCE_COLOR ||
+  (process.env.TERM && process.env.TERM !== 'dumb')
+);
+
+// Check for CI environments
+const isCI = Boolean(
+  process.env.CI ||
+  process.env.CONTINUOUS_INTEGRATION ||
+  process.env.GITHUB_ACTIONS ||
+  process.env.GITLAB_CI ||
+  process.env.CIRCLECI ||
+  process.env.JENKINS_URL
+);
+
+// Determine if we should use fallback mode
+let useFallback = false;
+
+if (isDirectAgentCommand) {
+  // Direct agent commands always use fallback
+  useFallback = true;
+} else if (isBuilderMode) {
+  // Builder mode: only use fallback if truly non-interactive or in CI
+  useFallback = !isInteractive || isCI;
+} else {
+  // Other commands: use fallback if non-interactive
+  useFallback = !isInteractive || isCI;
+}
 
 // Debug output for terminal detection (only when DEBUG_GRAPHYN is set)
 if (process.env.DEBUG_GRAPHYN) {
@@ -121,14 +148,16 @@ if (process.env.DEBUG_GRAPHYN) {
   console.log('- normalizedCommand:', normalizedCommand);
   console.log('- isBuilderMode:', isBuilderMode);
   console.log('- TTY:', process.stdin.isTTY ? 'YES' : 'NO');
+  console.log('- TERM:', process.env.TERM || 'none');
   console.log('- TERM_PROGRAM:', process.env.TERM_PROGRAM || 'none');
-  console.log('- Is Warp:', isWarp ? 'YES' : 'NO');
+  console.log('- isInteractive:', isInteractive ? 'YES' : 'NO');
+  console.log('- isCI:', isCI ? 'YES' : 'NO');
   console.log('- Direct agent command:', isDirectAgentCommand ? 'YES' : 'NO');
-  console.log('- Using fallback:', (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || isDirectAgentCommand) ? 'YES' : 'NO');
+  console.log('- Using fallback:', useFallback ? 'YES' : 'NO');
 }
 
-// Use fallback for: non-TTY, Warp terminal, or direct agent commands (but not builder mode)
-if (!process.stdin.isTTY && !process.env.FORCE_COLOR || isWarp || (isDirectAgentCommand && !isBuilderMode)) {
+// Use fallback for non-interactive environments or direct agent commands
+if (useFallback) {
   // Fall back to non-interactive mode
   import('child_process').then(({ execSync }) => {
     const fallbackPath = new URL('./cli-fallback.js', import.meta.url).pathname;
