@@ -1,6 +1,6 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.60",
+  "version": "0.1.61",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "type": "module",
   "main": "dist/ink/cli.js",
@@ -92,7 +92,7 @@
     "ink-testing-library": "^3.0.0",
     "ts-node": "^10.9.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.0.0",
+    "typescript": "^5.9.2",
     "vitest": "^1.6.1"
   },
   "files": [

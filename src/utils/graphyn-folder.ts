@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { AgentRevivalService } from '../services/agent-revival.js';
+import chalk from 'chalk';
 
 interface RepoInfo {
   name: string;
@@ -92,6 +94,53 @@ export async function initGraphynFolder(projectPath: string = process.cwd()): Pr
     } catch (error) {
       // Ignore errors
     }
+  }
+  
+  // Check for .claude/agents and offer to revive them
+  await checkAndOfferAgentRevival(projectPath);
+}
+
+/**
+ * Check for .claude/agents and offer to revive them
+ */
+async function checkAndOfferAgentRevival(projectPath: string = process.cwd()): Promise<void> {
+  const revivalService = new AgentRevivalService();
+  
+  try {
+    // Check if we've already offered revival (don't annoy users)
+    const agentsJsonPath = path.join(projectPath, '.graphyn', 'agents.json');
+    if (fs.existsSync(agentsJsonPath)) {
+      const history = JSON.parse(fs.readFileSync(agentsJsonPath, 'utf-8'));
+      if (history.revivalOffered) {
+        return; // Already offered, don't ask again
+      }
+    }
+    
+    // Discover agents
+    const agents = await revivalService.discoverAgents();
+    
+    if (agents.length > 0) {
+      console.log(chalk.yellow('\n🔥 GAME CHANGER ALERT!'));
+      console.log(chalk.cyan(`Found ${agents.length} static .claude/agents that can be brought to life!\n`));
+      
+      agents.forEach((agent, index) => {
+        console.log(chalk.gray(`  ${index + 1}. ${agent.name} - ${agent.description.substring(0, 60)}...`));
+      });
+      
+      console.log(chalk.gray('\nRun graphyn in interactive mode to revive these agents and make them living, learning teammates!'));
+      
+      // Mark that we've offered revival
+      const historyData = {
+        revivalOffered: true,
+        discoveredAt: new Date().toISOString(),
+        agentsFound: agents.length
+      };
+      
+      fs.mkdirSync(path.join(projectPath, '.graphyn'), { recursive: true });
+      fs.writeFileSync(agentsJsonPath, JSON.stringify(historyData, null, 2));
+    }
+  } catch (error) {
+    // Silently fail - don't interrupt the main flow
   }
 }
 

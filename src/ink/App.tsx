@@ -8,6 +8,7 @@ import { FigmaDesign } from './components/FigmaDesign.js';
 import { FigmaAuth } from './components/FigmaAuth.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
+import { AgentRevival } from './components/AgentRevival.js';
 import { TerminalFrame } from './components/TerminalFrame.js';
 import { useAPI } from './hooks/useAPI.js';
 import { AutoSetup } from './components/AutoSetup.js';
@@ -182,6 +183,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         // Launch builder mode for analyzing repository
         setMode('builder');
         break;
+      case 'revive':
+        // Launch agent revival in builder mode with special context
+        setMode('agentRevival' as AppMode);
+        break;
       case 'connect':
         // Show authentication screen for connecting accounts
         setMode('auth');
@@ -274,6 +279,10 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       case 'setup':
         // Auto-setup flow for first run
         return <AutoSetup onComplete={() => setMode('menu')} />;
+      
+      case 'agentRevival':
+        // Agent revival flow
+        return <AgentRevival onComplete={() => setMode('menu')} />;
       
       default:
         return null;

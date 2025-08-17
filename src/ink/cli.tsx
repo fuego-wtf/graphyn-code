@@ -79,17 +79,14 @@ if (normalizedCommand === '--help' || normalizedCommand === '-h' || normalizedCo
 Graphyn Code - AI Development Tool for Claude Code
 
 Usage:
-  graphyn                        Interactive mode
-  graphyn <agent> <query>        Direct agent query
-  graphyn design <figma-url>     Extract Figma components
-  graphyn auth [key]             Set API key (optional)
+  graphyn                        Interactive mode (includes agent revival)
+  graphyn "your query"           Direct natural language query
 
-Agents:
-  backend (b)                    Backend development agent
-  frontend (f)                   Frontend development agent
-  architect (a)                  System architecture agent
-  design (d)                     Design system agent
-  cli (c)                        CLI development agent
+Examples:
+  graphyn                        Launch interactive builder
+  graphyn "add user auth"        Natural language development
+  graphyn "review my API"        Architecture review
+  graphyn "extract figma.com/..." Design extraction
 
 Options:
   -v, --version                  Show version

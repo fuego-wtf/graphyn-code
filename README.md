@@ -7,6 +7,8 @@
 
 🎨 **NEW**: Beautiful interactive CLI with real-time updates, powered by React!
 
+🔥 **GAME CHANGER**: Transform your static `.claude/agents` into living, learning AI agents!
+
 ## Why Graphyn?
 
 We believe AI assistants should understand your project deeply—not just respond to prompts. Graphyn gives Claude Code specialized agents that know your stack, follow your standards, and evolve with your codebase.
@@ -42,6 +44,29 @@ graphyn design figma.com/file/...  # Figma to code
 # Or launch interactive mode
 graphyn
 ```
+
+## 🚀 Agent Revival: Bring Your Agents to Life!
+
+Do you have static `.claude/agents` files? Transform them into living, learning AI agents with one command:
+
+```bash
+# During project initialization
+graphyn init
+
+# Or revive agents anytime
+graphyn agents revive
+```
+
+When Graphyn detects your `.claude/agents` folder:
+- 🎯 **Found 5 static agents! Want to bring them to life?**
+- Select which agents to transform
+- Converts static prompts to living Graphyn agents
+- Agents learn from every conversation
+- Collaborate with your team
+- Deploy as APIs
+
+**Before**: Static markdown files that never improve
+**After**: Living agents that learn, evolve, and collaborate
 
 ## 🔧 API Integration
 

@@ -91,6 +91,7 @@ if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
   process.exit(1);
 }
 
+
 // Handle natural language (legacy squad label)
 if (normalizedCommand === 'squad' && query) {
   // Process squad command (natural language)

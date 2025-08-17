@@ -48,6 +48,41 @@ export class AgentRevivalService {
   }
   
   /**
+   * Discover all available agents (for external use)
+   */
+  async discoverAgents(): Promise<ParsedAgent[]> {
+    const detected = await this.detector.detectAgents();
+    const prioritized = this.detector.prioritizeAgents(detected);
+    const parsed = await this.parser.parseAgents(prioritized);
+    return parsed;
+  }
+  
+  /**
+   * Select agents for revival
+   */
+  async selectAgents(agents: ParsedAgent[]): Promise<ParsedAgent[]> {
+    return this.interactiveSelection(agents);
+  }
+  
+  /**
+   * Get revival history
+   */
+  async getRevivalHistory(): Promise<{ revivals: any[] }> {
+    const historyPath = path.join('.graphyn', 'agents.json');
+    
+    if (!fs.existsSync(historyPath)) {
+      return { revivals: [] };
+    }
+    
+    try {
+      const content = fs.readFileSync(historyPath, 'utf-8');
+      return JSON.parse(content);
+    } catch {
+      return { revivals: [] };
+    }
+  }
+  
+  /**
    * Check if there are any agents available to revive
    */
   async hasAgentsToRevive(): Promise<boolean> {
