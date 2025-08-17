@@ -4,7 +4,7 @@ import { analyzeRepository } from './commands/analyze.js';
 import { doctor } from './commands/doctor.js';
 import { checkSystemRequirements } from './utils/system-check.js';
 import { config } from './config.js';
-import { AskService } from './services/ask-service.js';
+import { ThreadService } from './services/thread-service.js';
 import chalk from 'chalk';
 
 const colors = {
@@ -48,7 +48,7 @@ Graphyn Code - AI Development Tool
 
 Usage:
   graphyn                        Launch GUI (Ink)
-  graphyn <request>              Run non-GUI flow: analyze → /api/ask → tmux
+  graphyn <request>              Create AI development thread and stream responses
   graphyn init                   Initialize project with MCP config & agent revival
   graphyn auth                   Authenticate with Graphyn (PKCE OAuth flow)
   graphyn logout                 Log out from Graphyn
@@ -196,15 +196,19 @@ Examples:
       console.log(colors.success('\n✓ Re-authentication successful!\n'));
     }
     
-    // Step 3: Process query with Ask service
-    const askService = new AskService();
-    const response = await askService.processQuery(userMessage, process.cwd());
+    // Step 3: Process query with Thread service
+    const threadService = new ThreadService();
     
-    // Step 5: Launch agents (if in interactive mode)
     if (!options.nonInteractive) {
-      await askService.launchAgents(response, process.cwd());
+      // Interactive mode: create thread and stream responses
+      await threadService.processWithStream(userMessage, process.cwd());
     } else {
-      console.log(colors.info('\n📝 Request processed. Use interactive mode to launch agents.'));
+      // Non-interactive mode: just create the thread
+      const response = await threadService.processQuery(userMessage, process.cwd());
+      console.log(colors.info('📝 Thread created successfully!'));
+      console.log(colors.info(`Thread ID: ${response.threadId}`));
+      console.log(colors.info(`State: ${response.state}`));
+      console.log(colors.info('Use interactive mode to see real-time responses.'));
     }
   } catch (error) {
     console.error(colors.error('\n❌ Error:'), error instanceof Error ? error.message : error);
