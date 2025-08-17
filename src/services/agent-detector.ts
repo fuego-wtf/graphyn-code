@@ -1,159 +1,172 @@
 import fs from 'fs';
 import path from 'path';
-import glob from 'glob';
-import chalk from 'chalk';
-
-const colors = {
-  success: chalk.green,
-  error: chalk.red,
-  warning: chalk.yellow,
-  info: chalk.gray,
-  highlight: chalk.cyan
-};
+import os from 'os';
+import glob from 'fast-glob';
 
 export interface DetectedAgent {
   path: string;
   filename: string;
   directory: string;
-  projectPath: string;
+  source: 'project' | 'user' | 'parent';
 }
 
-export class AgentDetector {
+/**
+ * Service for detecting .claude/agents directories and agent files
+ */
+export class AgentDetectorService {
+  private readonly agentsFolderName = '.claude/agents';
+  private readonly agentFilePattern = '*.md';
+  
   /**
-   * Scan for .claude/agents directories in the current project and parent directories
+   * Scan for .claude/agents folders and return discovered agent files
    */
-  async detectAgents(startPath: string = process.cwd()): Promise<DetectedAgent[]> {
+  async detectAgents(): Promise<DetectedAgent[]> {
     const agents: DetectedAgent[] = [];
     
-    // Start from current directory and go up to find .claude/agents
-    let currentPath = startPath;
-    const searchPaths: string[] = [];
+    // 1. Check current project directory
+    const projectAgents = await this.scanDirectory(process.cwd(), 'project');
+    agents.push(...projectAgents);
     
-    // Search current and parent directories (up to 5 levels)
-    for (let i = 0; i < 5; i++) {
-      searchPaths.push(currentPath);
-      const parentPath = path.dirname(currentPath);
-      if (parentPath === currentPath) break; // Reached root
-      currentPath = parentPath;
+    // 2. Check parent directories (up to 3 levels)
+    const parentAgents = await this.scanParentDirectories();
+    agents.push(...parentAgents);
+    
+    // 3. Check user home directory
+    const homeAgents = await this.scanDirectory(os.homedir(), 'user');
+    agents.push(...homeAgents);
+    
+    // Remove duplicates based on path
+    const uniqueAgents = this.deduplicateAgents(agents);
+    
+    return uniqueAgents;
+  }
+  
+  /**
+   * Scan a specific directory for agent files
+   */
+  private async scanDirectory(baseDir: string, source: DetectedAgent['source']): Promise<DetectedAgent[]> {
+    const agentsDir = path.join(baseDir, '.claude', 'agents');
+    
+    if (!fs.existsSync(agentsDir)) {
+      return [];
     }
     
-    // Search for .claude/agents in each path
-    for (const searchPath of searchPaths) {
-      const claudeAgentsPath = path.join(searchPath, '.claude', 'agents');
+    try {
+      const pattern = path.join(agentsDir, this.agentFilePattern);
+      const files = await glob(pattern, {
+        absolute: true,
+        onlyFiles: true,
+        ignore: ['**/node_modules/**', '**/.git/**']
+      });
       
-      if (fs.existsSync(claudeAgentsPath)) {
-        try {
-          const files = fs.readdirSync(claudeAgentsPath);
-          const mdFiles = files.filter(file => file.endsWith('.md'));
-          
-          for (const file of mdFiles) {
-            agents.push({
-              path: path.join(claudeAgentsPath, file),
-              filename: file,
-              directory: claudeAgentsPath,
-              projectPath: searchPath
-            });
-          }
-        } catch (error) {
-          console.debug(`Error reading ${claudeAgentsPath}:`, error);
-        }
+      return files.map(filePath => ({
+        path: filePath,
+        filename: path.basename(filePath),
+        directory: agentsDir,
+        source
+      }));
+    } catch (error) {
+      console.debug(`Failed to scan directory ${agentsDir}:`, error);
+      return [];
+    }
+  }
+  
+  /**
+   * Scan parent directories for agent files
+   */
+  private async scanParentDirectories(): Promise<DetectedAgent[]> {
+    const agents: DetectedAgent[] = [];
+    let currentDir = process.cwd();
+    const homeDir = os.homedir();
+    let levelsUp = 0;
+    const maxLevels = 3;
+    
+    while (levelsUp < maxLevels) {
+      const parentDir = path.dirname(currentDir);
+      
+      // Stop if we've reached the root or home directory
+      if (parentDir === currentDir || parentDir === homeDir) {
+        break;
       }
+      
+      const parentAgents = await this.scanDirectory(parentDir, 'parent');
+      agents.push(...parentAgents);
+      
+      currentDir = parentDir;
+      levelsUp++;
     }
     
     return agents;
   }
   
   /**
-   * Search for .claude/agents directories recursively in a given path
+   * Check if a specific path contains agent files
    */
-  async searchAgentsRecursive(searchPath: string = process.cwd()): Promise<DetectedAgent[]> {
-    return new Promise((resolve, reject) => {
-      const pattern = path.join(searchPath, '**', '.claude', 'agents', '*.md');
-      
-      glob(pattern, { 
-        ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
-        dot: true 
-      }, (err, files) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        
-        const agents = files.map(filePath => ({
-          path: filePath,
-          filename: path.basename(filePath),
-          directory: path.dirname(filePath),
-          projectPath: filePath.split('.claude')[0].replace(/\/$/, '')
-        }));
-        
-        resolve(agents);
-      });
+  async hasAgentsInPath(dirPath: string): Promise<boolean> {
+    const agentsDir = path.join(dirPath, '.claude', 'agents');
+    
+    if (!fs.existsSync(agentsDir)) {
+      return false;
+    }
+    
+    try {
+      const files = fs.readdirSync(agentsDir);
+      return files.some(file => file.endsWith('.md'));
+    } catch {
+      return false;
+    }
+  }
+  
+  /**
+   * Get a summary of detected agents by location
+   */
+  async getAgentsSummary(): Promise<{
+    total: number;
+    bySource: Record<DetectedAgent['source'], number>;
+    locations: string[];
+  }> {
+    const agents = await this.detectAgents();
+    
+    const bySource = agents.reduce((acc, agent) => {
+      acc[agent.source] = (acc[agent.source] || 0) + 1;
+      return acc;
+    }, {} as Record<DetectedAgent['source'], number>);
+    
+    const locations = [...new Set(agents.map(a => a.directory))];
+    
+    return {
+      total: agents.length,
+      bySource,
+      locations
+    };
+  }
+  
+  /**
+   * Remove duplicate agents based on file path
+   */
+  private deduplicateAgents(agents: DetectedAgent[]): DetectedAgent[] {
+    const seen = new Set<string>();
+    return agents.filter(agent => {
+      if (seen.has(agent.path)) {
+        return false;
+      }
+      seen.add(agent.path);
+      return true;
     });
   }
   
   /**
-   * Display detected agents in a formatted way
+   * Prioritize agents (prefer project > parent > user)
    */
-  displayAgents(agents: DetectedAgent[]): void {
-    if (agents.length === 0) {
-      console.log(colors.info('No .claude/agents found in the current project or parent directories.'));
-      return;
-    }
+  prioritizeAgents(agents: DetectedAgent[]): DetectedAgent[] {
+    const priority = { project: 0, parent: 1, user: 2 };
     
-    console.log(colors.highlight(`\n🎯 Found ${agents.length} static agent${agents.length > 1 ? 's' : ''}!\n`));
-    
-    // Group by project
-    const byProject = new Map<string, DetectedAgent[]>();
-    for (const agent of agents) {
-      const existing = byProject.get(agent.projectPath) || [];
-      existing.push(agent);
-      byProject.set(agent.projectPath, existing);
-    }
-    
-    // Display grouped agents
-    for (const [projectPath, projectAgents] of byProject) {
-      const relativePath = path.relative(process.cwd(), projectPath) || '.';
-      console.log(colors.info(`📁 ${relativePath}/`));
+    return agents.sort((a, b) => {
+      const priorityDiff = priority[a.source] - priority[b.source];
+      if (priorityDiff !== 0) return priorityDiff;
       
-      for (const agent of projectAgents) {
-        const agentName = path.basename(agent.filename, '.md');
-        console.log(`   ${colors.success('→')} ${agentName}`);
-      }
-      console.log();
-    }
-  }
-  
-  /**
-   * Check if a specific agent file exists
-   */
-  agentExists(agentPath: string): boolean {
-    return fs.existsSync(agentPath) && agentPath.endsWith('.md');
-  }
-  
-  /**
-   * Get all agent files from a specific .claude/agents directory
-   */
-  getAgentsFromDirectory(claudeAgentsPath: string): DetectedAgent[] {
-    if (!fs.existsSync(claudeAgentsPath)) {
-      return [];
-    }
-    
-    try {
-      const files = fs.readdirSync(claudeAgentsPath);
-      const mdFiles = files.filter(file => file.endsWith('.md'));
-      
-      return mdFiles.map(file => ({
-        path: path.join(claudeAgentsPath, file),
-        filename: file,
-        directory: claudeAgentsPath,
-        projectPath: claudeAgentsPath.split('.claude')[0].replace(/\/$/, '')
-      }));
-    } catch (error) {
-      console.error(colors.error(`Error reading ${claudeAgentsPath}:`), error);
-      return [];
-    }
+      // Sort alphabetically within same source
+      return a.filename.localeCompare(b.filename);
+    });
   }
 }
-
-// Export singleton instance
-export const agentDetector = new AgentDetector();

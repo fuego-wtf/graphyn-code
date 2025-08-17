@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { AgentDetector, DetectedAgent } from './agent-detector.js';
-import { AgentParser, ParsedAgent, GraphynAgent } from './agent-parser.js';
-import { GraphynAPIClient } from '../api/client.js';
-import { OAuthManager } from '../auth/oauth.js';
 import ora from 'ora';
+import fs from 'fs';
+import path from 'path';
+import { AgentDetectorService } from './agent-detector.js';
+import { AgentParserService, ParsedAgent } from './agent-parser.js';
+import { apiClient } from '../api/client.js';
 
 const colors = {
   success: chalk.green,
@@ -17,270 +18,333 @@ const colors = {
 
 export interface RevivalOptions {
   interactive?: boolean;
-  autoConfirm?: boolean;
-  selectedAgents?: string[];
+  all?: boolean;
+  select?: string[];
+  dryRun?: boolean;
 }
 
 export interface RevivalResult {
-  success: boolean;
-  totalFound: number;
-  totalParsed: number;
-  totalRevived: number;
-  errors: string[];
-  revivedAgents: Array<{
+  total: number;
+  succeeded: number;
+  failed: number;
+  agents: Array<{
     name: string;
     id?: string;
-    source: string;
+    status: 'success' | 'failed' | 'skipped';
+    error?: string;
   }>;
 }
 
+/**
+ * Main service for reviving static .claude/agents into living Graphyn agents
+ */
 export class AgentRevivalService {
-  private detector: AgentDetector;
-  private parser: AgentParser;
-  private apiClient: GraphynAPIClient;
-  private authManager: OAuthManager;
+  private detector: AgentDetectorService;
+  private parser: AgentParserService;
   
   constructor() {
-    this.detector = new AgentDetector();
-    this.parser = new AgentParser();
-    this.apiClient = new GraphynAPIClient();
-    this.authManager = new OAuthManager();
+    this.detector = new AgentDetectorService();
+    this.parser = new AgentParserService();
   }
   
   /**
-   * Main revival flow - detect, parse, and convert agents
+   * Check if there are any agents available to revive
+   */
+  async hasAgentsToRevive(): Promise<boolean> {
+    const summary = await this.detector.getAgentsSummary();
+    return summary.total > 0;
+  }
+  
+  /**
+   * Main revival flow
    */
   async reviveAgents(options: RevivalOptions = {}): Promise<RevivalResult> {
+    console.log(colors.highlight('\n🎯 Agent Revival System\n'));
+    
+    // Step 1: Detect agents
+    const spinner = ora('Scanning for static agents...').start();
+    const detected = await this.detector.detectAgents();
+    
+    if (detected.length === 0) {
+      spinner.fail('No static agents found');
+      console.log(colors.info('\nCreate .claude/agents/*.md files to define agents that can be brought to life!'));
+      return { total: 0, succeeded: 0, failed: 0, agents: [] };
+    }
+    
+    // Prioritize agents
+    const prioritized = this.detector.prioritizeAgents(detected);
+    spinner.succeed(`Found ${detected.length} static agents`);
+    
+    // Step 2: Parse agents
+    const parsed = await this.parser.parseAgents(prioritized);
+    
+    // Show summary
+    console.log(colors.bold('\nDiscovered Agents:'));
+    const summaries = this.parser.generateSummary(parsed);
+    summaries.forEach(summary => console.log(`  ${summary}`));
+    
+    // Step 3: Select agents to revive
+    let selectedAgents: ParsedAgent[];
+    
+    if (options.all) {
+      selectedAgents = parsed;
+    } else if (options.select && options.select.length > 0) {
+      selectedAgents = parsed.filter(agent => 
+        options.select!.includes(agent.name)
+      );
+    } else if (options.interactive) {
+      selectedAgents = await this.interactiveSelection(parsed);
+    } else {
+      selectedAgents = parsed;
+    }
+    
+    if (selectedAgents.length === 0) {
+      console.log(colors.info('\nNo agents selected for revival.'));
+      return { total: 0, succeeded: 0, failed: 0, agents: [] };
+    }
+    
+    // Step 4: Check authentication
+    const isAuth = await apiClient.isAuthenticated();
+    if (!isAuth && !options.dryRun) {
+      console.log(colors.warning('\n⚠️  You need to be authenticated to revive agents on Graphyn.'));
+      const { authenticate } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'authenticate',
+          message: 'Would you like to authenticate now?',
+          default: true
+        }
+      ]);
+      
+      if (authenticate) {
+        await apiClient.authenticate();
+      } else {
+        console.log(colors.info('Run "graphyn auth" to authenticate when ready.'));
+        return { total: selectedAgents.length, succeeded: 0, failed: 0, agents: [] };
+      }
+    }
+    
+    // Step 5: Revive agents
+    console.log(colors.bold(`\n🔮 Bringing ${selectedAgents.length} agents to life...\n`));
+    const result = await this.performRevival(selectedAgents, options);
+    
+    // Step 6: Save revival record
+    await this.saveRevivalRecord(result);
+    
+    // Show results
+    this.showRevivalResults(result);
+    
+    return result;
+  }
+  
+  /**
+   * Interactive agent selection
+   */
+  private async interactiveSelection(agents: ParsedAgent[]): Promise<ParsedAgent[]> {
+    const choices = agents.map(agent => ({
+      name: `${agent.name} - ${this.truncate(agent.description, 60)}`,
+      value: agent,
+      checked: agent.sourceType === 'project' // Pre-select project agents
+    }));
+    
+    const { selected } = await inquirer.prompt([
+      {
+        type: 'checkbox',
+        name: 'selected',
+        message: 'Select agents to bring to life:',
+        choices,
+        pageSize: 10,
+        validate: (answer) => {
+          if (answer.length === 0) {
+            return 'You must select at least one agent';
+          }
+          return true;
+        }
+      }
+    ]);
+    
+    return selected;
+  }
+  
+  /**
+   * Perform the actual revival by creating agents via API
+   */
+  private async performRevival(agents: ParsedAgent[], options: RevivalOptions): Promise<RevivalResult> {
     const result: RevivalResult = {
-      success: false,
-      totalFound: 0,
-      totalParsed: 0,
-      totalRevived: 0,
-      errors: [],
-      revivedAgents: []
+      total: agents.length,
+      succeeded: 0,
+      failed: 0,
+      agents: []
     };
     
-    try {
-      // Step 1: Check authentication
-      const isAuthenticated = await this.authManager.isAuthenticated();
-      if (!isAuthenticated) {
-        console.log(colors.warning('\n⚠️  You need to be authenticated to bring agents to life.'));
-        console.log(colors.info('Run "graphyn auth" to authenticate first.\n'));
-        return result;
-      }
+    for (const agent of agents) {
+      const spinner = ora(`Reviving ${agent.name}...`).start();
       
-      // Step 2: Detect agents
-      console.log(colors.highlight('\n🔍 Scanning for static agents...'));
-      const detectedAgents = await this.detector.detectAgents();
-      result.totalFound = detectedAgents.length;
-      
-      if (detectedAgents.length === 0) {
-        console.log(colors.info('No .claude/agents found in the current project.'));
-        return result;
-      }
-      
-      this.detector.displayAgents(detectedAgents);
-      
-      // Step 3: Ask user if they want to revive agents
-      if (options.interactive !== false && !options.autoConfirm) {
-        const { proceed } = await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'proceed',
-            message: 'Would you like to bring these static agents to life on Graphyn?',
-            default: true
-          }
-        ]);
-        
-        if (!proceed) {
-          console.log(colors.info('\nAgent revival cancelled.'));
-          return result;
+      try {
+        // Validate agent
+        const validation = this.parser.validateAgent(agent);
+        if (!validation.valid) {
+          throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
         }
-      }
-      
-      // Step 4: Select which agents to revive
-      let agentsToRevive = detectedAgents;
-      
-      if (options.selectedAgents && options.selectedAgents.length > 0) {
-        agentsToRevive = detectedAgents.filter(agent => 
-          options.selectedAgents!.includes(agent.filename.replace('.md', ''))
-        );
-      } else if (options.interactive !== false && detectedAgents.length > 1) {
-        const { selected } = await inquirer.prompt([
-          {
-            type: 'checkbox',
-            name: 'selected',
-            message: 'Select agents to revive:',
-            choices: detectedAgents.map(agent => ({
-              name: agent.filename.replace('.md', ''),
-              value: agent.path,
-              checked: true
-            }))
-          }
-        ]);
         
-        agentsToRevive = detectedAgents.filter(agent => selected.includes(agent.path));
-      }
-      
-      if (agentsToRevive.length === 0) {
-        console.log(colors.info('\nNo agents selected for revival.'));
-        return result;
-      }
-      
-      // Step 5: Parse and convert agents
-      console.log(colors.highlight(`\n🎯 Reviving ${agentsToRevive.length} agent${agentsToRevive.length > 1 ? 's' : ''}...\n`));
-      
-      for (const detectedAgent of agentsToRevive) {
-        const spinner = ora(`Processing ${detectedAgent.filename.replace('.md', '')}...`).start();
-        
-        try {
-          // Parse the agent file
-          const parsed = this.parser.parseAgentFile(detectedAgent.path);
-          result.totalParsed++;
-          
-          if (!parsed.valid) {
-            spinner.fail(`Failed to parse ${detectedAgent.filename}: ${parsed.errors?.join(', ')}`);
-            result.errors.push(`${detectedAgent.filename}: ${parsed.errors?.join(', ')}`);
-            continue;
-          }
-          
-          // Convert to Graphyn format
-          const graphynAgent = this.parser.toGraphynFormat(parsed);
-          if (!graphynAgent) {
-            spinner.fail(`Failed to convert ${detectedAgent.filename} to Graphyn format`);
-            result.errors.push(`${detectedAgent.filename}: Conversion failed`);
-            continue;
-          }
-          
-          // Create agent on Graphyn platform
-          const createdAgent = await this.createAgentOnPlatform(graphynAgent);
-          
-          if (createdAgent) {
-            result.totalRevived++;
-            result.revivedAgents.push({
-              name: graphynAgent.name,
-              id: createdAgent.id,
-              source: detectedAgent.path
-            });
-            spinner.succeed(`${colors.success('✓')} ${graphynAgent.name} is now alive on Graphyn!`);
-          } else {
-            spinner.fail(`Failed to create ${graphynAgent.name} on Graphyn`);
-            result.errors.push(`${detectedAgent.filename}: Platform creation failed`);
-          }
-          
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          spinner.fail(`Error processing ${detectedAgent.filename}: ${errorMessage}`);
-          result.errors.push(`${detectedAgent.filename}: ${errorMessage}`);
+        if (options.dryRun) {
+          spinner.succeed(`[DRY RUN] Would revive ${agent.name}`);
+          result.agents.push({
+            name: agent.name,
+            status: 'success'
+          });
+          result.succeeded++;
+          continue;
         }
+        
+        // Create agent via API
+        const created = await apiClient.createAgent({
+          name: agent.graphynFormat!.name,
+          description: agent.graphynFormat!.description,
+          instructions: agent.graphynFormat!.instructions,
+          model: agent.graphynFormat!.model
+        });
+        
+        spinner.succeed(`Revived ${agent.name} (ID: ${created.id})`);
+        result.agents.push({
+          name: agent.name,
+          id: created.id,
+          status: 'success'
+        });
+        result.succeeded++;
+        
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        spinner.fail(`Failed to revive ${agent.name}`);
+        console.log(colors.error(`  Error: ${errorMsg}`));
+        
+        result.agents.push({
+          name: agent.name,
+          status: 'failed',
+          error: errorMsg
+        });
+        result.failed++;
       }
-      
-      // Step 6: Show summary
-      this.displaySummary(result);
-      
-      result.success = result.totalRevived > 0;
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(colors.error(`\n❌ Revival failed: ${errorMessage}`));
-      result.errors.push(errorMessage);
     }
     
     return result;
   }
   
   /**
-   * Create an agent on the Graphyn platform
+   * Save a record of revived agents to .graphyn/agents.json
    */
-  private async createAgentOnPlatform(agent: GraphynAgent): Promise<any> {
+  private async saveRevivalRecord(result: RevivalResult): Promise<void> {
+    if (result.succeeded === 0) return;
+    
+    const graphynDir = path.join(process.cwd(), '.graphyn');
+    const recordPath = path.join(graphynDir, 'agents.json');
+    
+    // Ensure directory exists
+    if (!fs.existsSync(graphynDir)) {
+      fs.mkdirSync(graphynDir, { recursive: true });
+    }
+    
+    // Load existing record
+    let record: any = {};
+    if (fs.existsSync(recordPath)) {
+      try {
+        record = JSON.parse(fs.readFileSync(recordPath, 'utf-8'));
+      } catch {
+        record = {};
+      }
+    }
+    
+    // Update record
+    if (!record.revivals) {
+      record.revivals = [];
+    }
+    
+    record.revivals.push({
+      timestamp: new Date().toISOString(),
+      succeeded: result.succeeded,
+      failed: result.failed,
+      agents: result.agents.filter(a => a.status === 'success').map(a => ({
+        name: a.name,
+        id: a.id
+      }))
+    });
+    
+    // Save updated record
+    fs.writeFileSync(recordPath, JSON.stringify(record, null, 2));
+  }
+  
+  /**
+   * Show revival results to user
+   */
+  private showRevivalResults(result: RevivalResult): void {
+    console.log(colors.bold('\n✨ Revival Complete!\n'));
+    
+    if (result.succeeded > 0) {
+      console.log(colors.success(`✓ Successfully revived ${result.succeeded} agents`));
+      console.log(colors.info('\nYour static agents are now alive on Graphyn!'));
+      console.log(colors.info('They can now:'));
+      console.log(colors.info('  • Learn from conversations'));
+      console.log(colors.info('  • Collaborate with other agents'));
+      console.log(colors.info('  • Evolve and improve over time'));
+      console.log(colors.info('  • Be accessed via API'));
+    }
+    
+    if (result.failed > 0) {
+      console.log(colors.warning(`\n⚠️  Failed to revive ${result.failed} agents`));
+      console.log(colors.info('Check the errors above and try again.'));
+    }
+    
+    console.log(colors.highlight('\nNext steps:'));
+    console.log(colors.info('  • Use "graphyn agents list" to see your living agents'));
+    console.log(colors.info('  • Start conversations with "graphyn chat <agent-name>"'));
+    console.log(colors.info('  • Create threads with "graphyn thread create"'));
+  }
+  
+  /**
+   * List all previously revived agents
+   */
+  async listRevivedAgents(): Promise<void> {
+    const recordPath = path.join(process.cwd(), '.graphyn', 'agents.json');
+    
+    if (!fs.existsSync(recordPath)) {
+      console.log(colors.info('No agents have been revived yet.'));
+      console.log(colors.info('Run "graphyn agents revive" to bring your static agents to life!'));
+      return;
+    }
+    
     try {
-      // Create a builder thread to create the agent
-      const thread = await this.apiClient.createThread({
-        name: `Revival: ${agent.name}`,
-        type: 'builder'
-      });
+      const record = JSON.parse(fs.readFileSync(recordPath, 'utf-8'));
       
-      // Send the agent creation request
-      const message = `Create an agent with the following specifications:
-
-Name: ${agent.name}
-Description: ${agent.description}
-Model: ${agent.model}
-
-Instructions:
-${agent.instructions}`;
+      if (!record.revivals || record.revivals.length === 0) {
+        console.log(colors.info('No agents have been revived yet.'));
+        return;
+      }
       
-      await this.apiClient.sendMessage(thread.id, {
-        content: message,
-        role: 'user'
-      });
+      console.log(colors.bold('\n📜 Revival History:\n'));
       
-      // For now, return a mock success (in production, wait for agent creation confirmation)
-      return {
-        id: `agent_${Date.now()}`,
-        name: agent.name,
-        thread_id: thread.id
-      };
-      
+      for (const revival of record.revivals) {
+        const date = new Date(revival.timestamp).toLocaleString();
+        console.log(colors.highlight(`Revival on ${date}:`));
+        console.log(colors.success(`  ✓ ${revival.succeeded} agents revived`));
+        
+        if (revival.agents && revival.agents.length > 0) {
+          console.log(colors.info('  Agents:'));
+          for (const agent of revival.agents) {
+            console.log(colors.info(`    • ${agent.name} (${agent.id})`));
+          }
+        }
+        console.log();
+      }
     } catch (error) {
-      console.debug('Error creating agent on platform:', error);
-      // For now, return mock success even if API fails
-      return {
-        id: `agent_mock_${Date.now()}`,
-        name: agent.name,
-        thread_id: 'mock_thread'
-      };
+      console.error(colors.error('Failed to read revival record:'), error);
     }
   }
   
   /**
-   * Display revival summary
+   * Helper to truncate strings
    */
-  private displaySummary(result: RevivalResult): void {
-    console.log(colors.bold('\n📊 Revival Summary:'));
-    console.log(colors.info(`   Found: ${result.totalFound} agents`));
-    console.log(colors.info(`   Parsed: ${result.totalParsed} agents`));
-    
-    if (result.totalRevived > 0) {
-      console.log(colors.success(`   ✓ Revived: ${result.totalRevived} agents`));
-      
-      console.log(colors.bold('\n🎉 Successfully revived agents:'));
-      for (const agent of result.revivedAgents) {
-        console.log(colors.success(`   ✓ ${agent.name}`));
-      }
-    } else {
-      console.log(colors.warning(`   ⚠️  Revived: 0 agents`));
-    }
-    
-    if (result.errors.length > 0) {
-      console.log(colors.error('\n❌ Errors:'));
-      for (const error of result.errors) {
-        console.log(colors.error(`   - ${error}`));
-      }
-    }
-    
-    if (result.totalRevived > 0) {
-      console.log(colors.highlight('\n🚀 Your agents are now alive on Graphyn!'));
-      console.log(colors.info('   Visit https://app.graphyn.xyz to interact with them.'));
-    }
-  }
-  
-  /**
-   * Quick check if there are agents to revive
-   */
-  async hasAgentsToRevive(): Promise<boolean> {
-    const agents = await this.detector.detectAgents();
-    return agents.length > 0;
-  }
-  
-  /**
-   * Get a preview of agents that can be revived
-   */
-  async previewAgents(): Promise<ParsedAgent[]> {
-    const detected = await this.detector.detectAgents();
-    return detected.map(agent => this.parser.parseAgentFile(agent.path));
+  private truncate(str: string, maxLen: number): string {
+    if (str.length <= maxLen) return str;
+    return str.substring(0, maxLen - 3) + '...';
   }
 }
-
-// Export singleton instance
-export const agentRevivalService = new AgentRevivalService();

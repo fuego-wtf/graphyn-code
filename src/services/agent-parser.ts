@@ -1,181 +1,195 @@
 import fs from 'fs';
 import matter from 'gray-matter';
-import chalk from 'chalk';
-
-const colors = {
-  success: chalk.green,
-  error: chalk.red,
-  warning: chalk.yellow,
-  info: chalk.gray,
-  highlight: chalk.cyan
-};
-
-export interface AgentFrontmatter {
-  name: string;
-  description?: string;
-  model?: string;
-  color?: string;
-  [key: string]: any; // Allow additional fields
-}
+import { DetectedAgent } from './agent-detector.js';
 
 export interface ParsedAgent {
-  frontmatter: AgentFrontmatter;
-  content: string;
-  fullContent: string;
-  filePath: string;
-  valid: boolean;
-  errors?: string[];
-}
-
-export interface GraphynAgent {
+  // From YAML frontmatter
   name: string;
   description: string;
-  instructions: string;
-  model: string;
-  metadata?: {
-    sourceFile?: string;
-    originalColor?: string;
-    importedFrom?: string;
-    [key: string]: any;
+  model?: string;
+  color?: string;
+  
+  // Content
+  prompt: string;
+  
+  // Metadata
+  sourcePath: string;
+  sourceType: DetectedAgent['source'];
+  
+  // Graphyn format
+  graphynFormat?: {
+    name: string;
+    description: string;
+    instructions: string;
+    model: string;
+    metadata?: Record<string, any>;
   };
 }
 
-export class AgentParser {
-  /**
-   * Parse a markdown file with YAML frontmatter
-   */
-  parseAgentFile(filePath: string): ParsedAgent {
-    try {
-      if (!fs.existsSync(filePath)) {
-        return {
-          frontmatter: { name: '' },
-          content: '',
-          fullContent: '',
-          filePath,
-          valid: false,
-          errors: ['File does not exist']
-        };
-      }
-      
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-      const parsed = matter(fileContent);
-      
-      // Validate required fields
-      const errors: string[] = [];
-      const frontmatter = parsed.data as AgentFrontmatter;
-      
-      if (!frontmatter.name) {
-        errors.push('Missing required field: name');
-      }
-      
-      return {
-        frontmatter,
-        content: parsed.content.trim(),
-        fullContent: fileContent,
-        filePath,
-        valid: errors.length === 0,
-        errors: errors.length > 0 ? errors : undefined
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        frontmatter: { name: '' },
-        content: '',
-        fullContent: '',
-        filePath,
-        valid: false,
-        errors: [`Failed to parse file: ${errorMessage}`]
-      };
-    }
-  }
+/**
+ * Service for parsing markdown agent files with YAML frontmatter
+ */
+export class AgentParserService {
+  private readonly defaultModel = 'claude-3-5-sonnet';
+  private readonly modelMappings: Record<string, string> = {
+    'opus': 'claude-3-opus',
+    'sonnet': 'claude-3-5-sonnet',
+    'haiku': 'claude-3-haiku',
+    'gpt-4': 'gpt-4-turbo',
+    'gpt-3.5': 'gpt-3.5-turbo'
+  };
   
   /**
-   * Convert parsed agent to Graphyn format
+   * Parse a single agent file
    */
-  toGraphynFormat(parsed: ParsedAgent): GraphynAgent | null {
-    if (!parsed.valid) {
-      console.error(colors.error(`Cannot convert invalid agent: ${parsed.errors?.join(', ')}`));
-      return null;
+  async parseAgentFile(filePath: string, source: DetectedAgent['source'] = 'project'): Promise<ParsedAgent> {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const parsed = matter(content);
+    
+    // Extract frontmatter data
+    const data = parsed.data as any;
+    
+    if (!data.name) {
+      throw new Error(`Agent file ${filePath} is missing required 'name' field in frontmatter`);
     }
     
-    const { frontmatter, content, filePath } = parsed;
-    
-    // Extract clean description from frontmatter
-    let description = frontmatter.description || '';
-    
-    // If description contains examples, extract just the first part
-    if (description.includes('\\n\\nExamples:')) {
-      description = description.split('\\n\\nExamples:')[0];
-    } else if (description.includes('\n\nExamples:')) {
-      description = description.split('\n\nExamples:')[0];
+    if (!data.description) {
+      throw new Error(`Agent file ${filePath} is missing required 'description' field in frontmatter`);
     }
     
-    // Clean up escaped newlines
-    description = description.replace(/\\n/g, '\n').trim();
-    
-    // If description is still very long, truncate it
-    if (description.length > 500) {
-      description = description.substring(0, 497) + '...';
-    }
-    
-    // Map model names
-    const modelMap: { [key: string]: string } = {
-      'opus': 'claude-3-opus-20240229',
-      'sonnet': 'claude-3-5-sonnet-20241022',
-      'haiku': 'claude-3-haiku-20240307',
-      'gpt-4': 'gpt-4-turbo-preview',
-      'gpt-4o': 'gpt-4o',
-      'gpt-4o-mini': 'gpt-4o-mini'
+    // Parse and normalize the agent
+    const agent: ParsedAgent = {
+      name: data.name,
+      description: this.cleanDescription(data.description),
+      model: this.normalizeModel(data.model),
+      color: data.color,
+      prompt: parsed.content.trim(),
+      sourcePath: filePath,
+      sourceType: source
     };
     
-    const model = modelMap[frontmatter.model || 'sonnet'] || 'claude-3-5-sonnet-20241022';
+    // Generate Graphyn format
+    agent.graphynFormat = this.toGraphynFormat(agent);
     
-    return {
-      name: frontmatter.name,
-      description: description || `Agent: ${frontmatter.name}`,
-      instructions: content,
-      model,
-      metadata: {
-        sourceFile: filePath,
-        originalColor: frontmatter.color,
-        importedFrom: 'claude-agents',
-        originalModel: frontmatter.model,
-        ...Object.entries(frontmatter).reduce((acc, [key, value]) => {
-          if (!['name', 'description', 'model', 'color'].includes(key)) {
-            acc[key] = value;
-          }
-          return acc;
-        }, {} as { [key: string]: any })
-      }
-    };
+    return agent;
   }
   
   /**
    * Parse multiple agent files
    */
-  parseMultipleAgents(filePaths: string[]): ParsedAgent[] {
-    return filePaths.map(filePath => this.parseAgentFile(filePath));
+  async parseAgents(agents: DetectedAgent[]): Promise<ParsedAgent[]> {
+    const parsed: ParsedAgent[] = [];
+    const errors: Array<{ path: string; error: string }> = [];
+    
+    for (const agent of agents) {
+      try {
+        const parsedAgent = await this.parseAgentFile(agent.path, agent.source);
+        parsed.push(parsedAgent);
+      } catch (error) {
+        errors.push({
+          path: agent.path,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+    
+    if (errors.length > 0) {
+      console.warn('Failed to parse some agent files:', errors);
+    }
+    
+    return parsed;
   }
   
   /**
-   * Validate an agent object
+   * Clean and format description (remove example blocks if present)
+   */
+  private cleanDescription(description: string): string {
+    // Remove \n literal characters and replace with actual newlines
+    let cleaned = description.replace(/\\n/g, '\n');
+    
+    // If description contains examples, extract just the main description
+    const exampleIndex = cleaned.indexOf('Examples:');
+    if (exampleIndex > 0) {
+      cleaned = cleaned.substring(0, exampleIndex).trim();
+    }
+    
+    // Remove <example> blocks
+    cleaned = cleaned.replace(/<example>[\s\S]*?<\/example>/g, '').trim();
+    
+    // Limit to reasonable length for API
+    if (cleaned.length > 500) {
+      // Find a good break point
+      const cutoff = cleaned.lastIndexOf('.', 500);
+      if (cutoff > 300) {
+        cleaned = cleaned.substring(0, cutoff + 1);
+      } else {
+        cleaned = cleaned.substring(0, 497) + '...';
+      }
+    }
+    
+    return cleaned;
+  }
+  
+  /**
+   * Normalize model names to Graphyn-compatible format
+   */
+  private normalizeModel(model?: string): string {
+    if (!model) {
+      return this.defaultModel;
+    }
+    
+    // Check if it's a shorthand that needs mapping
+    const mapped = this.modelMappings[model.toLowerCase()];
+    if (mapped) {
+      return mapped;
+    }
+    
+    // Already in correct format or custom model
+    return model;
+  }
+  
+  /**
+   * Convert parsed agent to Graphyn API format
+   */
+  private toGraphynFormat(agent: ParsedAgent): ParsedAgent['graphynFormat'] {
+    return {
+      name: agent.name,
+      description: agent.description,
+      instructions: agent.prompt,
+      model: agent.model || this.defaultModel,
+      metadata: {
+        importedFrom: agent.sourcePath,
+        importedAt: new Date().toISOString(),
+        sourceType: agent.sourceType,
+        originalColor: agent.color
+      }
+    };
+  }
+  
+  /**
+   * Validate agent data before sending to API
    */
   validateAgent(agent: ParsedAgent): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     
-    if (!agent.frontmatter.name) {
-      errors.push('Agent must have a name');
+    if (!agent.name || agent.name.length < 1) {
+      errors.push('Agent name is required');
     }
     
-    if (!agent.content || agent.content.trim().length === 0) {
-      errors.push('Agent must have content (instructions)');
+    if (!agent.description || agent.description.length < 10) {
+      errors.push('Agent description must be at least 10 characters');
     }
     
-    if (agent.frontmatter.model) {
-      const validModels = ['opus', 'sonnet', 'haiku', 'gpt-4', 'gpt-4o', 'gpt-4o-mini'];
-      if (!validModels.includes(agent.frontmatter.model)) {
-        errors.push(`Invalid model: ${agent.frontmatter.model}. Valid models are: ${validModels.join(', ')}`);
-      }
+    if (!agent.prompt || agent.prompt.length < 20) {
+      errors.push('Agent prompt must be at least 20 characters');
+    }
+    
+    if (agent.name.length > 100) {
+      errors.push('Agent name must be less than 100 characters');
+    }
+    
+    if (agent.description.length > 500) {
+      errors.push('Agent description must be less than 500 characters');
     }
     
     return {
@@ -185,52 +199,26 @@ export class AgentParser {
   }
   
   /**
-   * Display parsed agent information
+   * Generate a summary of parsed agents for display
    */
-  displayAgent(parsed: ParsedAgent): void {
-    const { frontmatter, content, valid, errors } = parsed;
-    
-    console.log(colors.highlight(`\n📋 Agent: ${frontmatter.name || 'Unknown'}`));
-    
-    if (!valid) {
-      console.log(colors.error('   Status: Invalid'));
-      if (errors) {
-        errors.forEach(error => {
-          console.log(colors.error(`   - ${error}`));
-        });
-      }
-      return;
-    }
-    
-    console.log(colors.success('   Status: Valid'));
-    
-    if (frontmatter.description) {
-      const desc = frontmatter.description.replace(/\\n/g, ' ').substring(0, 100);
-      console.log(colors.info(`   Description: ${desc}${frontmatter.description.length > 100 ? '...' : ''}`));
-    }
-    
-    if (frontmatter.model) {
-      console.log(colors.info(`   Model: ${frontmatter.model}`));
-    }
-    
-    if (frontmatter.color) {
-      console.log(colors.info(`   Color: ${frontmatter.color}`));
-    }
-    
-    const wordCount = content.split(/\s+/).length;
-    console.log(colors.info(`   Instructions: ${wordCount} words`));
+  generateSummary(agents: ParsedAgent[]): string[] {
+    return agents.map(agent => {
+      const source = agent.sourceType === 'project' ? '📁' : 
+                    agent.sourceType === 'parent' ? '📂' : '🏠';
+      const model = agent.model === 'claude-3-opus' ? '🎭' :
+                   agent.model === 'claude-3-5-sonnet' ? '🎵' :
+                   agent.model === 'claude-3-haiku' ? '🍃' :
+                   agent.model?.includes('gpt') ? '🤖' : '🧠';
+      
+      return `${source} ${model} ${agent.name} - ${this.truncateDescription(agent.description, 50)}`;
+    });
   }
   
   /**
-   * Extract agent name from filename if frontmatter doesn't have it
+   * Truncate description for display
    */
-  extractNameFromFilename(filename: string): string {
-    return filename.replace('.md', '').replace(/-/g, ' ').replace(/_/g, ' ')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+  private truncateDescription(desc: string, maxLen: number): string {
+    if (desc.length <= maxLen) return desc;
+    return desc.substring(0, maxLen - 3) + '...';
   }
 }
-
-// Export singleton instance
-export const agentParser = new AgentParser();
