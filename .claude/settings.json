@@ -1,0 +1,58 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/resatugurulu/Developer/graphyn-workspace/code"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "graphyn-mcp": {
+      "command": "graphyn",
+      "args": [
+        "mcp"
+      ]
+    },
+    "figma-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@figma/mcp"
+      ],
+      "env": {
+        "FIGMA_PERSONAL_ACCESS_TOKEN": "${FIGMA_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    }
+  },
+  "projectContext": {
+    "name": "code",
+    "type": "frontend",
+    "mainBranch": "main",
+    "workingDirectory": "/Users/resatugurulu/Developer/graphyn-workspace/code",
+    "frameworks": [
+      "react",
+      "testing"
+    ],
+    "hasDocker": false,
+    "hasKubernetes": false,
+    "hasTerraform": false
+  }
+}
