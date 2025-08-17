@@ -3,7 +3,6 @@ import { OAuthManager } from './auth/oauth.js';
 import { analyzeRepository } from './commands/analyze.js';
 import { doctor } from './commands/doctor.js';
 import { checkSystemRequirements } from './utils/system-check.js';
-import { GraphynAPIClient } from './api-client.js';
 import { config } from './config.js';
 import { AskService } from './services/ask-service.js';
 import chalk from 'chalk';
@@ -197,13 +196,8 @@ Examples:
       console.log(colors.success('\n✓ Re-authentication successful!\n'));
     }
     
-    // Step 3: Initialize API client with token
-    const apiClient = new GraphynAPIClient(config.apiBaseUrl);
-    apiClient.setToken(token);
-    await apiClient.initialize();
-    
-    // Step 4: Process query with Ask service
-    const askService = new AskService(apiClient);
+    // Step 3: Process query with Ask service
+    const askService = new AskService();
     const response = await askService.processQuery(userMessage, process.cwd());
     
     // Step 5: Launch agents (if in interactive mode)

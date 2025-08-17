@@ -2,8 +2,9 @@ import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
 import { AgentFileGenerator } from '../services/agent-file-generator.js';
-import { GraphynAPIClient } from '../api/client.js';
+import { apiClient } from '../api/client.js';
 import { RepositoryContextExtractor } from '../services/repository-context-extractor.js';
+import { RepositoryAnalyzerService } from '../services/repository-analyzer.js';
 import type { AgentConfig } from '../services/agent-file-generator.js';
 
 const colors = {
@@ -24,13 +25,12 @@ export interface GenerateAgentsOptions {
 
 export class GenerateAgentsCommand {
   private generator: AgentFileGenerator;
-  private apiClient: GraphynAPIClient;
   private contextExtractor: RepositoryContextExtractor;
 
   constructor() {
     this.generator = new AgentFileGenerator();
-    this.apiClient = new GraphynAPIClient();
-    this.contextExtractor = new RepositoryContextExtractor();
+    const analyzer = new RepositoryAnalyzerService();
+    this.contextExtractor = new RepositoryContextExtractor(analyzer);
   }
 
   async run(options: GenerateAgentsOptions = {}): Promise<void> {
@@ -71,7 +71,7 @@ export class GenerateAgentsCommand {
       const askSpinner = ora('Getting agent configurations from backend...').start();
       
       try {
-        const response = await this.apiClient.ask({
+        const response = await apiClient.ask({
           query,
           context: {
             repository: repoContext,
@@ -111,7 +111,7 @@ export class GenerateAgentsCommand {
         const files = await this.generator.generateAgentFiles(agents, {
           userInstructions,
           repositoryContext: {
-            name: repoContext.repoName,
+            name: process.cwd().split('/').pop(),
             frameworks: this.extractFrameworks(repoContext),
             language: this.detectPrimaryLanguage(repoContext),
             database: this.detectDatabase(repoContext)

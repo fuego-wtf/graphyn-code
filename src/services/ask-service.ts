@@ -1,4 +1,4 @@
-import { GraphynAPIClient } from '../api-client.js';
+import { apiClient } from '../api/client.js';
 import { TMUXCockpitOrchestrator } from '../utils/tmux-cockpit-orchestrator.js';
 import { RepositoryContextExtractor, ExtractedContext } from './repository-context-extractor.js';
 import { RepositoryAnalyzerService } from './repository-analyzer.js';
@@ -45,7 +45,7 @@ export class AskService {
   private agentLauncher: ClaudeAgentLauncher;
   private cockpit: TMUXCockpitOrchestrator;
 
-  constructor(private apiClient: GraphynAPIClient) {
+  constructor() {
     const analyzer = new RepositoryAnalyzerService();
     this.contextExtractor = new RepositoryContextExtractor(analyzer);
     this.agentLauncher = new ClaudeAgentLauncher();
@@ -79,14 +79,8 @@ export class AskService {
   }
 
   private async sendAskRequest(request: AskRequest): Promise<AskResponse> {
-    try {
-      const response = await this.apiClient.post<AskResponse>('/api/ask', request);
-      return response;
-    } catch (error) {
-      // If backend endpoint doesn't exist yet, return mock response
-      console.log(chalk.yellow('⚠️  Using mock response (backend endpoint not implemented)'));
-      return this.getMockResponse(request);
-    }
+    const response = await apiClient.post<AskResponse>('/api/ask', request);
+    return response;
   }
 
   private displayOrchestrationPlan(response: AskResponse): void {

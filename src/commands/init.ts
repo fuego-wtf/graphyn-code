@@ -90,15 +90,15 @@ export class InitCommand {
     try {
       const requirements = await checkSystemRequirements();
       
-      if (requirements.allPassed) {
+      if (requirements.canProceed) {
         spinner.succeed('System requirements checked');
       } else {
         spinner.warn('Some system requirements are missing');
         
         const missing = [];
-        if (!requirements.node) missing.push('Node.js');
-        if (!requirements.git) missing.push('Git');
-        if (!requirements.tmux) missing.push('tmux (optional but recommended)');
+        if (requirements.needsClaudeCode) missing.push('Claude Code');
+        if (requirements.needsTmux) missing.push('tmux (optional but recommended)');
+        if (requirements.needsFigmaMCP) missing.push('Figma MCP (optional)');
         
         if (missing.length > 0) {
           console.log(colors.warning(`\n⚠️  Missing: ${missing.join(', ')}`));
