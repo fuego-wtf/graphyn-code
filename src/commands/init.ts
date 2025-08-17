@@ -5,6 +5,7 @@ import { OAuthManager } from '../auth/oauth.js';
 import { AgentRevivalService } from '../services/agent-revival.js';
 import { checkSystemRequirements } from '../utils/system-check.js';
 import { ConfigManager } from '../config-manager.js';
+import { MCPConfigGenerator } from '../services/mcp-config-generator.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -22,6 +23,7 @@ export interface InitOptions {
   skipAuth?: boolean;
   skipAgentRevival?: boolean;
   skipSystemCheck?: boolean;
+  skipMCP?: boolean;
   force?: boolean;
 }
 
@@ -29,11 +31,13 @@ export class InitCommand {
   private authManager: OAuthManager;
   private revivalService: AgentRevivalService;
   private configManager: ConfigManager;
+  private mcpGenerator: MCPConfigGenerator;
   
   constructor() {
     this.authManager = new OAuthManager();
     this.revivalService = new AgentRevivalService();
     this.configManager = new ConfigManager();
+    this.mcpGenerator = new MCPConfigGenerator();
   }
   
   /**
@@ -57,12 +61,17 @@ export class InitCommand {
       // Step 3: Project initialization
       await this.initializeProject(options);
       
-      // Step 4: Agent revival (the GAME CHANGER!)
+      // Step 4: MCP Configuration
+      if (!options.skipMCP) {
+        await this.configureMCP();
+      }
+      
+      // Step 5: Agent revival (the GAME CHANGER!)
       if (!options.skipAgentRevival) {
         await this.checkForAgentRevival();
       }
       
-      // Step 5: Show next steps
+      // Step 6: Show next steps
       this.showNextSteps();
       
     } catch (error) {
@@ -189,6 +198,62 @@ export class InitCommand {
     } catch (error) {
       spinner.fail('Failed to initialize project');
       throw error;
+    }
+  }
+  
+  /**
+   * Configure MCP for Claude Desktop
+   */
+  private async configureMCP(): Promise<void> {
+    console.log(colors.highlight('\n🤖 Configuring MCP for Claude Desktop...\n'));
+    
+    try {
+      // Check if .claude/settings.json already exists
+      const claudeSettingsPath = path.join(process.cwd(), '.claude', 'settings.json');
+      
+      if (fs.existsSync(claudeSettingsPath)) {
+        const { update } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'update',
+            message: 'MCP settings already exist. Would you like to update them?',
+            default: true
+          }
+        ]);
+        
+        if (!update) {
+          console.log(colors.info('Keeping existing MCP configuration.'));
+          return;
+        }
+        
+        // Update existing configuration
+        await this.mcpGenerator.update();
+      } else {
+        // Generate new configuration
+        const settings = await this.mcpGenerator.generate();
+        await this.mcpGenerator.save(settings);
+        
+        // Optionally validate servers
+        const { validate } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'validate',
+            message: 'Would you like to validate MCP server availability?',
+            default: false
+          }
+        ]);
+        
+        if (validate) {
+          await this.mcpGenerator.validateServers(settings);
+        }
+      }
+      
+      console.log(colors.success('\n✓ MCP configuration complete!'));
+      console.log(colors.info('Claude Desktop will use .claude/settings.json when you open this project.'));
+      
+    } catch (error) {
+      console.error(colors.warning('Could not configure MCP:'), error);
+      console.log(colors.info('You can configure MCP later by running "graphyn mcp config"'));
     }
   }
   
