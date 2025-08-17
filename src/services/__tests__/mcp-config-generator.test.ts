@@ -4,20 +4,24 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MCPConfigGenerator } from '../mcp-config-generator.js';
-import fs from 'fs';
+import * as fsPromises from 'fs/promises';
+import { existsSync } from 'fs';
 import path from 'path';
 import os from 'os';
 
 // Mock modules
-vi.mock('fs', () => ({
+vi.mock('fs/promises', () => ({
   default: {
-    existsSync: vi.fn(),
-    promises: {
-      readFile: vi.fn(),
-      writeFile: vi.fn(),
-      mkdir: vi.fn()
-    }
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+    mkdir: vi.fn()
   },
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  mkdir: vi.fn()
+}));
+
+vi.mock('fs', () => ({
   existsSync: vi.fn()
 }));
 
@@ -70,12 +74,12 @@ describe('MCPConfigGenerator', () => {
         }
       };
       
-      vi.mocked(fs.existsSync).mockImplementation((path) => {
+      vi.mocked(existsSync).mockImplementation((path) => {
         if (path.includes('package.json')) return true;
         return false;
       });
       
-      vi.mocked(fs.promises.readFile).mockResolvedValue(
+      vi.mocked(fsPromises.readFile).mockResolvedValue(
         JSON.stringify(mockPackageJson)
       );
       
@@ -87,7 +91,7 @@ describe('MCPConfigGenerator', () => {
     });
     
     it('should detect Encore backend project', async () => {
-      vi.mocked(fs.existsSync).mockImplementation((path) => {
+      vi.mocked(existsSync).mockImplementation((path) => {
         if (path.includes('encore.app')) return true;
         return false;
       });
@@ -106,12 +110,12 @@ djangorestframework==3.14.0
 psycopg2==2.9.0
       `;
       
-      vi.mocked(fs.existsSync).mockImplementation((path) => {
+      vi.mocked(existsSync).mockImplementation((path) => {
         if (path.includes('requirements.txt')) return true;
         return false;
       });
       
-      vi.mocked(fs.promises.readFile).mockResolvedValue(mockRequirements);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(mockRequirements);
       
       const settings = await generator.generate();
       
@@ -121,7 +125,7 @@ psycopg2==2.9.0
     });
     
     it('should detect Docker configuration', async () => {
-      vi.mocked(fs.existsSync).mockImplementation((path) => {
+      vi.mocked(existsSync).mockImplementation((path) => {
         if (path.includes('docker-compose.yml')) return true;
         if (path.includes('Dockerfile')) return true;
         return false;
@@ -171,12 +175,12 @@ psycopg2==2.9.0
         }
       };
       
-      vi.mocked(fs.existsSync).mockImplementation((path) => {
+      vi.mocked(existsSync).mockImplementation((path) => {
         if (path.includes('package.json')) return true;
         return false;
       });
       
-      vi.mocked(fs.promises.readFile).mockResolvedValue(
+      vi.mocked(fsPromises.readFile).mockResolvedValue(
         JSON.stringify(mockPackageJson)
       );
       
@@ -205,7 +209,7 @@ psycopg2==2.9.0
       );
       
       // Verify the written content is valid JSON
-      const writtenContent = vi.mocked(fs.promises.writeFile).mock.calls[0][1];
+      const writtenContent = vi.mocked(fsPromises.writeFile).mock.calls[0][1];
       expect(() => JSON.parse(writtenContent as string)).not.toThrow();
     });
     
@@ -225,15 +229,15 @@ psycopg2==2.9.0
         }
       };
       
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.promises.readFile).mockResolvedValue(
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(fsPromises.readFile).mockResolvedValue(
         JSON.stringify(existingSettings)
       );
       
       const newSettings = await generator.generate();
       await generator.save(newSettings);
       
-      const writtenContent = vi.mocked(fs.promises.writeFile).mock.calls[0][1];
+      const writtenContent = vi.mocked(fsPromises.writeFile).mock.calls[0][1];
       const savedSettings = JSON.parse(writtenContent as string);
       
       // Should preserve custom server
