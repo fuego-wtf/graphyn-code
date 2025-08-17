@@ -50,10 +50,11 @@ Graphyn Code - AI Development Tool
 Usage:
   graphyn                        Launch GUI (Ink)
   graphyn <request>              Run non-GUI flow: analyze → /api/ask → tmux
-  graphyn auth                   Authenticate with Graphyn
+  graphyn auth                   Authenticate with Graphyn (PKCE OAuth flow)
   graphyn logout                 Log out from Graphyn
   graphyn doctor                 Check system requirements & setup
   graphyn analyze [--mode mode]  Analyze repository for tech stack
+  graphyn mcp                    Start MCP server for Claude Code integration
 
 Options:
   --non-interactive, -n          Skip launching agents (prepare only)
@@ -78,7 +79,8 @@ Examples:
   }
   
   // Handle auth command
-  if (userMessage === 'auth') {
+  if (userMessage === 'auth' || userMessage.startsWith('auth ')) {
+    // Use PKCE OAuth flow
     const oauthManager = new OAuthManager();
     await oauthManager.authenticate();
     process.exit(0);
@@ -91,6 +93,12 @@ Examples:
     process.exit(0);
   }
   
+  // Handle MCP server command
+  if (userMessage === 'mcp' || userMessage === 'mcp-server') {
+    const { runMCPServer } = await import('./commands/mcp-server.js');
+    await runMCPServer();
+    process.exit(0);
+  }
   
   // Multi-agent approach (no squad commands)
   

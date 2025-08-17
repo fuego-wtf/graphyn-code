@@ -16,6 +16,7 @@ type SetupStage =
   | 'claude-install'
   | 'figma-check'
   | 'figma-setup'
+  | 'agents-detect'
   | 'repo-analyze'
   | 'repo-summary'
   | 'complete';
@@ -92,6 +93,30 @@ export const AutoSetup: React.FC<AutoSetupProps> = ({ onComplete }) => {
           setStage('figma-setup');
           await setupFigmaMCP();
         }
+      }
+
+      // Stage 3.5: Detect and revive Claude agents
+      try {
+        setStage('agents-detect');
+        const { detectClaudeAgents, reviveAgents } = await import('../../utils/claude-agents-revival.js');
+        const detected = detectClaudeAgents();
+        if (detected && detected.length > 0) {
+          const names = detected.map((a: any) => a.name).join(', ');
+          const { importAgents } = await inquirer.prompt([
+            {
+              type: 'confirm',
+              name: 'importAgents',
+              message: `Found ${detected.length} Claude agents (${names}). Import into ./prompts to make them alive?`,
+              default: true
+            }
+          ]);
+          if (importAgents) {
+            const { imported, targetDir } = reviveAgents(detected);
+            console.log(`✓ Imported ${imported} agent prompt(s) into ${targetDir}`);
+          }
+        }
+      } catch (e) {
+        // Non-blocking: continue setup even if detection fails
       }
 
       // Stage 4: Repository analysis
