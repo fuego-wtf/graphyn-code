@@ -73,7 +73,10 @@ export const AgentRevival: React.FC<AgentRevivalProps> = ({ onComplete }) => {
     setReviving(true);
     
     const selected = agents.filter(a => selectedAgents.has(a.name));
-    const result = await revivalService.reviveAgents(selected, false);
+    const result = await revivalService.reviveAgents({ 
+      interactive: false,
+      select: selected.map(a => a.name)
+    });
     
     setResults(result);
     

@@ -18,17 +18,72 @@ interface RepositoryAnalysis {
     directories: string[];
     files: Record<string, number>; // file extensions with count
   };
+  context?: {
+    files: string[];
+    summary: string;
+    metadata: any;
+  };
 }
 
 export class RepositoryAnalyzer {
+  private apiClient: any;
+
+  constructor(apiClient?: any) {
+    this.apiClient = apiClient;
+  }
+
+  /**
+   * Get available context modes for analysis
+   */
+  getAvailableContextModes(): string[] {
+    return ['basic', 'detailed', 'full', 'minimal'];
+  }
+
+  /**
+   * Format analysis results for display
+   */
+  formatAnalysisForDisplay(analysis: RepositoryAnalysis): string {
+    const lines: string[] = [];
+    lines.push(`Repository: ${analysis.name}`);
+    lines.push(`Type: ${analysis.type}`);
+    lines.push(`Language: ${analysis.language}`);
+    if (analysis.framework) {
+      lines.push(`Framework: ${analysis.framework}`);
+    }
+    if (analysis.packages) {
+      lines.push(`Packages: ${analysis.packages.length}`);
+      analysis.packages.forEach(pkg => lines.push(`  - ${pkg}`));
+    }
+    if (analysis.gitInfo) {
+      lines.push(`Git Branch: ${analysis.gitInfo.branch}`);
+    }
+    lines.push(`\nStructure:`);
+    lines.push(`  Directories: ${analysis.structure.directories.length}`);
+    lines.push(`  File Types: ${Object.keys(analysis.structure.files).length}`);
+    
+    return lines.join('\n');
+  }
+
   /**
    * Analyze a repository and return structured information
    */
-  async analyze(options: {
+  async analyze(pathOrOptions: string | {
     path?: string;
     includePatterns?: string[];
     excludePatterns?: string[];
-  } = {}): Promise<RepositoryAnalysis> {
+  } = {}, mode?: string): Promise<RepositoryAnalysis> {
+    // Handle overloaded parameters
+    let options: {
+      path?: string;
+      includePatterns?: string[];
+      excludePatterns?: string[];
+    };
+    
+    if (typeof pathOrOptions === 'string') {
+      options = { path: pathOrOptions };
+    } else {
+      options = pathOrOptions;
+    }
     const repoPath = options.path || process.cwd();
     
     // Basic repository info
