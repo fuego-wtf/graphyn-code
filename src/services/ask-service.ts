@@ -79,8 +79,36 @@ export class AskService {
   }
 
   private async sendAskRequest(request: AskRequest): Promise<AskResponse> {
-    const response = await apiClient.post<AskResponse>('/api/ask', request);
-    return response;
+    try {
+      const response = await apiClient.post<AskResponse>('/api/ask', request);
+      return response;
+    } catch (error) {
+      // Handle specific error cases with user-friendly messages
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status === 404) {
+          throw new Error(
+            'The AI orchestration service is not available yet. ' +
+            'Please contact support or try again later.'
+          );
+        }
+        if (axiosError.response?.status === 401) {
+          throw new Error(
+            'Authentication failed. Please run "graphyn auth" to re-authenticate.'
+          );
+        }
+        if (axiosError.response?.status >= 500) {
+          throw new Error(
+            'The AI service is temporarily unavailable. Please try again in a few minutes.'
+          );
+        }
+      }
+      
+      // Generic network or unknown error
+      throw new Error(
+        'Unable to connect to Graphyn AI services. Please check your internet connection and try again.'
+      );
+    }
   }
 
   private displayOrchestrationPlan(response: AskResponse): void {
