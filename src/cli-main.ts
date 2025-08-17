@@ -50,11 +50,13 @@ Graphyn Code - AI Development Tool
 Usage:
   graphyn                        Launch GUI (Ink)
   graphyn <request>              Run non-GUI flow: analyze → /api/ask → tmux
+  graphyn init                   Initialize project with MCP config & agent revival
   graphyn auth                   Authenticate with Graphyn (PKCE OAuth flow)
   graphyn logout                 Log out from Graphyn
   graphyn doctor                 Check system requirements & setup
   graphyn analyze [--mode mode]  Analyze repository for tech stack
   graphyn mcp                    Start MCP server for Claude Code integration
+  graphyn mcp config             Generate MCP configuration for Claude Desktop
 
 Options:
   --non-interactive, -n          Skip launching agents (prepare only)
@@ -69,6 +71,21 @@ Examples:
   graphyn analyze                Analyze your repository
   graphyn analyze --mode summary Get a summary analysis
 `);
+    process.exit(0);
+  }
+  
+  // Handle init command
+  if (userMessage === 'init' || userMessage.startsWith('init ')) {
+    const { init } = await import('./commands/init.js');
+    const initOptions: any = {};
+    
+    // Parse options
+    if (userMessage.includes('--skip-auth')) initOptions.skipAuth = true;
+    if (userMessage.includes('--skip-agents')) initOptions.skipAgentRevival = true;
+    if (userMessage.includes('--skip-mcp')) initOptions.skipMCP = true;
+    if (userMessage.includes('--force')) initOptions.force = true;
+    
+    await init(initOptions);
     process.exit(0);
   }
   
@@ -93,10 +110,24 @@ Examples:
     process.exit(0);
   }
   
-  // Handle MCP server command
+  // Handle MCP commands
   if (userMessage === 'mcp' || userMessage === 'mcp-server') {
     const { runMCPServer } = await import('./commands/mcp-server.js');
     await runMCPServer();
+    process.exit(0);
+  }
+  
+  // Handle MCP config command
+  if (userMessage === 'mcp config' || userMessage.startsWith('mcp config ')) {
+    const { mcpConfig } = await import('./commands/mcp-config.js');
+    const configOptions: any = {};
+    
+    // Parse options
+    if (userMessage.includes('--update')) configOptions.update = true;
+    if (userMessage.includes('--validate')) configOptions.validate = true;
+    if (userMessage.includes('--force')) configOptions.force = true;
+    
+    await mcpConfig(configOptions);
     process.exit(0);
   }
   

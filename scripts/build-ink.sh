@@ -53,7 +53,8 @@ cat > tsconfig.ink.json << EOF
     "src/utils/logger.ts",
     "src/auth/**/*.ts",
     
-    
+    "src/commands/**/*.ts",
+    "src/services/**/*.ts",
     "src/cli/**/*.ts",
     "src/cli/**/*.tsx",
     "src/context/**/*.ts",
@@ -63,12 +64,14 @@ cat > tsconfig.ink.json << EOF
     "src/ink/**/*.test.tsx",
     "src/ink/test/**/*",
     "src/ink/components/StatusBar.tsx",
-    "src/utils/repository-detector.ts"
+    "src/utils/repository-detector.ts",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
   ]
 }
 EOF
 
-npx tsc -p tsconfig.ink.json --noEmitOnError false || true
+./node_modules/.bin/tsc -p tsconfig.ink.json --noEmitOnError false || true
 
 # Clean up temp tsconfig
 rm tsconfig.ink.json
