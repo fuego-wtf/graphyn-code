@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { MainMenu } from './components/MainMenu.js';
 import { AgentContext } from './components/AgentContext.js';
@@ -19,6 +19,7 @@ import { runDoctor } from '../utils/doctor.js';
 import { AGENT_TYPES, isAgentType } from '../constants/agents.js';
 import { ConfigManager } from '../config-manager.js';
 import { debug } from '../utils/debug.js';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -92,23 +93,87 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     checkAndInitialize();
   }, []);
 
-  // Handle keyboard input - only if TTY available
-  useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
-      exit();
-    }
-    
-    if (key.escape && mode !== 'menu') {
-      reset();
-      clearError();
-    }
+  // Clear screen function
+  const clearScreen = useCallback(() => {
+    console.clear();
+  }, []);
 
-    // Add R key for retry when error is shown
-    if (input === 'r' && error) {
+  // Refresh current view
+  const refreshView = useCallback(() => {
+    // Trigger a re-render by clearing error or resetting state
+    if (error) {
       clearError();
-      reset();
     }
-  }, { isActive: process.stdin.isTTY });
+    // Force re-render by toggling a state
+    setIsInitialized(prev => !prev);
+    setTimeout(() => setIsInitialized(prev => !prev), 10);
+  }, [error, clearError]);
+
+  // Global keyboard shortcuts
+  useKeyboardShortcuts({
+    shortcuts: [
+      // Global clear screen
+      {
+        key: 'l',
+        ctrl: true,
+        handler: clearScreen,
+        description: 'Clear screen',
+        enabled: true,
+      },
+      // Global refresh
+      {
+        key: 'r',
+        ctrl: true,
+        handler: refreshView,
+        description: 'Refresh view',
+        enabled: true,
+      },
+      // Exit on Ctrl+C
+      {
+        key: 'c',
+        ctrl: true,
+        handler: () => exit(),
+        enabled: true,
+      },
+      // Escape to go back
+      {
+        key: 'escape',
+        handler: () => {
+          if (mode !== 'menu') {
+            reset();
+            clearError();
+          }
+        },
+        enabled: true,
+      },
+      // Retry on error
+      {
+        key: 'r',
+        handler: () => {
+          if (error) {
+            clearError();
+            reset();
+          }
+        },
+        enabled: !!error,
+      },
+      // Future: Command palette (placeholder)
+      {
+        key: 'k',
+        ctrl: true,
+        handler: () => {
+          // TODO: Implement command palette in future
+          console.log('Command palette coming soon!');
+        },
+        description: 'Command palette (coming soon)',
+        enabled: false, // Disabled for now
+      },
+    ],
+    enabled: process.stdin.isTTY !== false,
+  });
+
+  // Legacy input handler disabled
+  useInput(() => {});
 
   // Handle direct command mode
   useEffect(() => {

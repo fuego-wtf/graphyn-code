@@ -46,7 +46,7 @@ export class AskService {
   private cockpit: TMUXCockpitOrchestrator;
 
   constructor(private apiClient: GraphynAPIClient) {
-    const analyzer = new RepositoryAnalyzerService(apiClient);
+    const analyzer = new RepositoryAnalyzerService();
     this.contextExtractor = new RepositoryContextExtractor(analyzer);
     this.agentLauncher = new ClaudeAgentLauncher();
     this.cockpit = new TMUXCockpitOrchestrator();

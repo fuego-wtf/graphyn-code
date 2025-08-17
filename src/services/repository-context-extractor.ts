@@ -52,21 +52,21 @@ export class RepositoryContextExtractor {
     const keywords = this.extractKeywords(query.toLowerCase());
     
     // Find relevant files based on query
-    const relevantFiles = await this.findRelevantFiles(repoPath, keywords, analysis.context);
+    const relevantFiles = await this.findRelevantFiles(repoPath, keywords, analysis.context || {});
     
     // Build file structure (limited depth)
     const fileStructure = await this.buildFileStructure(repoPath, 2);
     
     // Generate suggestions based on context
-    const suggestions = this.generateSuggestions(query, analysis.context, relevantFiles);
+    const suggestions = this.generateSuggestions(query, analysis.context || {}, relevantFiles);
     
     return {
       query,
-      framework: analysis.context.framework || 'unknown',
-      language: analysis.context.language || 'unknown',
-      dependencies: analysis.context.dependencies || {},
+      framework: analysis.context?.framework || analysis.framework || 'unknown',
+      language: analysis.context?.language || analysis.language || 'unknown',
+      dependencies: (analysis.context as any)?.dependencies || {},
       fileStructure,
-      patterns: analysis.context.patterns || [],
+      patterns: analysis.context?.patterns || [],
       relevantFiles: relevantFiles.slice(0, 10), // Limit to top 10 most relevant
       suggestions,
     };

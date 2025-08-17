@@ -42,8 +42,8 @@ export async function analyzeRepository(options: AnalyzeOptions = {}) {
     const apiClient = new GraphynAPIClient(apiUrl);
     apiClient.setToken(token);
 
-    // Create analyzer service
-    const analyzer = new RepositoryAnalyzerService(apiClient);
+    // Create analyzer service (no longer needs apiClient)
+    const analyzer = new RepositoryAnalyzerService();
 
     // Show available modes if mode is invalid
     const mode = options.mode || 'detailed';

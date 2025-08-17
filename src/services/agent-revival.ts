@@ -91,9 +91,20 @@ export class AgentRevivalService {
   }
   
   /**
-   * Main revival flow
+   * Main revival flow - overloaded to accept either options or agents array
    */
-  async reviveAgents(options: RevivalOptions = {}): Promise<RevivalResult> {
+  async reviveAgents(agents: ParsedAgent[]): Promise<RevivalResult>;
+  async reviveAgents(options: RevivalOptions): Promise<RevivalResult>;
+  async reviveAgents(optionsOrAgents: RevivalOptions | ParsedAgent[] = {}): Promise<RevivalResult> {
+    // Check if we received an array of agents directly
+    if (Array.isArray(optionsOrAgents)) {
+      const agents = optionsOrAgents;
+      const result = await this.performRevival(agents, { dryRun: false });
+      return result;
+    }
+    
+    // Otherwise handle as options
+    const options = optionsOrAgents as RevivalOptions;
     console.log(colors.highlight('\n🎯 Agent Revival System\n'));
     
     // Step 1: Detect agents
