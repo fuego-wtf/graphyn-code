@@ -67,24 +67,41 @@ export class GenerateAgentsCommand {
       const repoContext = await this.contextExtractor.extractContext(query);
       contextSpinner.succeed('Repository context extracted');
 
-      // Step 4: Call backend /ask endpoint
-      const askSpinner = ora('Getting agent configurations from backend...').start();
+      // Step 4: Create thread for agent generation
+      const threadSpinner = ora('Creating thread for agent generation...').start();
       
       try {
-        const response = await apiClient.ask({
-          query,
-          context: {
+        const thread = await apiClient.createThread({
+          name: `Agent Generation: ${query.substring(0, 30)}...`,
+          state: 'building',
+          metadata: {
             repository: repoContext,
-            workingDirectory: process.cwd(),
-            gitBranch: await this.getGitBranch(),
-            frameworks: repoContext.relevantFiles
-              .map(f => this.detectFramework(f.path))
-              .filter(Boolean)
-          },
-          mode: 'multi-agent'
+            created_by: 'cli-generate-agents',
+            query: query,
+            work_directory: process.cwd(),
+            git_branch: await this.getGitBranch(),
+            mode: 'multi-agent'
+          }
         });
 
-        askSpinner.succeed('Agent configurations received');
+        // Send the query as initial message
+        await apiClient.sendMessage(thread.id, query);
+
+        threadSpinner.succeed(`Thread created: ${thread.id}`);
+
+        // For now, we'll need to implement a polling mechanism or use SSE
+        // to get the agent configurations from the thread responses
+        // This is a placeholder until the backend implements proper thread-based agent generation
+        const response = {
+          agents: [],
+          orchestrationPlan: 'Thread-based agent generation is in development',
+          estimatedTime: 0,
+          threadId: thread.id
+        };
+
+        console.log(chalk.yellow('⚠️  Thread-based agent generation is in development.'));
+        console.log(chalk.gray(`Thread ID: ${thread.id}`));
+        console.log(chalk.gray('Check the thread via web interface for now.'));
 
         // Step 5: Transform response to AgentConfig format
         const agents = this.transformResponseToAgents(response);
@@ -132,7 +149,7 @@ export class GenerateAgentsCommand {
         this.showNextSteps();
 
       } catch (error) {
-        askSpinner.fail('Failed to get agent configurations');
+        threadSpinner.fail('Failed to create thread');
         
         // If backend fails, offer to generate example agents
         if (options.interactive !== false) {

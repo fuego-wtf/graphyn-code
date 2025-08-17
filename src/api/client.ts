@@ -8,14 +8,23 @@ interface RetryConfig {
   backoffMultiplier: number;
 }
 
+type ThreadState = 'building' | 'testing' | 'deployed' | 'disabled' | 'archived';
+
 interface Thread {
   id: string;
   name: string;
+  state: ThreadState;
   created_at: string;
   updated_at: string;
   organization_id: string;
   participants: string[];
-  type: 'builder' | 'testing' | 'production';
+  metadata?: {
+    repository?: any;
+    created_by?: string;
+    [key: string]: any;
+  };
+  // Legacy field for backward compatibility
+  type?: 'builder' | 'testing' | 'production';
 }
 
 interface Agent {
@@ -167,8 +176,15 @@ export class GraphynAPIClient {
    */
   async createThread(data: {
     name: string;
-    type?: 'builder' | 'testing' | 'production';
+    state?: ThreadState;
     participants?: string[];
+    metadata?: {
+      repository?: any;
+      created_by?: string;
+      [key: string]: any;
+    };
+    // Legacy field for backward compatibility
+    type?: 'builder' | 'testing' | 'production';
   }): Promise<Thread> {
     return this.withRetry(async () => {
       const response = await this.client.post<Thread>('/api/threads', data);
@@ -192,12 +208,32 @@ export class GraphynAPIClient {
   async listThreads(params?: {
     limit?: number;
     offset?: number;
+    state?: ThreadState;
+    // Legacy field for backward compatibility
     type?: 'builder' | 'testing' | 'production';
   }): Promise<Thread[]> {
     return this.withRetry(async () => {
       const response = await this.client.get<Thread[]>('/api/threads', { params });
       return response.data;
     });
+  }
+
+  /**
+   * Update thread state
+   */
+  async updateThreadState(threadId: string, state: ThreadState): Promise<Thread> {
+    return this.withRetry(async () => {
+      const response = await this.client.patch<Thread>(`/api/threads/${threadId}`, { state });
+      return response.data;
+    });
+  }
+
+  /**
+   * Get SSE stream URL for a thread (for use with EventSource)
+   */
+  getThreadStreamUrl(threadId: string): string {
+    const baseUrl = this.client.defaults.baseURL;
+    return `${baseUrl}/api/threads/${threadId}/stream`;
   }
 
   /**
@@ -422,15 +458,6 @@ export class GraphynAPIClient {
     });
   }
 
-  /**
-   * Send a request to the /ask endpoint for AI agent orchestration
-   */
-  async ask(request: any): Promise<any> {
-    return this.withRetry(async () => {
-      const response = await this.client.post('/api/ask', request);
-      return response.data;
-    });
-  }
 
   /**
    * Generic post method for API requests
@@ -443,5 +470,6 @@ export class GraphynAPIClient {
   }
 }
 
-// Export a singleton instance
+// Export types and singleton instance
+export type { ThreadState, Thread, Agent, Squad, Message };
 export const apiClient = new GraphynAPIClient();

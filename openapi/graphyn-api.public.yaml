@@ -1,0 +1,428 @@
+openapi: 3.0.3
+info:
+  title: Graphyn API Gateway (Public)
+  version: 0.11.0
+  description: Customer-facing endpoints — Threads + Auth only.
+servers:
+  - url: https://api.graphyn.xyz
+    description: Production
+  - url: http://localhost:4000
+    description: Local development
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKey:
+      type: apiKey
+      in: header
+      name: Authorization
+  schemas:
+    ProblemDetails:
+      type: object
+      description: RFC 7807 Problem Details for HTTP APIs
+      properties:
+        type: 
+          type: string
+          description: URI reference that identifies the problem type
+        title: 
+          type: string
+          description: Short human-readable summary of the problem
+        status: 
+          type: integer
+          description: HTTP status code
+        detail: 
+          type: string
+          description: Human-readable explanation specific to this occurrence
+        instance: 
+          type: string
+          description: URI reference that identifies the specific occurrence
+      required: [type, title, status]
+      additionalProperties: true
+    Thread:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        state: { type: string, enum: [building, testing, deployed, disabled, archived] }
+        system_prompt: { type: string }
+        model: { type: string }
+        created_at: { type: string, format: date-time }
+    Message:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant, system] }
+        content: { type: string }
+        timestamp: { type: string, format: date-time }
+        metadata: { type: object, additionalProperties: true }
+security:
+  - bearerAuth: []
+paths:
+  /api/chat/completions:
+    post:
+      summary: Create chat completion (OpenAI-compatible)
+      description: |
+        OpenAI-compatible chat completions endpoint with SSE streaming support.
+        
+        When `stream: true`, returns Server-Sent Events (SSE) with incremental deltas.
+        Each SSE frame contains a JSON object with a `choices[].delta` field.
+        Stream terminates with `data: [DONE]`.
+        
+        Features:
+        - Automatic keep-alive pings every 15 seconds
+        - Backpressure handling for slow clients
+        - Graceful error recovery with proper SSE error frames
+        - Compatible with OpenAI SDK and other standard clients
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string, description: "Model ID (e.g., gpt-4o, claude-3-5-sonnet)" }
+                messages:
+                  type: array
+                  description: "Array of messages in the conversation"
+                  items:
+                    type: object
+                    properties:
+                      role: { type: string, enum: [system, user, assistant, function] }
+                      content: { type: string }
+                      name: { type: string, description: "Optional name for function messages" }
+                      function_call: 
+                        type: object
+                        properties:
+                          name: { type: string }
+                          arguments: { type: string }
+                temperature: { type: number, minimum: 0, maximum: 2, description: "Sampling temperature (0-2)" }
+                top_p: { type: number, minimum: 0, maximum: 1, description: "Nucleus sampling parameter" }
+                max_tokens: { type: integer, description: "Maximum tokens to generate" }
+                stream: { type: boolean, description: "Enable SSE streaming for real-time responses" }
+                stop: 
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items: { type: string }
+                  description: "Stop sequences"
+                presence_penalty: { type: number, minimum: -2, maximum: 2 }
+                frequency_penalty: { type: number, minimum: -2, maximum: 2 }
+                user: { type: string, description: "Optional user identifier for tracking" }
+                # Custom extensions
+                agent_id: { type: string, description: "Specific agent ID to use (optional)" }
+                thread_id: { type: string, description: "Thread ID for conversation continuity (optional)" }
+              required: [model, messages]
+      responses:
+        '200':
+          description: |
+            Success response. Format depends on `stream` parameter:
+            - `stream: false` - Returns complete JSON response
+            - `stream: true` - Returns SSE stream with chunked responses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, description: "Unique completion ID" }
+                  object: { type: string, enum: [chat.completion] }
+                  created: { type: integer, description: "Unix timestamp" }
+                  model: { type: string }
+                  choices:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        index: { type: integer }
+                        message:
+                          type: object
+                          properties:
+                            role: { type: string, enum: [assistant] }
+                            content: { type: string }
+                        finish_reason: { type: string, enum: [stop, length, function_call, content_filter] }
+                  usage:
+                    type: object
+                    properties:
+                      prompt_tokens: { type: integer }
+                      completion_tokens: { type: integer }
+                      total_tokens: { type: integer }
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE stream format:
+                  ```
+                  data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant"},"index":0}]}
+                  data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{"content":"Hello"},"index":0}]}
+                  data: {"id":"...","object":"chat.completion.chunk","choices":[{"delta":{},"finish_reason":"stop","index":0}]}
+                  data: [DONE]
+                  ```
+        '400': 
+          description: Bad request - Invalid parameters or malformed JSON
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401': 
+          description: Unauthorized - Invalid or missing API key
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/models:
+    get:
+      summary: List available models (OpenAI-compatible)
+      description: |
+        Returns a list of available AI models in OpenAI-compatible format.
+        Used by OpenAI SDK clients for model discovery.
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  object: 
+                    type: string
+                    enum: [list]
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, description: "Model identifier" }
+                        object: { type: string, enum: [model] }
+                        created: { type: integer, description: "Unix timestamp of model creation" }
+                        owned_by: { type: string, description: "Organization that owns the model" }
+                        permission: 
+                          type: array
+                          items: { type: object }
+                          description: "Permissions array (typically empty for public models)"
+                        root: { type: string, description: "Root model name" }
+                        parent: { type: string, nullable: true, description: "Parent model if applicable" }
+                      required: [id, object, created, owned_by]
+        '401':
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+  /api/completions:
+    post:
+      summary: Create text completion (OpenAI-compatible)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                prompt:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items: { type: string }
+                max_tokens: { type: integer }
+                temperature: { type: number }
+                top_p: { type: number }
+                stream: { type: boolean }
+              required: [model, prompt]
+      responses:
+        '501': { description: Not implemented (use chat/completions) }
+  /api/embeddings:
+    post:
+      summary: Create embeddings (OpenAI-compatible)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model: { type: string }
+                input:
+                  oneOf:
+                    - type: string
+                    - type: array
+                      items: { type: string }
+                dimensions: { type: integer }
+              required: [model, input]
+      responses:
+        '501': { description: Not implemented }
+  /api/auth/validate:
+    post:
+      summary: Validate API key
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                api_key: { type: string }
+              required: [api_key]
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  organization_id: { type: string, nullable: true }
+  /api/auth/refresh:
+    post:
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+              required: [refresh_token]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  expires_in: { type: number }
+  /api/auth/session:
+    post:
+      summary: Validate a session token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session_token: { type: string }
+              required: [session_token]
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean }
+                  user_id: { type: string, nullable: true }
+  /api/threads:
+    get:
+      summary: List threads
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create thread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [chat, api, multi] }
+                system_prompt: { type: string }
+                model: { type: string }
+              required: [name]
+      responses:
+        '201': { description: Created }
+  /api/threads/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get thread
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+  /api/threads/{id}/messages:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get messages
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  total: { type: integer }
+                  hasMore: { type: boolean }
+    post:
+      summary: Send message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content: { type: string }
+                metadata: { type: object }
+              required: [content]
+      responses:
+        '200': { description: OK }
+  /api/threads/{id}/stream:
+    post:
+      summary: Stream thread response (SSE)
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string

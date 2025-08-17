@@ -30,11 +30,54 @@ export interface PaneInfo {
 export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
   private agentLauncher: ClaudeAgentLauncher;
   private paneMap: Map<string, PaneInfo>;
+  private isShuttingDown: boolean = false;
 
   constructor() {
     super(`graphyn-cockpit-${Date.now()}`);
     this.agentLauncher = new ClaudeAgentLauncher();
     this.paneMap = new Map();
+    
+    // Set up graceful shutdown handlers
+    this.setupShutdownHandlers();
+  }
+
+  private setupShutdownHandlers(): void {
+    const gracefulShutdown = async (signal: string) => {
+      if (this.isShuttingDown) return;
+      this.isShuttingDown = true;
+      
+      console.log(chalk.yellow(`\n⚠️  Received ${signal}, gracefully shutting down...`));
+      
+      try {
+        await this.cleanup();
+        console.log(chalk.green('✅ Graceful shutdown completed'));
+        process.exit(0);
+      } catch (error) {
+        console.error(chalk.red('❌ Error during graceful shutdown:'), error);
+        process.exit(1);
+      }
+    };
+
+    // Handle various shutdown signals
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
+    
+    // Handle uncaught exceptions
+    process.on('uncaughtException', async (error) => {
+      console.error(chalk.red('❌ Uncaught Exception:'), error);
+      if (!this.isShuttingDown) {
+        await gracefulShutdown('uncaughtException');
+      }
+    });
+    
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', async (reason, promise) => {
+      console.error(chalk.red('❌ Unhandled Rejection at:'), promise, 'reason:', reason);
+      if (!this.isShuttingDown) {
+        await gracefulShutdown('unhandledRejection');
+      }
+    });
   }
 
   private async killSession(): Promise<void> {
@@ -73,45 +116,89 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
   async launchCockpit(config: CockpitConfig): Promise<void> {
     const { tasks, agents, repoContext, workDir, claudePath } = config;
     
-    console.log(chalk.blue('\n🚀 Launching Graphyn Cockpit...'));
-    
-    // Kill any existing cockpit session
-    await this.killSession();
-    
-    // Create new TMUX session
-    await this.createSession();
-    
-    // Create the layout based on number of tasks
-    await this.createCockpitLayout(tasks.length);
-    
-    // Launch the cockpit monitor in the main pane
-    await this.launchCockpitMonitor(tasks, agents);
-    
-    // Group tasks by agent
-    const tasksByAgent = this.groupTasksByAgentConfig(tasks, agents);
-    
-    // Launch Claude instances for each agent with their tasks
-    let paneIndex = 1;
-    for (const [agentId, agentTasks] of tasksByAgent) {
-      const agent = agents.find(a => a.id === agentId);
-      if (!agent) continue;
-      
-      for (const task of agentTasks) {
-        await this.launchAgentInPane(
-          agent,
-          task,
-          paneIndex,
-          { tasks, repoContext, workDir, claudePath }
-        );
-        paneIndex++;
-      }
-    }
-    
-    // Attach to the TMUX session (this will block until the user detaches or exits)
     try {
-      await this.attachToSession();
+      console.log(chalk.blue('\n🚀 Launching Graphyn Cockpit...'));
+      console.log(chalk.gray(`   Tasks: ${tasks.length}`));
+      console.log(chalk.gray(`   Agents: ${agents.length}`));
+      console.log(chalk.gray(`   Work Directory: ${workDir}`));
+      
+      // Kill any existing cockpit session
+      await this.killSession();
+      
+      // Create new TMUX session
+      await this.createSession();
+      
+      // Create the layout based on number of tasks
+      await this.createCockpitLayout(tasks.length);
+      
+      // Launch the cockpit monitor in the main pane
+      await this.launchCockpitMonitor(tasks, agents);
+      
+      // Group tasks by agent
+      const tasksByAgent = this.groupTasksByAgentConfig(tasks, agents);
+      
+      // Validate that all tasks have matching agents
+      const unassignedTasks = tasks.filter(task => 
+        !agents.some(agent => agent.name.toLowerCase() === task.assigned_agent.toLowerCase())
+      );
+      
+      if (unassignedTasks.length > 0) {
+        console.warn(chalk.yellow(`⚠️  Found ${unassignedTasks.length} tasks without matching agents:`));
+        unassignedTasks.forEach(task => {
+          console.warn(chalk.yellow(`   - Task "${task.title}" assigned to "${task.assigned_agent}"`));
+        });
+      }
+      
+      // Launch Claude instances for each agent with their tasks
+      let paneIndex = 1;
+      const launchPromises: Promise<void>[] = [];
+      
+      for (const [agentId, agentTasks] of tasksByAgent) {
+        const agent = agents.find(a => a.id === agentId);
+        if (!agent) {
+          console.warn(chalk.yellow(`⚠️  Agent with ID ${agentId} not found`));
+          continue;
+        }
+        
+        for (const task of agentTasks) {
+          const launchPromise = this.launchAgentInPane(
+            agent,
+            task,
+            paneIndex,
+            { tasks, repoContext, workDir, claudePath }
+          ).catch(error => {
+            console.error(chalk.red(`❌ Failed to launch agent ${agent.name} for task ${task.title}:`), error);
+            // Continue with other agents
+          });
+          
+          launchPromises.push(launchPromise);
+          paneIndex++;
+        }
+      }
+      
+      // Wait for all agents to be launched
+      await Promise.allSettled(launchPromises);
+      
+      console.log(chalk.green(`✅ Cockpit launched with ${paneIndex - 1} agent panes`));
+      
+      // Attach to the TMUX session (this will block until the user detaches or exits)
+      try {
+        await this.attachToSession();
+      } catch (error) {
+        console.log(chalk.yellow('\n⚠️  Tmux session ended'));
+      }
+      
     } catch (error) {
-      console.log(chalk.yellow('\n⚠️  Tmux session ended'));
+      console.error(chalk.red('\n❌ Failed to launch cockpit:'), error);
+      
+      // Attempt cleanup if something went wrong
+      try {
+        await this.cleanup();
+      } catch (cleanupError) {
+        console.error(chalk.red('❌ Cleanup failed:'), cleanupError);
+      }
+      
+      throw error;
     }
   }
 
@@ -288,7 +375,12 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
   }
 
   async cleanup(): Promise<void> {
-    this.agentLauncher.cleanup();
+    console.log(chalk.blue('\n🧹 Cleaning up Cockpit resources...'));
+    
+    // Clean up agent launcher (includes worktree cleanup)
+    await this.agentLauncher.cleanup();
+    
+    // Kill TMUX session
     await this.killSession();
     
     // Clean up temporary files
@@ -298,6 +390,41 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
       await fs.unlink(`/tmp/graphyn_agents_${this.getSessionName()}.json`).catch(() => {});
     } catch {
       // Ignore cleanup errors
+    }
+    
+    console.log(chalk.green('✅ Cockpit cleanup completed'));
+  }
+
+  /**
+   * Get worktree information for a specific task
+   */
+  getWorktreeInfo(taskId: string) {
+    return this.agentLauncher.getWorktreeInfo(taskId);
+  }
+
+  /**
+   * Get all active worktrees
+   */
+  getActiveWorktrees() {
+    return this.agentLauncher.getWorktreeManager().getActiveWorktrees();
+  }
+
+  /**
+   * List git worktrees for debugging
+   */
+  async listGitWorktrees(repoPath: string) {
+    return this.agentLauncher.getWorktreeManager().listGitWorktrees(repoPath);
+  }
+
+  /**
+   * Force cleanup of a specific worktree
+   */
+  async cleanupWorktree(taskId: string, force = false) {
+    try {
+      await this.agentLauncher.getWorktreeManager().removeWorktree(taskId, force);
+      console.log(chalk.green(`✅ Cleaned up worktree for task ${taskId}`));
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to cleanup worktree for task ${taskId}:`), error);
     }
   }
 }
