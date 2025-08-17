@@ -136,6 +136,7 @@ export class AskService {
     const repoContext = { framework: 'unknown', language: 'unknown' } as any;
 
     // Launch tmux cockpit with one pane per agent; orchestrator handles scheduling
+    // This will block until the user exits the tmux session
     await this.cockpit.launchCockpit({
       tasks: tasks as any,
       agents: agentConfigs,
@@ -143,11 +144,10 @@ export class AskService {
       workDir: workDir,
     });
 
-    // Wait for completion (or user exits tmux)
-    await this.cockpit.waitForCompletion().catch(() => {});
+    // Clean up after tmux session ends
     await this.cockpit.cleanup();
 
-    console.log(chalk.green('✅ Agents completed.'));
+    console.log(chalk.green('\n✅ Cockpit session ended.'));
   }
 
   private getMockResponse(request: AskRequest): AskResponse {

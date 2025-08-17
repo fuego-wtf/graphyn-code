@@ -51,8 +51,22 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
 
   private async attachToSession(): Promise<void> {
     // Attach to the tmux session
-    spawn('tmux', ['attach-session', '-t', this.getSessionName()], {
-      stdio: 'inherit'
+    return new Promise((resolve, reject) => {
+      const tmuxProcess = spawn('tmux', ['attach-session', '-t', this.getSessionName()], {
+        stdio: 'inherit'
+      });
+      
+      tmuxProcess.on('exit', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`tmux exited with code ${code}`));
+        }
+      });
+      
+      tmuxProcess.on('error', (err) => {
+        reject(err);
+      });
     });
   }
 
@@ -93,8 +107,12 @@ export class TMUXCockpitOrchestrator extends TmuxLayoutManager {
       }
     }
     
-    // Attach to the TMUX session
-    await this.attachToSession();
+    // Attach to the TMUX session (this will block until the user detaches or exits)
+    try {
+      await this.attachToSession();
+    } catch (error) {
+      console.log(chalk.yellow('\n⚠️  Tmux session ended'));
+    }
   }
 
   private async createCockpitLayout(taskCount: number): Promise<void> {

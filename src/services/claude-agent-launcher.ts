@@ -264,7 +264,7 @@ read -r
 
   async stopAgent(taskId: string): Promise<void> {
     const agentProcess = this.activeAgents.get(taskId);
-    if (agentProcess) {
+    if (agentProcess && agentProcess.process && typeof agentProcess.process.kill === 'function') {
       agentProcess.process.kill('SIGTERM');
       this.activeAgents.delete(taskId);
     }
@@ -272,7 +272,10 @@ read -r
 
   async stopAllAgents(): Promise<void> {
     for (const [taskId, agentProcess] of this.activeAgents) {
-      agentProcess.process.kill('SIGTERM');
+      // Only kill if process exists and has a kill method
+      if (agentProcess.process && typeof agentProcess.process.kill === 'function') {
+        agentProcess.process.kill('SIGTERM');
+      }
     }
     this.activeAgents.clear();
   }

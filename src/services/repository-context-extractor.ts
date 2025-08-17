@@ -51,22 +51,37 @@ export class RepositoryContextExtractor {
     // Extract keywords from query
     const keywords = this.extractKeywords(query.toLowerCase());
     
+    // Create a context object from the analysis
+    const context = analysis.context || {
+      files: [],
+      summary: '',
+      metadata: {}
+    };
+    
+    // Create structure for backward compatibility
+    const contextCompat = {
+      framework: analysis.framework || 'unknown',
+      language: analysis.language || 'unknown',
+      dependencies: {},
+      patterns: []
+    };
+    
     // Find relevant files based on query
-    const relevantFiles = await this.findRelevantFiles(repoPath, keywords, analysis.context || {});
+    const relevantFiles = await this.findRelevantFiles(repoPath, keywords, contextCompat as any);
     
     // Build file structure (limited depth)
     const fileStructure = await this.buildFileStructure(repoPath, 2);
     
     // Generate suggestions based on context
-    const suggestions = this.generateSuggestions(query, analysis.context || {}, relevantFiles);
+    const suggestions = this.generateSuggestions(query, contextCompat as any, relevantFiles);
     
     return {
       query,
-      framework: analysis.context?.framework || analysis.framework || 'unknown',
-      language: analysis.context?.language || analysis.language || 'unknown',
-      dependencies: (analysis.context as any)?.dependencies || {},
+      framework: contextCompat.framework,
+      language: contextCompat.language,
+      dependencies: contextCompat.dependencies,
       fileStructure,
-      patterns: analysis.context?.patterns || [],
+      patterns: contextCompat.patterns,
       relevantFiles: relevantFiles.slice(0, 10), // Limit to top 10 most relevant
       suggestions,
     };
