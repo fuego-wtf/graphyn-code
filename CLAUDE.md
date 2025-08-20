@@ -1,3 +1,45 @@
+# Graphyn Code - CLI Tool
+
+## MCP Development Guidelines
+
+This submodule is part of the graphyn-workspace monorepo and handles:
+- Command-line interface for Graphyn platform
+- Built-in tool discovery (no external scripts)
+- Claude Code integration and configuration bridge
+- MCP client for communicating with backend
+
+## Issue Management
+
+- Issues should be created in this repository: `fuego-wtf/graphyn-code`
+- Use `gh issue create --repo fuego-wtf/graphyn-code`
+- Transfer issues from parent: `gh issue transfer [number] fuego-wtf/graphyn-code --repo fuego-wtf/graphyn-workspace`
+- Check existing issues: `gh issue list --repo fuego-wtf/graphyn-code --search "KEYWORD"`
+
+## Claude Code Subagent Context
+
+- This module participates in agent squad coordination
+- Enables Claude Code sessions to register as subagents
+- Auto-discovers tools and MCP servers
+- Integrates with Claude's existing MCP configuration
+
+## CLI Architecture
+
+- **Single Command**: `graphyn` with unified interface
+- **Built-in Discovery**: Scans for tools/MCP servers without external scripts
+- **Doctor Command**: `graphyn doctor` provides diagnostic information
+- **Auto-Configuration**: Zero-config setup for GitHub, Figma, Docker
+- **MCP Client**: Communicates with graphyn-mcp server
+
+## Development Rules
+
+- Everything built into CLI - no external scripts
+- Auto-discovery of desktop tools and MCP servers
+- Claude Code integration via configuration bridge
+- Single entry point with role-based subcommands
+- Built-in caching for performance
+
+---
+
 # CLAUDE.md - Graphyn Code Project Context
 
 ## Project Overview
