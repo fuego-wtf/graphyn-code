@@ -13,10 +13,10 @@ let isDebug = false;
 
 if (rawCommand === '--dev') {
   isDev = true;
-  rawCommand = args.shift(); // Move first arg to rawCommand
+  rawCommand = args.shift() || ''; // Move first arg to rawCommand
 } else if (rawCommand === '--debug') {
   isDebug = true;
-  rawCommand = args.shift(); // Move first arg to rawCommand
+  rawCommand = args.shift() || ''; // Move first arg to rawCommand
 } else {
   const devFlagIndex = args.indexOf('--dev');
   isDev = devFlagIndex !== -1;
@@ -49,9 +49,9 @@ let query: string;
 if (isNaturalLanguage) {
   // Treat entire input as a natural language query
   command = 'squad';
-  query = [rawCommand, ...args].join(' ').replace(/^"|"$/g, '');
+  query = [rawCommand || '', ...args].join(' ').replace(/^"|"$/g, '');
 } else {
-  command = rawCommand?.toLowerCase(); // Make command case-insensitive
+  command = rawCommand?.toLowerCase() || undefined; // Make command case-insensitive
   query = args.join(' ');
 }
 
@@ -65,7 +65,7 @@ const agentAliases: Record<string, string> = {
 };
 
 // Normalize command if it's an alias
-const normalizedCommand = agentAliases[command] || command;
+const normalizedCommand = command ? (agentAliases[command] || command) : undefined;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {

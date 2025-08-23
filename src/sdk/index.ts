@@ -5,7 +5,8 @@
  * OAuth authentication and other enhancements for the CLI.
  */
 
-import { Configuration, DefaultApi } from './generated';
+// TODO: Generate SDK files
+// import { Configuration, DefaultApi } from './generated';
 import { OAuthManager } from '../auth/oauth.js';
 
 export interface GraphynSDKOptions {
@@ -18,19 +19,19 @@ export interface GraphynSDKOptions {
  * Main SDK client class with OAuth authentication
  */
 export class GraphynSDK {
-  private api: DefaultApi;
+  // private api: DefaultApi;
   private oauthManager?: OAuthManager;
 
   constructor(options: GraphynSDKOptions = {}) {
-    const apiBaseUrl = options.apiBaseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+    // const apiBaseUrl = options.apiBaseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
     
-    // Configure the generated client
-    const configuration = new Configuration({
-      basePath: apiBaseUrl,
-      accessToken: options.accessToken,
-    });
+    // TODO: Configure the generated client when SDK files are generated
+    // const configuration = new Configuration({
+    //   basePath: apiBaseUrl,
+    //   accessToken: options.accessToken,
+    // });
 
-    this.api = new DefaultApi(configuration);
+    // this.api = new DefaultApi(configuration);
     this.oauthManager = options.oauthManager;
   }
 
@@ -49,62 +50,53 @@ export class GraphynSDK {
    */
   private async updateConfiguration() {
     const token = await this.getAccessToken();
-    if (token) {
-      this.api.configuration.accessToken = token;
-    }
+    // TODO: Update configuration when SDK files are generated
+    // if (token) {
+    //   this.api.configuration.accessToken = token;
+    // }
   }
 
-  // Threads API
+  // TODO: Implement API methods when SDK files are generated
   async createThread(data: any) {
-    await this.updateConfiguration();
-    return this.api.apiThreadsPost(data);
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
   async getThread(id: string) {
-    await this.updateConfiguration();
-    return this.api.apiThreadsIdGet(id);
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
   async listThreads() {
-    await this.updateConfiguration();
-    return this.api.apiThreadsGet();
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
   async sendMessage(threadId: string, content: string) {
-    await this.updateConfiguration();
-    return this.api.apiThreadsIdMessagesPost(threadId, { content });
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
   async getMessages(threadId: string, limit?: number, offset?: number) {
-    await this.updateConfiguration();
-    return this.api.apiThreadsIdMessagesGet(threadId, limit, offset);
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  // Auth API
   async validateApiKey(apiKey: string) {
-    return this.api.apiAuthValidatePost({ api_key: apiKey });
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
   async refreshToken(refreshToken: string) {
-    return this.api.apiAuthRefreshPost({ refresh_token: refreshToken });
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  // Chat Completions (OpenAI-compatible)
   async createChatCompletion(data: any) {
-    await this.updateConfiguration();
-    return this.api.apiChatCompletionsPost(data);
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
   async listModels() {
-    await this.updateConfiguration();
-    return this.api.apiModelsGet();
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  // Direct access to the underlying API client
   get client() {
-    return this.api;
+    throw new Error('SDK generation not completed - please run SDK generation first');
   }
 }
 
-// Re-export generated types
-export * from './generated';
+// TODO: Re-export generated types when SDK files are generated
+// export * from './generated';

@@ -155,4 +155,4 @@ firebase-debug.log*
 .hive-mind/
 .memory
 memory/
-claude-flow
+claude-flow.worktrees/

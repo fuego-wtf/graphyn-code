@@ -29,6 +29,8 @@ async function main() {
       options.debug = true;
     } else if (args[i] === '--new') {
       options.new = true;
+    } else if (args[i] === '--dev') {
+      options.dev = true;
     } else {
       // Everything else is part of the user message
       userMessage = args.slice(i).join(' ').trim();
@@ -42,7 +44,7 @@ async function main() {
     process.exit(0);
   }
   
-  if (userMessage === '--help' || userMessage === '-h' || userMessage === 'help' || !userMessage) {
+  if (userMessage === '--help' || userMessage === '-h' || userMessage === 'help' || (!userMessage && !options.dev)) {
     console.log(`
 Graphyn Code - AI Development Tool
 
@@ -60,6 +62,7 @@ Usage:
 Options:
   --non-interactive, -n          Skip launching agents (prepare only)
   --debug                        Show debug information
+  --dev                          Development mode (local analysis only)
   graphyn --version              Show version
   graphyn --help                 Show help
 
@@ -67,6 +70,7 @@ Examples:
   graphyn "Implement signup with email OTP"
   graphyn "Create a REST API with PostgreSQL"
   graphyn "Build dashboard UI from Figma design"
+  graphyn --dev "help me understand whats in this repo"
   graphyn analyze                Analyze your repository
   graphyn analyze --mode summary Get a summary analysis
 `);
@@ -130,9 +134,32 @@ Examples:
     process.exit(0);
   }
   
+  // Handle development mode (--dev flag) FIRST
+  if (options.dev) {
+    if (userMessage) {
+      // Use orchestration for dev queries
+      const { orchestrateCommand } = await import('./commands/orchestrate.js');
+      await orchestrateCommand({
+        query: userMessage,
+        repository: process.cwd(),
+        dev: true,
+        interactive: true
+      });
+    } else {
+      // No query provided, show dev menu
+      console.log(colors.info('No query provided. Available dev options:\n'));
+      console.log('• graphyn --dev "your request"    - Orchestrate agents for request');
+      console.log('• graphyn analyze                - Analyze repository'); 
+      console.log('• graphyn init                   - Initialize project');
+      console.log('• graphyn doctor                 - Check system requirements\n');
+    }
+    
+    process.exit(0);
+  }
+  
   // Multi-agent approach (no squad commands)
   
-  // Handle analyze command
+  // Handle analyze command (only if not in dev mode)
   if (userMessage.startsWith('analyze')) {
     const options: any = {};
     const parts = userMessage.split(' ');

@@ -12,6 +12,14 @@ import {
 import { findClaude } from './utils/claude-detector.js';
 import { AgentPromptService } from './services/agent-prompt-service.js';
 
+/**
+ * Fetch agent prompt content
+ */
+export async function fetchAgentPrompt(type: string): Promise<string> {
+  const promptService = new AgentPromptService();
+  return await promptService.getAgentPrompt(type);
+}
+
 export class AgentManager {
   private oauthManager: OAuthManager;
   private promptService: AgentPromptService;

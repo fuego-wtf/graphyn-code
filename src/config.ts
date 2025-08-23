@@ -1,5 +1,6 @@
-// Detect development mode based on API URL
-const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+// Detect development mode and prefer localhost if available
+const defaultApiUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'https://api.graphyn.xyz';
+const apiUrl = process.env.GRAPHYN_API_URL || defaultApiUrl;
 const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
 
 export const config = {

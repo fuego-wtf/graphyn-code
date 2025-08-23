@@ -170,7 +170,7 @@ export class SecureTokenStorage {
    * Check if running with elevated privileges (security check)
    */
   static isElevated(): boolean {
-    return process.getuid && process.getuid() === 0;
+    return Boolean(process.getuid && process.getuid() === 0);
   }
   
   /**
