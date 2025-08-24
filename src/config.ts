@@ -1,17 +1,29 @@
-// Detect development mode and prefer localhost if available
-const defaultApiUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'https://api.graphyn.xyz';
-const apiUrl = process.env.GRAPHYN_API_URL || defaultApiUrl;
-const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
+// Dynamic configuration getter that re-reads environment variables at runtime
+export function getConfig() {
+  // Detect development mode and prefer localhost if available
+  const defaultApiUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'https://api.graphyn.xyz';
+  const apiUrl = process.env.GRAPHYN_API_URL || defaultApiUrl;
+  const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development' || process.env.GRAPHYN_DEV_MODE === 'true';
 
+  return {
+    // API endpoints
+    apiBaseUrl: apiUrl,
+    appUrl: isDev 
+      ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
+      : (process.env.GRAPHYN_APP_URL || 'https://app.graphyn.xyz'),
+    codeApiUrl: isDev 
+      ? (process.env.GRAPHYN_CODE_API_URL || apiUrl) // Use main API in development
+      : (process.env.GRAPHYN_CODE_API_URL || 'https://code.graphyn.xyz'),
+    isDev
+  };
+}
+
+// Legacy static config for backward compatibility, but prefer getConfig()
 export const config = {
-  // API endpoints
-  apiBaseUrl: apiUrl,
-  appUrl: isDev 
-    ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
-    : (process.env.GRAPHYN_APP_URL || 'https://app.graphyn.xyz'),
-  codeApiUrl: isDev 
-    ? (process.env.GRAPHYN_CODE_API_URL || apiUrl) // Use main API in development
-    : (process.env.GRAPHYN_CODE_API_URL || 'https://code.graphyn.xyz'),
+  get apiBaseUrl() { return getConfig().apiBaseUrl; },
+  get appUrl() { return getConfig().appUrl; },
+  get codeApiUrl() { return getConfig().codeApiUrl; },
+  get isDev() { return getConfig().isDev; },
   
   // Auth endpoints
   authEndpoint: '/api/auth/validate',

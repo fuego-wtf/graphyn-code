@@ -11,7 +11,58 @@ import { AGENT_TYPES, isAgentType } from '../constants/agents.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const [, , rawCommand, ...args] = process.argv;
+let [, , rawCommand, ...args] = process.argv;
+
+// Parse flags from rawCommand and args (same logic as main CLI)
+let isDev = false;
+let isDebug = false;
+
+// Check if rawCommand is a flag
+if (rawCommand === '--dev') {
+  isDev = true;
+  rawCommand = args.shift() || '';
+}
+
+// After processing --dev, check if the new rawCommand is --debug
+if (rawCommand === '--debug') {
+  isDebug = true;
+  rawCommand = args.shift() || '';
+}
+
+// Also check for flags in args array
+const devFlagIndex = args.indexOf('--dev');
+if (devFlagIndex !== -1) {
+  isDev = true;
+  args.splice(devFlagIndex, 1);
+}
+
+const debugFlagIndex = args.indexOf('--debug');
+if (debugFlagIndex !== -1) {
+  isDebug = true;
+  args.splice(debugFlagIndex, 1);
+}
+
+// Set debug mode globally
+if (isDebug) {
+  process.env.DEBUG_GRAPHYN = 'true';
+}
+
+// Set development environment variables
+if (isDev) {
+  process.env.NODE_ENV = 'development';
+  process.env.GRAPHYN_DEV_MODE = 'true';
+  process.env.GRAPHYN_API_URL = 'http://localhost:4000';
+  process.env.GRAPHYN_APP_URL = 'http://localhost:3000';
+  
+  // Debug output to confirm variables are set
+  if (process.env.DEBUG_GRAPHYN) {
+    console.log('[Fallback CLI Debug] Dev mode environment variables set:');
+    console.log('- NODE_ENV:', process.env.NODE_ENV);
+    console.log('- GRAPHYN_DEV_MODE:', process.env.GRAPHYN_DEV_MODE);
+    console.log('- GRAPHYN_API_URL:', process.env.GRAPHYN_API_URL);
+    console.log('- GRAPHYN_APP_URL:', process.env.GRAPHYN_APP_URL);
+  }
+}
 
 // Check if this is a natural language query (wrapped in quotes or starting with "I")
 const isNaturalLanguage = rawCommand && (
@@ -114,6 +165,27 @@ if (normalizedCommand === 'orchestrate') {
   setInterval(() => {
     // Keep the process alive until the orchestrate command completes
   }, 1000);
+}
+
+// Handle auth command in fallback mode
+if (normalizedCommand === 'auth') {
+  console.log('🔐 Initiating authentication...');
+  
+  // Import OAuth manager and start authentication
+  import('../auth/oauth.js').then(({ OAuthManager }) => {
+    const oauth = new OAuthManager();
+    
+    return oauth.authenticate();
+  }).then(() => {
+    console.log('✅ Authentication completed successfully!');
+    process.exit(0);
+  }).catch((error) => {
+    console.error('❌ Authentication failed:', error.message);
+    process.exit(1);
+  });
+  
+  // Keep the process alive for authentication
+  setInterval(() => {}, 1000);
 }
 
 // Handle commands that require interactive mode

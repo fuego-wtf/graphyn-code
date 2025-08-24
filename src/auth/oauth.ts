@@ -1,6 +1,6 @@
 import open from 'open';
 import { generateState, waitForOAuthCallback } from '../ink/utils/auth.js';
-import { config } from '../config.js';
+import { config, getConfig } from '../config.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -92,6 +92,21 @@ export class OAuthManager {
 
   async authenticate(): Promise<void> {
     try {
+      // Get dynamic config that reads environment variables at runtime
+      const dynamicConfig = getConfig();
+      
+      // Debug output for OAuth configuration
+      if (process.env.DEBUG_GRAPHYN) {
+        console.log('[OAuth Debug] Environment variables:');
+        console.log('- NODE_ENV:', process.env.NODE_ENV);
+        console.log('- GRAPHYN_DEV_MODE:', process.env.GRAPHYN_DEV_MODE);
+        console.log('- GRAPHYN_API_URL:', process.env.GRAPHYN_API_URL);
+        console.log('- GRAPHYN_APP_URL:', process.env.GRAPHYN_APP_URL);
+        console.log('[OAuth Debug] Dynamic Config:');
+        console.log('- apiBaseUrl:', dynamicConfig.apiBaseUrl);
+        console.log('- appUrl:', dynamicConfig.appUrl);
+        console.log('- isDev:', dynamicConfig.isDev);
+      }
       
       // Generate PKCE values
       this.pkceValues = this.generatePKCE();
@@ -101,14 +116,9 @@ export class OAuthManager {
       const actualRedirectUri = `http://127.0.0.1:${port}/callback`;
       const state = generateState();
       
-      // Build the authorization URL with PKCE
-      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
-      
-      // In development mode, use localhost:3000 for frontend
-      const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development';
-      const appUrl = isDev 
-        ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
-        : (process.env.GRAPHYN_APP_URL || config.appUrl || 'https://app.graphyn.xyz');
+      // Use dynamic config for URLs
+      const apiUrl = dynamicConfig.apiBaseUrl;
+      const appUrl = dynamicConfig.appUrl;
       
       const authUrl = new URL(`${appUrl}/auth`);
       authUrl.searchParams.set('client_id', this.clientId);
@@ -122,8 +132,8 @@ export class OAuthManager {
       authUrl.searchParams.set('actual_port', port.toString());
       authUrl.searchParams.set('prompt', 'consent');
       
-      // Always set dev_mode when using localhost
-      if (isDev) {
+      // Always set dev_mode when in development
+      if (dynamicConfig.isDev) {
         authUrl.searchParams.set('dev_mode', 'true');
       }
       
@@ -147,7 +157,7 @@ export class OAuthManager {
       
       // Fetch user profile to get organization info
       try {
-        const userResponse = await fetch(`${apiUrl}/auth/me`, {
+        const userResponse = await fetch(`${dynamicConfig.apiBaseUrl}/auth/me`, {
           headers: {
             'Authorization': `Bearer ${tokens.access_token}`,
             'Content-Type': 'application/json',
@@ -199,7 +209,8 @@ export class OAuthManager {
     }
     
     return withRetry(async () => {
-      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      const dynamicConfig = getConfig();
+      const apiUrl = dynamicConfig.apiBaseUrl;
       const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
@@ -298,7 +309,8 @@ export class OAuthManager {
   private async performTokenRefresh(authData: any): Promise<string | null> {
     try {
       return await withRetry(async () => {
-      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      const dynamicConfig = getConfig();
+      const apiUrl = dynamicConfig.apiBaseUrl;
       const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {

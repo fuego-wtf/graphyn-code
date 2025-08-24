@@ -7,33 +7,55 @@ import { APIProvider } from './contexts/APIContext.js';
 // Parse command line arguments
 let [, , rawCommand, ...args] = process.argv;
 
-// Check for --dev flag in both rawCommand and args
+// Parse flags from rawCommand and args
 let isDev = false;
 let isDebug = false;
 
+// Check if rawCommand is a flag
 if (rawCommand === '--dev') {
   isDev = true;
   rawCommand = args.shift() || ''; // Move first arg to rawCommand
-} else if (rawCommand === '--debug') {
+}
+
+// After processing --dev, check if the new rawCommand is --debug
+if (rawCommand === '--debug') {
   isDebug = true;
   rawCommand = args.shift() || ''; // Move first arg to rawCommand
-} else {
-  const devFlagIndex = args.indexOf('--dev');
-  isDev = devFlagIndex !== -1;
-  if (isDev) {
-    args.splice(devFlagIndex, 1);
-  }
-  
-  const debugFlagIndex = args.indexOf('--debug');
-  isDebug = debugFlagIndex !== -1;
-  if (isDebug) {
-    args.splice(debugFlagIndex, 1);
-  }
+}
+
+// Also check for flags in args array (for cases like: "query" --dev --debug)
+const devFlagIndex = args.indexOf('--dev');
+if (devFlagIndex !== -1) {
+  isDev = true;
+  args.splice(devFlagIndex, 1);
+}
+
+const debugFlagIndex = args.indexOf('--debug');
+if (debugFlagIndex !== -1) {
+  isDebug = true;
+  args.splice(debugFlagIndex, 1);
 }
 
 // Set debug mode globally
 if (isDebug) {
   process.env.DEBUG_GRAPHYN = 'true';
+}
+
+// Set development environment variables immediately after parsing flags
+if (isDev) {
+  process.env.NODE_ENV = 'development';
+  process.env.GRAPHYN_DEV_MODE = 'true';
+  process.env.GRAPHYN_API_URL = 'http://localhost:4000';
+  process.env.GRAPHYN_APP_URL = 'http://localhost:3000';
+  
+  // Debug output to confirm variables are set
+  if (process.env.DEBUG_GRAPHYN) {
+    console.log('[CLI Debug] Dev mode environment variables set:');
+    console.log('- NODE_ENV:', process.env.NODE_ENV);
+    console.log('- GRAPHYN_DEV_MODE:', process.env.GRAPHYN_DEV_MODE);
+    console.log('- GRAPHYN_API_URL:', process.env.GRAPHYN_API_URL);
+    console.log('- GRAPHYN_APP_URL:', process.env.GRAPHYN_APP_URL);
+  }
 }
 
 // Check if this is a natural language query (wrapped in quotes or starting with "I")
