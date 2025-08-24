@@ -313,7 +313,7 @@ export class KeychainTokenStorage extends BaseSecureTokenStorage {
   private async retrieveMacOS(account: string): Promise<string> {
     const result = execSync(
       `security find-generic-password -a "${account}" -s "${this.service}" -w`,
-      { encoding: 'utf8' }
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
     ).trim();
     
     return Buffer.from(result, 'base64').toString('utf8');

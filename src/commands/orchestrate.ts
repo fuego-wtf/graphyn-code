@@ -9,15 +9,210 @@ import { OAuthManager } from '../auth/oauth.js';
 import { GraphynAPIClient } from '../api/client.js';
 import { createThreadSSEClient } from '../utils/sse-client.js';
 import { RepositoryAnalyzer } from '../services/repository-analyzer.js';
+import open from 'open';
+import readline from 'readline';
 
 const execAsync = promisify(exec);
 
+async function performInteractiveAuth(oauthManager: OAuthManager, isDev: boolean): Promise<void> {
+  const frontendUrl = isDev ? 'http://localhost:3000/auth/signin' : 'https://app.graphyn.xyz/auth';
+  
+  // Open browser automatically
+  try {
+    await open(frontendUrl);
+    console.log(`\u2713 Browser opened`);
+  } catch (error) {
+    console.log(`\u26a0\ufe0f  Could not open browser automatically`);
+    console.log(`Please visit: ${frontendUrl}`);
+  }
+  
+  console.log('\\n\u23f3 Waiting for authentication...');
+  
+  // Setup keyboard interaction
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  let waitTime = 0;
+  const maxWaitTime = 300; // 5 minutes
+  
+  // Show progress and options
+  const showProgress = () => {
+    const progressBar = createProgressBar(waitTime, maxWaitTime);
+    process.stdout.write(`\\r    [${progressBar}] ${waitTime}s`);
+    
+    if (waitTime % 10 === 0 && waitTime > 0) {
+      console.log('\\n');
+      console.log('    Options while waiting:');
+      console.log('    [R] Retry auth check');
+      console.log('    [O] Open browser again');
+      console.log('    [H] Help');
+      console.log('    [Q] Quit');
+      console.log('');
+    }
+  };
+  
+  // Handle keyboard input
+  const handleKeypress = (key: string) => {
+    switch (key.toLowerCase()) {
+      case 'r':
+        console.log('\\n\ud83d\udd04 Checking authentication...');
+        checkAuthAndResolve();
+        break;
+      case 'o':
+        console.log('\\n\ud83c\udf10 Opening browser again...');
+        open(frontendUrl).catch(() => console.log('\u26a0\ufe0f  Failed to open browser'));
+        break;
+      case 'h':
+        console.log('\\n\ud83d\udcda Help:');
+        console.log('  1. Visit the URL in your browser');
+        console.log('  2. Sign in with your credentials');
+        console.log('  3. The CLI will automatically detect authentication');
+        console.log('');
+        break;
+      case 'q':
+        console.log('\\n\ud83d\udc4b Goodbye!');
+        rl.close();
+        process.exit(0);
+        break;
+    }
+  };
+  
+  // Set up keypress handler
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.on('data', (data) => {
+    const key = data.toString().trim();
+    handleKeypress(key);
+  });
+  
+  let resolved = false;
+  
+  let checkAuthAndResolve = async () => {
+    if (resolved) return;
+    
+    try {
+      const isAuth = await oauthManager.isAuthenticated();
+      if (isAuth) {
+        resolved = true;
+        process.stdin.setRawMode(false);
+        rl.close();
+        console.log('\\n\ud83d\udd04 Authentication status confirmed!');
+        return;
+      }
+    } catch (error) {
+      // Continue waiting
+    }
+  };
+  
+  // Start the authentication flow in the OAuthManager
+  try {
+    await oauthManager.authenticate();
+    resolved = true;
+    process.stdin.setRawMode(false);
+    rl.close();
+    return;
+  } catch (error) {
+    // If direct authentication fails, fall back to polling
+    console.log('\\n\ud83d\udd04 Switching to manual verification mode...');
+    
+    return new Promise<void>((resolve, reject) => {
+      const pollInterval = setInterval(async () => {
+        if (resolved) {
+          clearInterval(pollInterval);
+          resolve();
+          return;
+        }
+        
+        waitTime++;
+        showProgress();
+        
+        if (waitTime >= maxWaitTime) {
+          clearInterval(pollInterval);
+          process.stdin.setRawMode(false);
+          rl.close();
+          reject(new Error('Authentication timeout after 5 minutes'));
+          return;
+        }
+        
+        // Check auth every 5 seconds
+        if (waitTime % 5 === 0) {
+          await checkAuthAndResolve();
+          if (resolved) {
+            clearInterval(pollInterval);
+            resolve();
+          }
+        }
+      }, 1000);
+      
+      // Override the checkAuthAndResolve for this promise context
+      const originalCheck = checkAuthAndResolve;
+      checkAuthAndResolve = async () => {
+        await originalCheck();
+        if (resolved) {
+          clearInterval(pollInterval);
+          resolve();
+        }
+      };
+    });
+  }
+}
+
+function createProgressBar(current: number, total: number, length: number = 20): string {
+  const percentage = Math.min(current / total, 1);
+  const filled = Math.floor(percentage * length);
+  const empty = length - filled;
+  return '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
+}
+
 async function checkBackendHealth(): Promise<boolean> {
   try {
-    const response = await fetch('http://localhost:4000/health', {
+    // Use the /api/status endpoint from the API gateway (doesn't require auth)
+    const response = await fetch('http://localhost:4000/api/status', {
       method: 'GET',
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
+    
+    // Backend is healthy if it responds with 200 OK and has expected status data
+    if (response.ok) {
+      try {
+        const data = await response.json() as any;
+        // Verify it's the expected status endpoint response
+        return data.status && data.version && typeof data.uptime === 'number';
+      } catch {
+        // If JSON parsing fails, still consider it healthy if response was OK
+        return true;
+      }
+    }
+    
+    // If we get a 500 error, the backend is running but has internal issues
+    // This means the service is technically running but not fully healthy
+    if (response.status === 500) {
+      console.log(`\n⚠️  Backend responding with error ${response.status} - service running but unhealthy`);
+      try {
+        const errorData = await response.text();
+        console.log(`   Error: ${errorData}`);
+      } catch {}
+      return false;
+    }
+    
+    return false;
+  } catch (error) {
+    // Network errors mean the backend is not running at all
+    return false;
+  }
+}
+
+async function checkFrontendHealth(): Promise<boolean> {
+  try {
+    // Check if frontend is responding
+    const response = await fetch('http://localhost:3000', {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000) // 3 second timeout
+    });
+    
+    // Frontend is healthy if it responds with any 2xx status
     return response.ok;
   } catch (error) {
     return false;
@@ -51,35 +246,100 @@ export interface AgentTeam {
 }
 
 export async function orchestrateCommand(options: OrchestrateOptions): Promise<void> {
+  // Set up cleanup handler for process interruption
+  const cleanupHandler = () => {
+    console.log('\n🛑 Process interrupted, cleaning up...');
+    cleanupSessionWorktrees(options.repository).finally(() => {
+      process.exit(0);
+    });
+  };
+  
+  process.once('SIGINT', cleanupHandler);
+  process.once('SIGTERM', cleanupHandler);
+  
   try {
     console.log('\n┌─────────────────────────────────────────────────────────────────┐');
     console.log('│                    GRAPHYN ORCHESTRATION                        │');
     console.log('└─────────────────────────────────────────────────────────────────┘\n');
+    
+    // Set local API URL for dev mode
+    if (options.dev) {
+      process.env.GRAPHYN_API_URL = 'http://localhost:4000';
+      process.env.NODE_ENV = 'development';
+      console.log(`🔧 Dev mode enabled - using API: http://localhost:4000`);
+    }
     
     // 1. Check backend health
     process.stdout.write('Checking backend... ');
     const backendHealthy = await checkBackendHealth();
     if (!backendHealthy) {
       console.log('✗ FAILED');
-      console.log('\n⚠️  Backend not running at localhost:4000');
-      console.log('Please run: cd ../backyard && encore run');
-      process.exit(1);
+      console.log('\n⚠️  Backend health check failed');
+      console.log('The backend service might be:');
+      console.log('  - Not running: cd ../backyard && encore run');
+      console.log('  - Running but unhealthy: check backend logs for errors');
+      console.log('  - Missing required dependencies: check monitoring service');
+      console.log('\n🛑 Cannot continue without backend. Please start the backend service.');
+      return;
     }
     console.log('✓ HEALTHY');
+    
+    // 1.5. Check frontend health in dev mode
+    if (options.dev) {
+      process.stdout.write('Checking frontend... ');
+      const frontendHealthy = await checkFrontendHealth();
+      if (!frontendHealthy) {
+        console.log('✗ FAILED');
+        console.log('\n⚠️  Frontend not running at localhost:3000');
+        console.log('Please run: ./scripts/dev.sh');
+        console.log('\n🛑 Cannot continue without frontend. Please start the frontend service.');
+        return;
+      }
+      console.log('✓ HEALTHY');
+    }
     
     // 2. Check authentication
     process.stdout.write('Checking authentication... ');
     const oauthManager = new OAuthManager();
-    const isAuthenticated = await oauthManager.isAuthenticated();
+    
+    let isAuthenticated = false;
+    
+    try {
+      isAuthenticated = await oauthManager.isAuthenticated();
+    } catch (error) {
+      // Handle keychain errors gracefully
+      const errorMsg = error.message || error.toString();
+      if (errorMsg.includes('keychain') || 
+          errorMsg.includes('SecKeychainSearchCopyNext') ||
+          errorMsg.includes('specified item could not be found')) {
+        console.log('✗ KEYCHAIN ERROR');
+        isAuthenticated = false;
+      } else {
+        console.log(`✗ FAILED - ${errorMsg}`);
+        console.log('\nAuthentication check failed. Please try again.');
+        return;
+      }
+    }
     
     if (!isAuthenticated) {
       console.log('✗ FAILED');
-      console.log('\nPlease run: graphyn auth');
-      process.exit(1);
+      
+      if (options.dev) {
+        // Interactive OAuth flow for dev mode
+        console.log('\n🌐 Opening Graphyn login page...');
+        console.log('👤 Please authenticate at: http://localhost:3000/auth/signin');
+        
+        await performInteractiveAuth(oauthManager, options.dev);
+        console.log('✅ Authentication successful!');
+      } else {
+        console.log('\nPlease run: graphyn auth');
+        return;
+      }
+    } else {
+      console.log('✓ AUTHENTICATED');
     }
 
     const apiClient = new GraphynAPIClient();
-    console.log('✓ AUTHENTICATED');
 
     // 3. Find or create agent team for this repository
     process.stdout.write('Setting up agent team... ');
@@ -104,6 +364,7 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     }
 
     // 6. Execute tasks with real-time streaming and feedback
+    console.log('\n⚙️  Setting up agents...');
     console.log('\n┌─────────────────────────────────────────────────────────────────┐');
     console.log('│                    EXECUTING TASKS                              │');
     console.log('└─────────────────────────────────────────────────────────────────┘\n');
@@ -114,11 +375,23 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     console.log('│                     EXECUTION COMPLETE                          │');
     console.log('└─────────────────────────────────────────────────────────────────┘\n');
 
+    // Clean up session worktrees
+    console.log('\n🧹 Cleaning up...');
+    await cleanupSessionWorktrees(options.repository);
+
   } catch (error) {
     console.log('\n┌─────────────────────────────────────────────────────────────────┐');
     console.log('│                         ERROR                                   │');
     console.log('└─────────────────────────────────────────────────────────────────┘');
     console.error('\n' + (error instanceof Error ? error.message : error) + '\n');
+    
+    // Clean up worktrees even on error
+    try {
+      await cleanupSessionWorktrees(options.repository);
+    } catch (cleanupError) {
+      console.error('Failed to cleanup worktrees:', cleanupError instanceof Error ? cleanupError.message : cleanupError);
+    }
+    
     process.exit(1);
   }
 }
@@ -947,5 +1220,79 @@ claude -p "${task.prompt.replace(/"/g, '\\"')}"
       console.error(`❌ No supported terminal emulator found for task "${task.title}"`);
       throw new Error('No supported terminal emulator found (tried: gnome-terminal, konsole, xterm)');
     }
+  }
+}
+
+/**
+ * Clean up all session worktrees created during orchestration
+ */
+export async function cleanupSessionWorktrees(repoPath: string): Promise<void> {
+  try {
+    console.log('\n🧹 Cleaning up session worktrees...');
+    
+    const worktreesPath = path.join(repoPath, '.worktrees');
+    
+    // Check if .worktrees directory exists
+    if (!await fs.stat(worktreesPath).then(() => true).catch(() => false)) {
+      console.log('   No worktrees to clean up.');
+      return;
+    }
+    
+    // List all task worktrees
+    const worktrees = await fs.readdir(worktreesPath);
+    const taskWorktrees = worktrees.filter(name => name.startsWith('task-'));
+    
+    if (taskWorktrees.length === 0) {
+      console.log('   No task worktrees found.');
+      return;
+    }
+    
+    // Remove each task worktree
+    let cleanedCount = 0;
+    for (const worktreeName of taskWorktrees) {
+      const worktreePath = path.join(worktreesPath, worktreeName);
+      try {
+        // Use git worktree remove for proper cleanup
+        await execAsync(`git worktree remove ${worktreePath}`, { cwd: repoPath });
+        console.log(`   ✓ Removed worktree: ${worktreeName}`);
+        cleanedCount++;
+      } catch (error) {
+        // If git worktree remove fails, try to remove the directory manually
+        try {
+          await fs.rm(worktreePath, { recursive: true, force: true });
+          console.log(`   ✓ Force removed worktree: ${worktreeName}`);
+          cleanedCount++;
+        } catch (removeError) {
+          console.log(`   ⚠ Failed to remove worktree: ${worktreeName}`);
+        }
+      }
+    }
+    
+    // Clean up task branches
+    const taskBranches = taskWorktrees.map(name => `task/${name.replace('task-', '')}`);
+    for (const branchName of taskBranches) {
+      try {
+        await execAsync(`git branch -D ${branchName}`, { cwd: repoPath });
+        console.log(`   ✓ Removed branch: ${branchName}`);
+      } catch (error) {
+        // Branch might not exist or already removed
+      }
+    }
+    
+    // Remove empty .worktrees directory if all worktrees are cleaned up
+    try {
+      const remainingWorktrees = await fs.readdir(worktreesPath);
+      if (remainingWorktrees.length === 0) {
+        await fs.rmdir(worktreesPath);
+        console.log('   ✓ Removed empty .worktrees directory');
+      }
+    } catch (error) {
+      // Directory might not be empty or have other issues
+    }
+    
+    console.log(`✓ Session cleanup complete: ${cleanedCount} worktrees removed\n`);
+    
+  } catch (error) {
+    console.log('⚠ Session cleanup encountered errors:', error instanceof Error ? error.message : error);
   }
 }

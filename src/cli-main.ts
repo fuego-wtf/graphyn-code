@@ -263,10 +263,8 @@ Examples:
     process.exit(0);
   }
   
-  // Multi-agent approach (no squad commands)
-  
   // Handle analyze command (only if not in dev mode)
-  if (userMessage.startsWith('analyze')) {
+  if (userMessage.startsWith('analyze') && !options.dev) {
     const options: any = {};
     const parts = userMessage.split(' ');
     
