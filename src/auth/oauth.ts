@@ -199,7 +199,8 @@ export class OAuthManager {
     }
     
     return withRetry(async () => {
-      const response = await fetch(`${config.apiBaseUrl}/api/auth/oauth/token`, {
+      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -297,7 +298,8 @@ export class OAuthManager {
   private async performTokenRefresh(authData: any): Promise<string | null> {
     try {
       return await withRetry(async () => {
-      const response = await fetch(`${config.apiBaseUrl}/api/auth/oauth/token`, {
+      const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+      const response = await fetch(`${apiUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -394,15 +396,16 @@ export class OAuthManager {
         const isExpired = Date.now() + bufferTime >= expiryTime;
         
         if (!isExpired) {
-          // Token is still valid, return it
-          return authData.accessToken || authData.apiKey;
+          // Token is still valid, return it with proper prefix for backend
+          const rawToken = authData.accessToken || authData.apiKey;
+          return this.ensureTokenPrefix(rawToken);
         }
         
         // Token is expired or about to expire, try to refresh
         if (authData.refreshToken) {
           const newToken = await this.refreshToken();
           if (newToken) {
-            return newToken;
+            return this.ensureTokenPrefix(newToken);
           }
         }
         
@@ -414,8 +417,23 @@ export class OAuthManager {
       }
     }
 
-    // For API keys, just return them
-    return authData.apiKey;
+    // For API keys, just return them with proper prefix
+    return this.ensureTokenPrefix(authData.apiKey);
+  }
+
+  private ensureTokenPrefix(token: string): string {
+    if (!token) return token;
+    
+    // Check if token already has a proper prefix
+    if (token.startsWith('graphyn_oauth_') || 
+        token.startsWith('ba_') || 
+        token.startsWith('graph_sk_') || 
+        token.startsWith('graph_pk_')) {
+      return token;
+    }
+    
+    // Add the graphyn_oauth_ prefix for OAuth tokens
+    return `graphyn_oauth_${token}`;
   }
 
   private async loadAuthData(context: string = 'default'): Promise<any> {

@@ -63,7 +63,9 @@ export const BuilderAgent: React.FC = () => {
       }]);
 
       // Connect to thread stream
-      connectToStream(threadId);
+      if (threadId) {
+        connectToStream(threadId);
+      }
       
       setLoading(false);
     } catch (err) {

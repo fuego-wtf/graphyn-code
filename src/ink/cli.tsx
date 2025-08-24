@@ -13,10 +13,10 @@ let isDebug = false;
 
 if (rawCommand === '--dev') {
   isDev = true;
-  rawCommand = args.shift(); // Move first arg to rawCommand
+  rawCommand = args.shift() || ''; // Move first arg to rawCommand
 } else if (rawCommand === '--debug') {
   isDebug = true;
-  rawCommand = args.shift(); // Move first arg to rawCommand
+  rawCommand = args.shift() || ''; // Move first arg to rawCommand
 } else {
   const devFlagIndex = args.indexOf('--dev');
   isDev = devFlagIndex !== -1;
@@ -49,9 +49,9 @@ let query: string;
 if (isNaturalLanguage) {
   // Treat entire input as a natural language query
   command = 'squad';
-  query = [rawCommand, ...args].join(' ').replace(/^"|"$/g, '');
+  query = [rawCommand || '', ...args].join(' ').replace(/^"|"$/g, '');
 } else {
-  command = rawCommand?.toLowerCase(); // Make command case-insensitive
+  command = rawCommand?.toLowerCase() || undefined; // Make command case-insensitive
   query = args.join(' ');
 }
 
@@ -65,7 +65,7 @@ const agentAliases: Record<string, string> = {
 };
 
 // Normalize command if it's an alias
-const normalizedCommand = agentAliases[command] || command;
+const normalizedCommand = command ? (agentAliases[command] || command) : undefined;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
@@ -107,6 +107,10 @@ Examples:
 const agents = ['backend', 'frontend', 'architect', 'design', 'cli', 'squad'];
 const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
 
+// Commands that should always use fallback mode
+const fallbackCommands = ['orchestrate'];
+const isFallbackCommand = fallbackCommands.includes(normalizedCommand);
+
 // Check if graphyn was called without any arguments (builder mode)
 const isBuilderMode = !normalizedCommand;
 
@@ -130,8 +134,8 @@ const isCI = Boolean(
 // Determine if we should use fallback mode
 let useFallback = false;
 
-if (isDirectAgentCommand) {
-  // Direct agent commands always use fallback
+if (isDirectAgentCommand || isFallbackCommand) {
+  // Direct agent commands and fallback commands always use fallback
   useFallback = true;
 } else if (isBuilderMode) {
   // Builder mode: only use fallback if truly non-interactive or in CI
@@ -153,6 +157,7 @@ if (process.env.DEBUG_GRAPHYN) {
   console.log('- isInteractive:', isInteractive ? 'YES' : 'NO');
   console.log('- isCI:', isCI ? 'YES' : 'NO');
   console.log('- Direct agent command:', isDirectAgentCommand ? 'YES' : 'NO');
+  console.log('- Fallback command:', isFallbackCommand ? 'YES' : 'NO');
   console.log('- Using fallback:', useFallback ? 'YES' : 'NO');
 }
 

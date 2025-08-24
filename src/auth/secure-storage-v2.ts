@@ -192,7 +192,7 @@ export class KeychainTokenStorage extends BaseSecureTokenStorage {
         action: 'token.store',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
       
       if (this.fallback) {
@@ -247,7 +247,7 @@ export class KeychainTokenStorage extends BaseSecureTokenStorage {
         action: 'token.retrieve',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
       
       if (this.fallback) {
@@ -281,7 +281,7 @@ export class KeychainTokenStorage extends BaseSecureTokenStorage {
         action: 'token.clear',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
       
       if (this.fallback) {
@@ -313,7 +313,7 @@ export class KeychainTokenStorage extends BaseSecureTokenStorage {
   private async retrieveMacOS(account: string): Promise<string> {
     const result = execSync(
       `security find-generic-password -a "${account}" -s "${this.service}" -w`,
-      { encoding: 'utf8' }
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
     ).trim();
     
     return Buffer.from(result, 'base64').toString('utf8');
@@ -426,7 +426,7 @@ export class SecretServiceTokenStorage extends BaseSecureTokenStorage {
         action: 'token.store',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
       
       if (this.fallback) {
@@ -548,7 +548,7 @@ export class EncryptedFileTokenStorage extends BaseSecureTokenStorage {
         action: 'token.store',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
       throw error;
     }
@@ -584,7 +584,7 @@ export class EncryptedFileTokenStorage extends BaseSecureTokenStorage {
         action: 'token.retrieve',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
       return null;
     }
@@ -612,7 +612,7 @@ export class EncryptedFileTokenStorage extends BaseSecureTokenStorage {
         action: 'token.clear',
         context,
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -793,7 +793,7 @@ export class SecureTokenStorageV2 {
       
       throw new Error('Failed to verify migrated tokens');
     } catch (error) {
-      console.error('Migration failed:', error.message);
+      console.error('Migration failed:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }

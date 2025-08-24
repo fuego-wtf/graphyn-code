@@ -6,6 +6,7 @@ import { checkSystemRequirements } from './utils/system-check.js';
 import { config } from './config.js';
 import { ThreadService } from './services/thread-service.js';
 import chalk from 'chalk';
+import * as readline from 'readline';
 
 const colors = {
   success: chalk.green,
@@ -14,6 +15,102 @@ const colors = {
   info: chalk.gray,
   highlight: chalk.cyan
 };
+
+async function startInteractiveConsole(): Promise<void> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: colors.highlight('graphyn> ')
+  });
+
+  // Set up authentication once
+  let threadService: ThreadService | null = null;
+  
+  try {
+    // Check authentication and system requirements
+    const oauthManager = new OAuthManager();
+    const doctorResult = await checkSystemRequirements();
+    
+    if (!doctorResult.canProceed) {
+      console.log(colors.warning('⚠️  System requirements not met. Running setup...'));
+      await doctor();
+      return;
+    }
+
+    if (!(await oauthManager.isAuthenticated())) {
+      console.log(colors.info('🔗 Authentication required for interactive mode...'));
+      await oauthManager.authenticate();
+      console.log(colors.success('✓ Authentication successful!\n'));
+    }
+
+    threadService = new ThreadService();
+    console.log(colors.success('✓ Ready for development requests!\n'));
+  } catch (error) {
+    console.error(colors.error('❌ Setup failed:'), error instanceof Error ? error.message : error);
+    console.log(colors.info('You can still use individual commands like "graphyn auth" or "graphyn doctor"\n'));
+  }
+
+  rl.prompt();
+
+  rl.on('line', async (input) => {
+    const command = input.trim();
+    
+    if (!command) {
+      rl.prompt();
+      return;
+    }
+
+    if (command === 'exit' || command === 'quit') {
+      console.log(colors.info('\n👋 Goodbye!'));
+      rl.close();
+      process.exit(0);
+    }
+
+    if (command === 'help') {
+      console.log('\nAvailable commands:');
+      console.log('  <your request>     Send development request');
+      console.log('  help              Show this help');
+      console.log('  clear             Clear screen');
+      console.log('  exit/quit         Exit interactive mode\n');
+      rl.prompt();
+      return;
+    }
+
+    if (command === 'clear') {
+      console.clear();
+      console.log('\n' + colors.highlight('🤖 Graphyn Code - Your AI Software Engineering Consultant'));
+      console.log(colors.info('Type your development requests or "exit" to quit\n'));
+      rl.prompt();
+      return;
+    }
+
+    // Handle development request
+    if (threadService) {
+      try {
+        console.log(''); // Add spacing before output
+        await threadService.processWithStream(command, process.cwd());
+        console.log(''); // Add spacing after output
+      } catch (error) {
+        console.error(colors.error('❌ Request failed:'), error instanceof Error ? error.message : error);
+      }
+    } else {
+      console.log(colors.error('❌ Not authenticated. Please restart and authenticate first.'));
+    }
+
+    rl.prompt();
+  });
+
+  rl.on('close', () => {
+    console.log(colors.info('\n👋 Goodbye!'));
+    process.exit(0);
+  });
+
+  // Handle Ctrl+C gracefully
+  rl.on('SIGINT', () => {
+    console.log(colors.info('\n👋 Goodbye!'));
+    process.exit(0);
+  });
+}
 
 async function main() {
   const [,, ...args] = process.argv;
@@ -29,6 +126,8 @@ async function main() {
       options.debug = true;
     } else if (args[i] === '--new') {
       options.new = true;
+    } else if (args[i] === '--dev') {
+      options.dev = true;
     } else {
       // Everything else is part of the user message
       userMessage = args.slice(i).join(' ').trim();
@@ -42,12 +141,12 @@ async function main() {
     process.exit(0);
   }
   
-  if (userMessage === '--help' || userMessage === '-h' || userMessage === 'help' || !userMessage) {
+  if (userMessage === '--help' || userMessage === '-h' || userMessage === 'help') {
     console.log(`
 Graphyn Code - AI Development Tool
 
 Usage:
-  graphyn                        Launch GUI (Ink)
+  graphyn                        Launch persistent interactive consultant
   graphyn <request>              Create AI development thread and stream responses
   graphyn init                   Initialize project with MCP config & agent revival
   graphyn auth                   Authenticate with Graphyn (PKCE OAuth flow)
@@ -60,6 +159,7 @@ Usage:
 Options:
   --non-interactive, -n          Skip launching agents (prepare only)
   --debug                        Show debug information
+  --dev                          Development mode (local analysis only)
   graphyn --version              Show version
   graphyn --help                 Show help
 
@@ -67,10 +167,20 @@ Examples:
   graphyn "Implement signup with email OTP"
   graphyn "Create a REST API with PostgreSQL"
   graphyn "Build dashboard UI from Figma design"
+  graphyn --dev "help me understand whats in this repo"
   graphyn analyze                Analyze your repository
   graphyn analyze --mode summary Get a summary analysis
 `);
     process.exit(0);
+  }
+
+  // Handle interactive mode (no arguments, no dev flag)
+  if (!userMessage && !options.dev) {
+    console.log('\n' + colors.highlight('🤖 Graphyn Code - Your AI Software Engineering Consultant'));
+    console.log(colors.info('Type your development requests or "exit" to quit\n'));
+    
+    await startInteractiveConsole();
+    return;
   }
   
   // Handle init command
@@ -130,10 +240,31 @@ Examples:
     process.exit(0);
   }
   
-  // Multi-agent approach (no squad commands)
+  // Handle development mode (--dev flag) FIRST
+  if (options.dev) {
+    if (userMessage) {
+      // Use orchestration for dev queries
+      const { orchestrateCommand } = await import('./commands/orchestrate.js');
+      await orchestrateCommand({
+        query: userMessage,
+        repository: process.cwd(),
+        dev: true,
+        interactive: true
+      });
+    } else {
+      // No query provided, show dev menu
+      console.log(colors.info('No query provided. Available dev options:\n'));
+      console.log('• graphyn --dev "your request"    - Orchestrate agents for request');
+      console.log('• graphyn analyze                - Analyze repository'); 
+      console.log('• graphyn init                   - Initialize project');
+      console.log('• graphyn doctor                 - Check system requirements\n');
+    }
+    
+    process.exit(0);
+  }
   
-  // Handle analyze command
-  if (userMessage.startsWith('analyze')) {
+  // Handle analyze command (only if not in dev mode)
+  if (userMessage.startsWith('analyze') && !options.dev) {
     const options: any = {};
     const parts = userMessage.split(' ');
     

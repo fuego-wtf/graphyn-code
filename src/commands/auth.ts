@@ -64,7 +64,7 @@ export class AuthCommand {
         }
       }
     } catch (error) {
-      console.error(colors.error('Failed to list contexts:'), error.message);
+      console.error(colors.error('Failed to list contexts:'), error instanceof Error ? error.message : String(error));
     }
   }
   
@@ -88,7 +88,7 @@ export class AuthCommand {
       console.log(colors.success(`✓ Switched to context: ${context}`));
       console.log(colors.info('\nNote: Context switching will be used in future commands.'));
     } catch (error) {
-      console.error(colors.error('Failed to switch context:'), error.message);
+      console.error(colors.error('Failed to switch context:'), error instanceof Error ? error.message : String(error));
     }
   }
   
@@ -116,7 +116,7 @@ export class AuthCommand {
         }
       }
     } catch (error) {
-      console.error(colors.error('Failed to clear context:'), error.message);
+      console.error(colors.error('Failed to clear context:'), error instanceof Error ? error.message : String(error));
     }
   }
   
@@ -166,7 +166,7 @@ export class AuthCommand {
         console.log(colors.info('Environment variables take precedence over stored tokens'));
       }
     } catch (error) {
-      console.error(colors.error('Failed to check status:'), error.message);
+      console.error(colors.error('Failed to check status:'), error instanceof Error ? error.message : String(error));
     }
   }
   
@@ -185,7 +185,7 @@ export class AuthCommand {
         console.log(colors.info('No old tokens found to migrate'));
       }
     } catch (error) {
-      console.error(colors.error('Migration failed:'), error.message);
+      console.error(colors.error('Migration failed:'), error instanceof Error ? error.message : String(error));
     }
   }
 }

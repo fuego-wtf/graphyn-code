@@ -104,7 +104,7 @@ export const useClaude = () => {
         return {
           success: true,
           tempFile: tmpFile,
-          claudePath: claudeResult.path
+          claudePath: claudeResult.path || undefined
         };
       } catch (error) {
         // Direct launch might fail for large content
@@ -117,7 +117,7 @@ export const useClaude = () => {
         return {
           success: true,
           tempFile: tmpFile,
-          claudePath: claudeResult.path
+          claudePath: claudeResult.path || undefined
         };
       }
     } catch (error) {

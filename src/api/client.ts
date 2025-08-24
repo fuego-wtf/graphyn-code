@@ -67,12 +67,15 @@ export class GraphynAPIClient {
 
   constructor() {
     const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+    const isDev = apiUrl.includes('localhost');
     
     this.client = axios.create({
       baseURL: apiUrl,
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': `Graphyn-CLI/${process.env.npm_package_version || '0.0.0'}`
+        'User-Agent': `Graphyn-CLI/${process.env.npm_package_version || '0.0.0'}`,
+        // Add dev header for local development
+        ...(isDev && { 'X-Dev-Mode': 'true' })
       }
     });
 
@@ -81,10 +84,32 @@ export class GraphynAPIClient {
     // Add request interceptor for authentication
     this.client.interceptors.request.use(
       async (config) => {
-        const token = await this.oauthManager.getValidToken();
+        let token: string | null = null;
+        
+        // Try to get OAuth token, but handle keychain errors in dev mode
+        try {
+          token = await this.oauthManager.getValidToken();
+        } catch (error) {
+          // In dev mode, allow requests without token for keychain errors
+          if (isDev) {
+            const errorMsg = error.message || error.toString();
+            if (errorMsg.includes('keychain') || 
+                errorMsg.includes('SecKeychainSearchCopyNext') ||
+                errorMsg.includes('specified item could not be found')) {
+              console.debug('Dev mode: proceeding without auth token due to keychain error');
+              // Continue without token in dev mode
+            } else {
+              throw error;
+            }
+          } else {
+            throw error;
+          }
+        }
+        
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+        
         return config;
       },
       (error) => Promise.reject(error)
@@ -148,11 +173,27 @@ export class GraphynAPIClient {
     throw lastError || new Error('Request failed after retries');
   }
 
+
   /**
    * Check if the client is authenticated
    */
   async isAuthenticated(): Promise<boolean> {
-    return this.oauthManager.isAuthenticated();
+    const isDev = (process.env.GRAPHYN_API_URL || '').includes('localhost');
+    
+    try {
+      return await this.oauthManager.isAuthenticated();
+    } catch (error) {
+      // In dev mode, return true for keychain errors (auth bypass)
+      if (isDev) {
+        const errorMsg = error.message || error.toString();
+        if (errorMsg.includes('keychain') || 
+            errorMsg.includes('SecKeychainSearchCopyNext') ||
+            errorMsg.includes('specified item could not be found')) {
+          return true; // Bypass auth in dev mode for keychain errors
+        }
+      }
+      throw error;
+    }
   }
 
   /**
@@ -185,6 +226,11 @@ export class GraphynAPIClient {
     };
     // Legacy field for backward compatibility
     type?: 'builder' | 'testing' | 'production';
+    // Support for agent_metadata for builder threads
+    agent_metadata?: {
+      is_builder?: boolean;
+      [key: string]: any;
+    };
   }): Promise<Thread> {
     return this.withRetry(async () => {
       const response = await this.client.post<Thread>('/api/threads', data);
@@ -224,6 +270,25 @@ export class GraphynAPIClient {
   async updateThreadState(threadId: string, state: ThreadState): Promise<Thread> {
     return this.withRetry(async () => {
       const response = await this.client.patch<Thread>(`/api/threads/${threadId}`, { state });
+      return response.data;
+    });
+  }
+
+  /**
+   * Update thread metadata and other properties
+   */
+  async updateThread(threadId: string, data: {
+    name?: string;
+    state?: ThreadState;
+    participants?: string[];
+    metadata?: {
+      repository?: any;
+      agents?: any[];
+      [key: string]: any;
+    };
+  }): Promise<Thread> {
+    return this.withRetry(async () => {
+      const response = await this.client.patch<Thread>(`/api/threads/${threadId}`, data);
       return response.data;
     });
   }

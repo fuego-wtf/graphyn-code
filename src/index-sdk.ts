@@ -9,8 +9,8 @@ export { GraphynSDK } from './sdk';
 export type { GraphynSDKOptions } from './sdk';
 
 // Generated API types
-export * from './types/public-api';
-export * from './types/manual-api';
+export * as PublicAPI from './types/public-api';
+export * as ManualAPI from './types/manual-api';
 
 // Re-export existing client for compatibility
 export { GraphynAPIClient as LegacyClient } from './api/client';

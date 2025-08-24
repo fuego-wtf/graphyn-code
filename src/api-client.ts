@@ -112,8 +112,9 @@ export class GraphynAPIClient {
     return this.token;
   }
 
-  constructor(baseUrl: string = 'http://localhost:4000') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    // Try common Encore.dev ports if no URL provided
+    this.baseUrl = baseUrl || process.env.GRAPHYN_API_URL || 'http://localhost:4000';
     this.configManager = new ConfigManager();
   }
 
@@ -221,9 +222,38 @@ export class GraphynAPIClient {
     return eventSource;
   }
 
-  // Health Check
+  // Health Check with port discovery
   async ping(): Promise<{ status: string }> {
-    return this.request<{ status: string }>('/api/ping');
+    const commonPorts = [4000, 4001, 4002, 4003];
+    let lastError: Error;
+    
+    // If baseUrl is already set to a specific port, try that first
+    if (this.baseUrl !== 'http://localhost:4000') {
+      try {
+        return await this.request<{ status: string }>('/internal/threads/health');
+      } catch (error) {
+        lastError = error as Error;
+      }
+    }
+    
+    // Try common Encore.dev ports
+    for (const port of commonPorts) {
+      try {
+        const testUrl = `http://localhost:${port}`;
+        const originalBaseUrl = this.baseUrl;
+        this.baseUrl = testUrl;
+        
+        const result = await this.request<{ status: string }>('/internal/threads/health');
+        // Success! Keep this URL
+        return result;
+      } catch (error) {
+        lastError = error as Error;
+        // Continue to next port
+      }
+    }
+    
+    // All ports failed, throw the last error
+    throw lastError || new Error('No backend found on common ports');
   }
   
   // API Key Validation

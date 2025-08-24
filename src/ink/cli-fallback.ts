@@ -84,6 +84,38 @@ if (!normalizedCommand) {
   process.exit(1);
 }
 
+// Handle orchestrate command 
+if (normalizedCommand === 'orchestrate') {
+  if (!query) {
+    console.error('Orchestrate command requires a query.');
+    console.error('Usage: graphyn orchestrate [--dev] "your task description"');
+    process.exit(1);
+  }
+  
+  // Check for --dev flag
+  const isDev = args.includes('--dev');
+  
+  // Import and run orchestrate command
+  import('../commands/orchestrate.js').then(({ orchestrateCommand }) => {
+    return orchestrateCommand({
+      query,
+      repository: process.cwd(),
+      dev: isDev,
+      interactive: false // Non-interactive mode for fallback
+    });
+  }).then(() => {
+    process.exit(0);
+  }).catch((error) => {
+    console.error('Orchestration failed:', error.message);
+    process.exit(1);
+  });
+  
+  // Wait indefinitely for the async operation to complete
+  setInterval(() => {
+    // Keep the process alive until the orchestrate command completes
+  }, 1000);
+}
+
 // Handle commands that require interactive mode
 if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
   console.error(`The "graphyn ${normalizedCommand}" command requires an interactive terminal.`);
@@ -177,6 +209,13 @@ Please analyze the above query in the context of the ${normalizedCommand} agent 
       });
     });
   });
+} else if (normalizedCommand === 'orchestrate') {
+  // This means orchestrate command has been initiated above
+  // Set a timeout as a failsafe
+  setTimeout(() => {
+    console.error('Orchestrate command timed out.');
+    process.exit(1);
+  }, 120000); // 2 minute timeout
 } else {
   console.error(`Unknown command: ${normalizedCommand}`);
   console.error('Run "graphyn --help" for usage information');
