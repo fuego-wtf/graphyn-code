@@ -202,8 +202,8 @@ export class GraphynAPIClient {
    */
   async getThread(threadId: string): Promise<Thread> {
     return this.withRetry(async () => {
-      const response = await this.client.get<any>(`/internal/threads/${threadId}`);
-      return response.data.thread;
+      const response = await this.client.get<Thread>(`/api/threads/${threadId}`);
+      return response.data;
     });
   }
 
@@ -218,8 +218,8 @@ export class GraphynAPIClient {
     type?: 'builder' | 'testing' | 'production';
   }): Promise<Thread[]> {
     return this.withRetry(async () => {
-      const response = await this.client.get<any>('/internal/threads', { params });
-      return response.data.threads;
+      const response = await this.client.get<Thread[]>('/api/threads', { params });
+      return response.data;
     });
   }
 
@@ -228,8 +228,8 @@ export class GraphynAPIClient {
    */
   async updateThreadState(threadId: string, state: ThreadState): Promise<Thread> {
     return this.withRetry(async () => {
-      const response = await this.client.patch<any>(`/internal/threads/${threadId}`, { state });
-      return response.data.thread;
+      const response = await this.client.patch<Thread>(`/api/threads/${threadId}`, { state });
+      return response.data;
     });
   }
 
@@ -247,8 +247,8 @@ export class GraphynAPIClient {
     };
   }): Promise<Thread> {
     return this.withRetry(async () => {
-      const response = await this.client.patch<any>(`/internal/threads/${threadId}`, data);
-      return response.data.thread;
+      const response = await this.client.patch<Thread>(`/api/threads/${threadId}`, data);
+      return response.data;
     });
   }
 
@@ -257,7 +257,7 @@ export class GraphynAPIClient {
    */
   getThreadStreamUrl(threadId: string): string {
     const baseUrl = this.client.defaults.baseURL;
-    return `${baseUrl}/internal/threads/${threadId}/stream`;
+    return `${baseUrl}/api/threads/${threadId}/stream`;
   }
 
   /**
@@ -265,11 +265,11 @@ export class GraphynAPIClient {
    */
   async sendMessage(threadId: string, content: string): Promise<Message> {
     return this.withRetry(async () => {
-      const response = await this.client.post<any>(`/internal/threads/${threadId}/messages`, {
+      const response = await this.client.post<Message>(`/api/threads/${threadId}/messages`, {
         content,
         role: 'user'
       });
-      return response.data.message;
+      return response.data;
     });
   }
 
@@ -281,8 +281,8 @@ export class GraphynAPIClient {
     offset?: number;
   }): Promise<Message[]> {
     return this.withRetry(async () => {
-      const response = await this.client.get<any>(`/internal/threads/${threadId}/messages`, { params });
-      return response.data.messages;
+      const response = await this.client.get<Message[]>(`/api/threads/${threadId}/messages`, { params });
+      return response.data;
     });
   }
 
@@ -291,10 +291,8 @@ export class GraphynAPIClient {
    */
   async addParticipant(threadId: string, agentId: string): Promise<void> {
     return this.withRetry(async () => {
-      await this.client.post(`/internal/threads/${threadId}/participants`, {
-        participant_type: 'agent',
-        participant_id: agentId,
-        role: 'member'
+      await this.client.post(`/api/threads/${threadId}/participants`, {
+        agent_id: agentId
       });
     });
   }
@@ -304,7 +302,7 @@ export class GraphynAPIClient {
    */
   async removeParticipant(threadId: string, agentId: string): Promise<void> {
     return this.withRetry(async () => {
-      await this.client.delete(`/internal/threads/${threadId}/participants/${agentId}`);
+      await this.client.delete(`/api/threads/${threadId}/participants/${agentId}`);
     });
   }
 

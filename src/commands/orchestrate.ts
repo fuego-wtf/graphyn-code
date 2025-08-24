@@ -12,6 +12,18 @@ import { RepositoryAnalyzer } from '../services/repository-analyzer.js';
 
 const execAsync = promisify(exec);
 
+async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const response = await fetch('http://localhost:4000/health', {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
 export interface OrchestrateOptions {
   query: string;
   repository: string;
@@ -44,7 +56,18 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     console.log('│                    GRAPHYN ORCHESTRATION                        │');
     console.log('└─────────────────────────────────────────────────────────────────┘\n');
     
-    // 1. Check authentication
+    // 1. Check backend health
+    process.stdout.write('Checking backend... ');
+    const backendHealthy = await checkBackendHealth();
+    if (!backendHealthy) {
+      console.log('✗ FAILED');
+      console.log('\n⚠️  Backend not running at localhost:4000');
+      console.log('Please run: cd ../backyard && encore run');
+      process.exit(1);
+    }
+    console.log('✓ HEALTHY');
+    
+    // 2. Check authentication
     process.stdout.write('Checking authentication... ');
     const oauthManager = new OAuthManager();
     const isAuthenticated = await oauthManager.isAuthenticated();
@@ -58,17 +81,17 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     const apiClient = new GraphynAPIClient();
     console.log('✓ AUTHENTICATED');
 
-    // 2. Find or create agent team for this repository
+    // 3. Find or create agent team for this repository
     process.stdout.write('Setting up agent team... ');
     const agentTeam = await findOrCreateAgentTeam(options.repository, apiClient);
     console.log(`✓ READY (${agentTeam.agents.length} agents)`);
 
-    // 3. Send query to thread and receive tasks
+    // 4. Send query to thread and receive tasks
     process.stdout.write('Generating tasks... ');
     const tasks = await receiveTasksFromThread(agentTeam.threadId, options.query, apiClient);
     console.log(`✓ GENERATED (${tasks.length} tasks)`);
 
-    // 4. Show tasks for approval (if interactive)
+    // 5. Show tasks for approval (if interactive)
     let approvedTasks = tasks;
     if (options.interactive !== false) {
       console.log(''); // Add spacing before task selection
@@ -80,7 +103,7 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
       return;
     }
 
-    // 5. Execute tasks with real-time streaming and feedback
+    // 6. Execute tasks with real-time streaming and feedback
     console.log('\n┌─────────────────────────────────────────────────────────────────┐');
     console.log('│                    EXECUTING TASKS                              │');
     console.log('└─────────────────────────────────────────────────────────────────┘\n');
@@ -107,27 +130,7 @@ async function findOrCreateAgentTeam(repoPath: string, apiClient: GraphynAPIClie
   const repoName = path.basename(repoPath);
 
   // 2. Check for existing agent team thread
-  let threads: any[] = [];
-  try {
-    threads = await apiClient.listThreads();
-  } catch (error) {
-    // Return a mock agent team for development (backend fallback)
-    return {
-      threadId: 'mock-thread-id',
-      agents: [
-        {
-          name: 'fullstack-dev',
-          role: 'Full Stack Developer', 
-          capabilities: ['frontend', 'backend', 'database', 'api']
-        },
-        {
-          name: 'devops-engineer',
-          role: 'DevOps Engineer',
-          capabilities: ['deployment', 'ci-cd', 'monitoring', 'infrastructure']
-        }
-      ]
-    };
-  }
+  const threads = await apiClient.listThreads();
   const existingThread = threads.find(thread => 
     thread.metadata?.repository?.path === repoPath ||
     thread.name?.includes(`Agent Team: ${repoName}`)
@@ -240,10 +243,6 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
 }
 
 async function receiveTasksFromThread(threadId: string, query: string, apiClient: GraphynAPIClient): Promise<Task[]> {
-  // If using mock thread, generate tasks locally
-  if (threadId === 'mock-thread-id') {
-    return generateMockTasks(query);
-  }
 
   // Send the task generation query
   const taskPrompt = `Break down this request into specific, actionable tasks for our agent team:
@@ -344,49 +343,21 @@ async function selectTasks(tasks: Task[]): Promise<Task[]> {
   return selectedTasks.map((index: number) => tasks[index]);
 }
 
-function generateMockTasks(query: string): Task[] {
-  // Generate some realistic tasks based on the query
-  const tasks: Task[] = [
-    {
-      id: 'task-001',
-      title: 'Analyze current codebase structure',
-      description: `Understand the existing codebase architecture and identify key components related to: "${query}"`,
-      agent: 'fullstack-dev',
-      prompt: `Analyze the current codebase structure and provide insights about: ${query}. Look at the file structure, dependencies, and existing patterns.`,
-      estimated_time: '15 minutes'
-    },
-    {
-      id: 'task-002', 
-      title: 'Plan implementation approach',
-      description: `Create a detailed implementation plan for: "${query}"`,
-      agent: 'fullstack-dev',
-      prompt: `Create a step-by-step implementation plan for: ${query}. Consider the existing codebase, dependencies, and best practices.`,
-      estimated_time: '20 minutes'
-    }
-  ];
-
-  // Add a third task if the query seems complex
-  if (query.length > 30) {
-    tasks.push({
-      id: 'task-003',
-      title: 'Implementation and testing',
-      description: `Implement the solution for: "${query}" with proper testing`,
-      agent: 'fullstack-dev', 
-      prompt: `Implement the solution for: ${query}. Write clean, well-documented code and include appropriate tests.`,
-      estimated_time: '45 minutes'
-    });
-  }
-
-  return tasks;
-}
 
 async function executeTasksWithStreaming(tasks: Task[], repoPath: string, originalQuery: string): Promise<void> {
   let currentTasks = [...tasks];
   let currentIndex = 0;
   
+  // Initialize task states for Petri-net display
+  const taskStates = currentTasks.map(() => 'PENDING');
+  
   while (currentIndex < currentTasks.length) {
     const task = currentTasks[currentIndex];
     const remainingTasks = currentTasks.slice(currentIndex + 1);
+    
+    // Update task state to IN_PROGRESS
+    taskStates[currentIndex] = 'IN_PROGRESS';
+    displayPetrinetProgress(currentTasks, taskStates, currentIndex);
     
     console.log(`\n${chalk.cyan('┌')}${'─'.repeat(65)}${chalk.cyan('┐')}`);
     console.log(`${chalk.cyan('│')} ${chalk.bold(`Task ${currentIndex + 1}: ${task.title}`)}${' '.repeat(Math.max(0, 65 - task.title.length - 9))}${chalk.cyan('│')}`);
@@ -400,6 +371,10 @@ async function executeTasksWithStreaming(tasks: Task[], repoPath: string, origin
       // Execute Claude CLI with real-time streaming
       await executeClaudeWithStreaming(task, worktreePath);
       
+      // Mark task as COMPLETE
+      taskStates[currentIndex] = 'COMPLETE';
+      displayPetrinetProgress(currentTasks, taskStates, currentIndex);
+      
       // Ask for feedback after each task
       const feedback = await getFeedbackForTask(task, currentIndex + 1, currentTasks.length, remainingTasks);
       
@@ -410,6 +385,9 @@ async function executeTasksWithStreaming(tasks: Task[], repoPath: string, origin
           ...currentTasks.slice(0, currentIndex + 1), // Keep completed tasks
           ...feedback.modifiedTasks // Use modified remaining tasks
         ];
+        // Reset taskStates for new tasks
+        taskStates.splice(currentIndex + 1); // Remove old states
+        taskStates.push(...feedback.modifiedTasks.map(() => 'PENDING')); // Add new pending states
         currentIndex++;
         continue;
       }
@@ -421,6 +399,9 @@ async function executeTasksWithStreaming(tasks: Task[], repoPath: string, origin
           ...currentTasks.slice(0, currentIndex + 1), // Keep completed tasks
           ...newTasks // Use regenerated tasks
         ];
+        // Reset taskStates for new tasks
+        taskStates.splice(currentIndex + 1); // Remove old states
+        taskStates.push(...newTasks.map(() => 'PENDING')); // Add new pending states
         currentIndex++;
         continue;
       }
@@ -468,6 +449,140 @@ async function regenerateTasksWithFeedback(originalQuery: string, feedback: stri
   return newTasks;
 }
 
+function displayPetrinetProgress(tasks: Task[], taskStates: string[], currentIndex: number): void {
+  console.log('\n' + chalk.gray('┌─────────────────── TASK PROGRESS ───────────────────┐'));
+  
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    const state = taskStates[i];
+    let stateIcon = '';
+    let stateColor = chalk.gray;
+    
+    switch (state) {
+      case 'PENDING':
+        stateIcon = '○';
+        stateColor = chalk.gray;
+        break;
+      case 'IN_PROGRESS':
+        stateIcon = '●';
+        stateColor = chalk.yellow;
+        break;
+      case 'COMPLETE':
+        stateIcon = '✓';
+        stateColor = chalk.green;
+        break;
+    }
+    
+    const taskLine = `${stateColor(stateIcon)} ${i + 1}. ${task.title}`;
+    const truncatedLine = taskLine.length > 50 ? taskLine.substring(0, 47) + '...' : taskLine;
+    const padding = 50 - (truncatedLine.length - stateIcon.length - 4); // Account for ANSI codes
+    
+    console.log(chalk.gray('│ ') + truncatedLine + ' '.repeat(Math.max(0, padding)) + chalk.gray(' │'));
+    
+    // Show flow for current task
+    if (i === currentIndex && state === 'IN_PROGRESS') {
+      const flow = '  PENDING ──● IN_PROGRESS ──○ COMPLETE';
+      console.log(chalk.gray('│   ') + chalk.yellow(flow) + ' '.repeat(Math.max(0, 47 - flow.length)) + chalk.gray(' │'));
+    }
+  }
+  
+  console.log(chalk.gray('└─────────────────────────────────────────────────────┘\n'));
+}
+
+async function buildRepositoryContext(repoPath: string): Promise<string> {
+  try {
+    const analyzer = new RepositoryAnalyzer();
+    const analysis = await analyzer.analyze(repoPath);
+    
+    const contextLines: string[] = [];
+    contextLines.push('=== REPOSITORY CONTEXT ===');
+    contextLines.push(`Repository: ${analysis.name}`);
+    contextLines.push(`Type: ${analysis.type}`);
+    contextLines.push(`Language: ${analysis.language}`);
+    
+    if (analysis.framework) {
+      contextLines.push(`Framework: ${analysis.framework}`);
+    }
+    
+    if (analysis.gitInfo) {
+      contextLines.push(`Git Branch: ${analysis.gitInfo.branch}`);
+      if (analysis.gitInfo.remote) {
+        contextLines.push(`Remote: ${analysis.gitInfo.remote}`);
+      }
+    }
+    
+    // Add package information for monorepos
+    if (analysis.packages && analysis.packages.length > 0) {
+      contextLines.push(`\nPackages (${analysis.packages.length}):`);
+      analysis.packages.slice(0, 10).forEach(pkg => {
+        contextLines.push(`- ${pkg}`);
+      });
+      if (analysis.packages.length > 10) {
+        contextLines.push(`... and ${analysis.packages.length - 10} more`);
+      }
+    }
+    
+    // Add directory structure (limited)
+    if (analysis.structure.directories.length > 0) {
+      contextLines.push(`\nKey Directories:`);
+      const importantDirs = analysis.structure.directories
+        .filter(dir => !dir.includes('/') || dir.split('/').length <= 2) // Top level and one level deep
+        .slice(0, 15);
+      importantDirs.forEach(dir => {
+        contextLines.push(`- ${dir}`);
+      });
+    }
+    
+    // Add file types
+    const fileTypes = Object.keys(analysis.structure.files);
+    if (fileTypes.length > 0) {
+      contextLines.push(`\nFile Types: ${fileTypes.join(', ')}`);
+    }
+    
+    // Add recent files (if git available)
+    try {
+      const recentFiles = await getRecentlyModifiedFiles(repoPath);
+      if (recentFiles.length > 0) {
+        contextLines.push(`\nRecently Modified Files:`);
+        recentFiles.slice(0, 5).forEach(file => {
+          contextLines.push(`- ${file}`);
+        });
+      }
+    } catch {
+      // Ignore git errors
+    }
+    
+    contextLines.push('=== END CONTEXT ===\n');
+    return contextLines.join('\n');
+    
+  } catch (error) {
+    return `=== REPOSITORY CONTEXT ===
+Repository: ${path.basename(repoPath)}
+Context analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}
+=== END CONTEXT ===\n`;
+  }
+}
+
+async function getRecentlyModifiedFiles(repoPath: string): Promise<string[]> {
+  const { execSync } = require('child_process');
+  try {
+    const output = execSync('git log --name-only --pretty=format: -10', {
+      cwd: repoPath,
+      encoding: 'utf-8'
+    }).toString();
+    
+    const files = output
+      .split('\n')
+      .filter(line => line.trim() && !line.startsWith(' '))
+      .filter((file, index, arr) => arr.indexOf(file) === index) // Unique files
+      .slice(0, 10);
+    
+    return files;
+  } catch {
+    return [];
+  }
+}
+
 async function createWorktree(taskId: string, repoPath: string): Promise<{ worktreePath: string; branchName: string }> {
   const worktreePath = path.join(repoPath, '.worktrees', `task-${taskId}`);
   const branchName = `task/${taskId}`;
@@ -496,60 +611,62 @@ async function createWorktree(taskId: string, repoPath: string): Promise<{ workt
 }
 
 async function executeClaudeWithStreaming(task: Task, worktreePath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Check if agent context file exists
-    const agentPath = path.join(worktreePath, '.claude', 'agents', `${task.agent}.md`);
-    const agentContextFlag = fs.access(agentPath).then(() => [`--context`, agentPath]).catch(() => []);
+  return new Promise(async (resolve, reject) => {
+    // Build repository context without creating files
+    const repoContext = await buildRepositoryContext(worktreePath);
     
-    // Build Claude CLI command arguments
-    const args = ['-p', task.prompt];
+    // Enhance prompt with repository context
+    const enhancedPrompt = `${repoContext}
+
+TASK: ${task.prompt}`;
     
-    Promise.resolve(agentContextFlag).then(contextArgs => {
-      const allArgs = [...args, ...contextArgs];
+    // Build Claude CLI command arguments with enhanced context
+    const args = ['-p', enhancedPrompt];
+    
+    const allArgs = [...args];
       
-      console.log(chalk.gray(`Executing: claude ${allArgs.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}\n`));
+    console.log(chalk.gray(`Executing: claude ${allArgs.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}\n`));
+    
+    // Spawn Claude CLI process
+    const claudeProcess = spawn('claude', allArgs, {
+      cwd: worktreePath,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    let hasOutput = false;
+    
+    // Stream stdout in real-time
+    claudeProcess.stdout.on('data', (data) => {
+      hasOutput = true;
+      const text = data.toString();
+      // Add slight indentation to distinguish from system output
+      const indentedText = text.split('\n').map(line => 
+        line.trim() ? `  ${line}` : line
+      ).join('\n');
+      process.stdout.write(indentedText);
+    });
+    
+    // Handle stderr
+    claudeProcess.stderr.on('data', (data) => {
+      hasOutput = true;
+      process.stderr.write(chalk.red(`  Error: ${data.toString()}`));
+    });
+    
+    claudeProcess.on('close', (code) => {
+      if (!hasOutput) {
+        console.log(chalk.gray('  (No output from Claude CLI)'));
+      }
+      console.log(''); // Add spacing after task output
       
-      // Spawn Claude CLI process
-      const claudeProcess = spawn('claude', allArgs, {
-        cwd: worktreePath,
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-      
-      let hasOutput = false;
-      
-      // Stream stdout in real-time
-      claudeProcess.stdout.on('data', (data) => {
-        hasOutput = true;
-        const text = data.toString();
-        // Add slight indentation to distinguish from system output
-        const indentedText = text.split('\n').map(line => 
-          line.trim() ? `  ${line}` : line
-        ).join('\n');
-        process.stdout.write(indentedText);
-      });
-      
-      // Handle stderr
-      claudeProcess.stderr.on('data', (data) => {
-        hasOutput = true;
-        process.stderr.write(chalk.red(`  Error: ${data.toString()}`));
-      });
-      
-      claudeProcess.on('close', (code) => {
-        if (!hasOutput) {
-          console.log(chalk.gray('  (No output from Claude CLI)'));
-        }
-        console.log(''); // Add spacing after task output
-        
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Claude CLI exited with code ${code}`));
-        }
-      });
-      
-      claudeProcess.on('error', (error) => {
-        reject(new Error(`Failed to start Claude CLI: ${error.message}`));
-      });
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Claude CLI exited with code ${code}`));
+      }
+    });
+    
+    claudeProcess.on('error', (error) => {
+      reject(new Error(`Failed to start Claude CLI: ${error.message}`));
     });
   });
 }
@@ -774,11 +891,7 @@ async function modifyRemainingTasks(tasks: Task[]): Promise<Task[]> {
 }
 
 async function spawnClaudeSession(task: Task, worktreePath: string): Promise<void> {
-  // Check if agent context file exists
-  const agentPath = path.join(worktreePath, '.claude', 'agents', `${task.agent}.md`);
-  const agentContextFlag = await fs.access(agentPath).then(() => `--context ${agentPath}`).catch(() => '');
-  
-  // Spawn terminal based on platform
+  // Spawn terminal based on platform (no file context)
   if (process.platform === 'darwin') {
     // macOS: Use osascript with a much simpler approach
     // Write the command to a temp script file to avoid quote hell
@@ -788,7 +901,7 @@ cd "${worktreePath}"
 echo "Task: ${task.title}"
 echo "Agent: ${task.agent}"
 echo ""
-claude -p "${task.prompt.replace(/"/g, '\\"')}" ${agentContextFlag}
+claude -p "${task.prompt.replace(/"/g, '\\"')}"
 `;
     
     await fs.writeFile(tempScript, scriptContent);
@@ -804,7 +917,7 @@ claude -p "${task.prompt.replace(/"/g, '\\"')}" ${agentContextFlag}
     }, 5000);
   } else if (process.platform === 'win32') {
     // Windows: Use start command with proper escaping
-    const claudeCmd = `claude -p "${task.prompt.replace(/"/g, '\\"')}" ${agentContextFlag}`;
+    const claudeCmd = `claude -p "${task.prompt.replace(/"/g, '\\"')}"`;    
     const sanitizedTitleWin = task.title.replace(/"/g, '\\"');
     try {
       await execAsync(`start "Task: ${sanitizedTitleWin}" cmd /k "cd /d \"${worktreePath}\" && ${claudeCmd}"`);
@@ -814,7 +927,7 @@ claude -p "${task.prompt.replace(/"/g, '\\"')}" ${agentContextFlag}
     }
   } else {
     // Linux: Try common terminal emulators  
-    const claudeCmd = `claude -p '${task.prompt}' ${agentContextFlag}`;
+    const claudeCmd = `claude -p '${task.prompt}'`;
     const terminals = ['gnome-terminal', 'konsole', 'xterm'];
     let terminalFound = false;
     
