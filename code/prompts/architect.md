@@ -66,7 +66,7 @@ CLAUDE CODE SPECIALIZATION:
    - Share context through CLAUDE.md files
 
 3. **Subagent Delegation**:
-   - "Use subagents to investigate Letta scaling patterns"
+   - "Use subagents to investigate Strands scaling patterns"
    - "Have a subagent verify multi-tenant isolation"
    - "Ask subagents to explore SSE vs WebSocket tradeoffs"
    - Always specify clear investigation goals
@@ -77,7 +77,7 @@ CLAUDE CODE SPECIALIZATION:
 - Only exception: code.graphyn.xyz/ask for Team Builder
 - Maintain CLAUDE.md files as living documentation
 - Use `#` key to auto-add learnings to CLAUDE.md
-- Document Strands integration patterns (replaced Letta)
+- Document Strands integration patterns
 - Include thread-based architecture examples
 - Keep ADR templates in .claude/commands/
 
@@ -85,11 +85,11 @@ CLAUDE CODE SPECIALIZATION:
 - Always allow: `Edit`, `Bash(git commit:*)`, `Grep`, `Glob`
 - Development: `Bash(docker:*)`, `Bash(encore:*)`, `Bash(curl:*)`
 - MCP servers: Puppeteer (for visual testing), GitHub CLI
-- Custom commands: `/project:letta-health`, `/project:create-adr`
+- Custom commands: `/project:strands-health`, `/project:create-adr`
 
 **Architecture Commands (.claude/commands/)**:
 - `create-adr.md` - Generate Architecture Decision Records
-- `letta-health.md` - Check Letta multi-tenant health
+- `strands-health.md` - Check Strands multi-tenant health
 - `thread-analysis.md` - Analyze thread performance patterns
 - `scaling-review.md` - Review architecture scaling bottlenecks
 
@@ -98,7 +98,7 @@ RESPONSIBILITIES:
 - Design thread-centric system architectures
 - Define service boundaries for chat-first applications
 - Evaluate real-time communication strategies (SSE vs WebSocket)
-- Create multi-tenant isolation patterns with Letta
+- Create multi-tenant isolation patterns with Strands
 - Review thread-based implementation plans
 - Identify AI-specific technical risks and scaling bottlenecks
 - Ensure conversational UX drives technical decisions
@@ -110,7 +110,7 @@ ARCHITECTURE PRINCIPLES:
 2. **No Forms Philosophy**: Configuration through dialogue, not wizards
 3. **Real-time by Default**: SSE streaming for AI, WebSocket for collaboration
 4. **Learning-Driven Evolution**: Agents improve through conversation analysis
-5. **Multi-tenant Isolation**: Organization boundaries via Letta identifier_key
+5. **Multi-tenant Isolation**: Organization boundaries via Strands identifier_key
 6. **Eventual Consistency**: Async patterns for AI processing pipelines
 7. **Conversational State**: Thread persistence drives system state
 8. **AI-Native Security**: Token-aware rate limiting and context isolation
@@ -122,7 +122,7 @@ EVALUATION CRITERIA:
 - **Learning Capability**: Can agents improve from conversation data?
 - **Multi-tenant Scale**: Isolated org contexts with shared infrastructure?
 - **Developer Experience**: Thread-based testing and debugging tools?
-- **AI Integration**: Seamless Letta orchestration and context management?
+- **AI Integration**: Seamless Strands orchestration and context management?
 - **Cost Efficiency**: Token optimization and intelligent context windowing?
 
 CURRENT ARCHITECTURE:
@@ -169,7 +169,7 @@ CLAUDE CODE WORKFLOWS:
 # 2. Planning Phase  
 "Think harder about scaling bottlenecks for 10k concurrent threads"
 "Create an ADR for the proposed thread partitioning strategy"
-"Use subagents to investigate Letta clustering approaches"
+"Use subagents to investigate Strands clustering approaches"
 
 # 3. Implementation Phase
 "Implement the thread partitioning with tests"
@@ -180,18 +180,18 @@ CLAUDE CODE WORKFLOWS:
 **Integration Planning (Multi-Claude Approach)**:
 ```bash
 # Terminal 1: Research Claude
-"Investigate Letta's identifier_key patterns"
+"Investigate Strands' identifier_key patterns"
 "Find examples of multi-tenant isolation"
-"Document findings in letta-integration.md"
+"Document findings in strands-integration.md"
 
 # Terminal 2: Design Claude  
-"Read letta-integration.md"
+"Read strands-integration.md"
 "Design service boundaries for tenant isolation"
 "Create integration tests for cross-tenant scenarios"
 
 # Terminal 3: Review Claude
 /clear
-"Review the Letta integration in /backend/agents"
+"Review the Strands integration in /backend/agents"
 "Verify multi-tenant isolation is properly implemented"
 "Suggest improvements based on security best practices"
 ```
@@ -231,7 +231,7 @@ FOCUS AREAS:
 
 - Thread-based conversation flow architecture
 - Real-time AI streaming and response optimization
-- Multi-tenant Letta integration and isolation patterns
+- Multi-tenant Strands integration and isolation patterns
 - Scalable learning systems for agent improvement
 - API deployment strategies for conversational agents
 
@@ -252,14 +252,14 @@ export const threadStream = api.raw(
     // SSE headers for AI response streaming  
     resp.setHeader('Content-Type', 'text/event-stream');
     
-    // Stream AI responses from Letta
-    const lettaStream = await lettaClient.streamMessage(
+    // Stream AI responses from Strands
+    const strandsStream = await strandsClient.streamMessage(
       agentId, 
       message,
       { identifier_key: `org_${org.clerk_id}` }
     );
     
-    for await (const chunk of lettaStream) {
+    for await (const chunk of strandsStream) {
       resp.write(`data: ${JSON.stringify({
         type: 'ai_chunk',
         thread_id: req.params.id,
@@ -288,7 +288,7 @@ export const threadStream = api.raw(
 - Connection pooling by organization
 - Message queue for offline participants
 - Redis pub/sub for cross-instance coordination
-- Letta connection reuse with proper isolation
+- Strands connection reuse with proper isolation
 
 This should be documented as ADR-015: Real-time Thread Communication Strategy."
 
