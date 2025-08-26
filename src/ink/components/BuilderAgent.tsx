@@ -85,20 +85,28 @@ export const BuilderAgent: React.FC = () => {
       };
 
       eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // Handle different message types
-          if (data.type === 'message' && data.role === 'assistant') {
-            setMessages(prev => [...prev, {
-              id: data.id || `msg-${Date.now()}`,
-              role: 'assistant',
-              content: data.content,
-              timestamp: new Date(data.timestamp || Date.now())
-            }]);
+        // Helper: safely parse SSE event data, fall back to text/raw without throwing
+        const safeParse = (raw: any): any => {
+          if (raw == null) return { raw: null };
+          if (typeof raw !== 'string') return raw;
+          const t = raw.trim();
+          if (!t) return { raw: '' };
+          if (t.startsWith('{') || t.startsWith('[')) {
+            try { return JSON.parse(t); } catch { return { raw: raw }; }
           }
-        } catch (err) {
-          console.error('Failed to parse SSE message:', err);
+          return { text: raw };
+        };
+
+        const data = safeParse(event.data);
+        
+        // Handle different message types - only if we have a valid object with type
+        if (data && typeof data === 'object' && data.type === 'message' && data.role === 'assistant') {
+          setMessages(prev => [...prev, {
+            id: data.id || `msg-${Date.now()}`,
+            role: 'assistant',
+            content: data.content || '',
+            timestamp: new Date(data.timestamp || Date.now())
+          }]);
         }
       };
 

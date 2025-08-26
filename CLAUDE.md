@@ -186,6 +186,28 @@ const stream = graphyn.threads.stream(threadId);
 3. **Team Collaboration** - Shared agent knowledge
 4. **Plugin System** - Custom tool integration
 
+## Git Safety Rules
+
+### FORBIDDEN Git Commands
+- **NEVER use `git reset --hard HEAD`** - This command is strictly prohibited
+- **NEVER use `git reset --hard [commit]`** - Can destroy work and history
+- **NEVER use `git push --force`** - Can overwrite remote history
+- **NEVER use `rm -rf` without explicit user request** - Destructive file operations
+
+### Safe Git Practices
+- Use `git stash` to temporarily save changes
+- Use `git checkout -- <file>` to discard specific file changes
+- Use `git restore <file>` for safer file restoration
+- Always check `git status` before any destructive operations
+- Create branches before experimental work: `git checkout -b feature-branch`
+- Use interactive rebase carefully: `git rebase -i` with proper commit selection
+
+### When User Requests Destructive Operations
+1. **Always confirm the specific action** before executing
+2. **Explain the consequences** of the command
+3. **Offer safer alternatives** when possible
+4. **Never assume** what the user wants destroyed
+
 ---
 
 Last updated: 2025-01-19 - Production Ready with v10 Architecture

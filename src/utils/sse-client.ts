@@ -61,13 +61,11 @@ export class SSEClient extends EventEmitter {
       // Get Bearer token for authentication
       const token = await this.oauthManager.getValidToken();
       
-      // For EventSource, we need to pass the token as a query parameter
-      // since EventSource doesn't support custom headers in the browser
-      const urlWithAuth = token 
-        ? `${this.url}?token=${encodeURIComponent(`Bearer ${token}`)}`
-        : this.url;
+      // In Node, EventSource supports custom headers; prefer Authorization header over query params
+      const headers: Record<string, string> = { ...this.headers };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      this.eventSource = new EventSource(urlWithAuth);
+      this.eventSource = new EventSource(this.url, { headers });
 
       this.eventSource.onopen = () => {
         this.isConnecting = false;
@@ -77,25 +75,45 @@ export class SSEClient extends EventEmitter {
       };
 
       this.eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const sseEvent: SSEEvent = {
-            type: event.type || 'message',
-            data,
-            id: event.lastEventId
-          };
-          this.emit('message', sseEvent);
-          this.emit(sseEvent.type, sseEvent.data);
-          this.handleMessage(sseEvent);
-        } catch (error) {
-          // If it's not JSON, treat as plain text message
-          console.log(colors.message(event.data));
+        // Default message channel; parse defensively
+        const raw = (event as any)?.data;
+        let data: any;
+        if (typeof raw === 'string') {
+          const t = raw.trim();
+          if (t && (t.startsWith('{') || t.startsWith('['))) {
+            try { data = JSON.parse(t); } catch { data = { text: raw }; }
+          } else if (t) {
+            data = { text: raw };
+          } else {
+            data = { raw: '' };
+          }
+        } else {
+          data = raw ?? { raw: null };
         }
+        const sseEvent: SSEEvent = {
+          type: (event as any)?.type || 'message',
+          data,
+          id: (event as any)?.lastEventId
+        };
+        this.emit('message', sseEvent);
+        this.emit(sseEvent.type, sseEvent.data);
+        this.handleMessage(sseEvent);
       };
 
-      this.eventSource.onerror = (error) => {
+      this.eventSource.onerror = (error: any) => {
         this.isConnecting = false;
-        this.emit('error', error);
+        // Enrich error details for better diagnostics
+        const details: any = {
+          message: error?.message,
+          status: error?.status ?? error?.statusCode ?? error?.response?.status,
+          readyState: this.eventSource?.readyState,
+        };
+        try {
+          if (error?.response?.headers) details.headers = error.response.headers;
+        } catch {}
+
+        console.error(colors.error(`❌ SSE error`), details);
+        this.emit('error', details);
         
         if (this.shouldReconnect && this.retryCount < this.maxRetries) {
           this.scheduleReconnect();
@@ -120,8 +138,25 @@ export class SSEClient extends EventEmitter {
   private setupThreadEventListeners(): void {
     if (!this.eventSource) return;
 
-    // Listen for thread-specific events
+    // Helper: safely parse event data, fall back to text/raw without throwing
+    const safeParse = (raw: any): any => {
+      if (raw == null) return { raw: null };
+      if (typeof raw !== 'string') return raw;
+      const t = raw.trim();
+      if (!t) return { raw: '' };
+      if (t.startsWith('{') || t.startsWith('[')) {
+        try { return JSON.parse(t); } catch { return { raw: raw }; }
+      }
+      return { text: raw };
+    };
+
+    // Listen for thread-specific events (based on actual server events)
     const eventTypes = [
+      // Actual events sent by the backend
+      'start',
+      'message.created', 
+      'heartbeat',
+      // Legacy/fallback event types
       'thread.state.changed',
       'thread.message.added',
       'thread.participant.joined',
@@ -132,25 +167,20 @@ export class SSEClient extends EventEmitter {
       'thread.completed',
       'message.complete',
       'message.completed',
-      'message.chunk',
-      'error'
+      'message.chunk'
     ];
 
     eventTypes.forEach(eventType => {
       this.eventSource!.addEventListener(eventType, (event: any) => {
-        try {
-          const data = JSON.parse(event.data);
-          const sseEvent: SSEEvent = {
-            type: eventType,
-            data,
-            id: event.lastEventId
-          };
-          this.emit('message', sseEvent);
-          this.emit(eventType, data);
-          this.handleMessage(sseEvent);
-        } catch (error) {
-          this.emit('error', new Error(`Failed to parse ${eventType} event: ${error}`));
-        }
+        const parsed = safeParse(event.data);
+        const sseEvent: SSEEvent = {
+          type: eventType,
+          data: parsed,
+          id: event.lastEventId
+        };
+        this.emit('message', sseEvent);
+        this.emit(eventType, parsed);
+        this.handleMessage(sseEvent);
       });
     });
   }
@@ -173,6 +203,20 @@ export class SSEClient extends EventEmitter {
 
   private handleMessage(event: SSEEvent): void {
     switch (event.type) {
+      case 'start':
+        console.log(colors.success(`🚀 Stream started for thread ${event.data.threadId} (state: ${event.data.state})`));
+        break;
+      case 'message.created':
+        if (event.data.participant_type === 'agent') {
+          const agentName = event.data.metadata?.agent_name || 'Agent';
+          console.log(colors.agent(`🤖 ${agentName}:`), colors.message(event.data.content));
+        } else if (event.data.participant_type === 'user') {
+          console.log(colors.message(`👤 User: ${event.data.content}`));
+        }
+        break;
+      case 'heartbeat':
+        // Heartbeat events - just keep connection alive, no need to log
+        break;
       case 'thread.state.changed':
         console.log(colors.info(`🔄 Thread state changed: ${event.data.previousState} → ${colors.success(event.data.currentState)}`));
         break;
@@ -235,7 +279,7 @@ export class SSEClient extends EventEmitter {
 // Factory function for creating thread-specific SSE clients
 export function createThreadSSEClient(threadId: string, baseUrl?: string): SSEClient {
   const apiUrl = baseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
-  const url = `${apiUrl}/api/threads/${threadId}/stream`;
+  const url = `${apiUrl}/internal/threads/${threadId}/stream`;
   
   return new SSEClient({
     url,

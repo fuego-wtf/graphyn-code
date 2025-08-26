@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { OAuthManager } from '../auth/oauth.js';
 import { config } from '../config.js';
+import chalk from 'chalk';
 
 interface RetryConfig {
   maxAttempts: number;
@@ -71,6 +72,7 @@ export class GraphynAPIClient {
     
     this.client = axios.create({
       baseURL: apiUrl,
+      timeout: 90000, // 90 second timeout for AI processing
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': `Graphyn-CLI/${process.env.npm_package_version || '0.0.0'}`,
@@ -89,6 +91,7 @@ export class GraphynAPIClient {
         // Try to get OAuth token, but handle keychain errors in dev mode
         try {
           token = await this.oauthManager.getValidToken();
+          console.log(chalk.gray(`🔐 OAuth token retrieved: ${token ? 'Present (' + token.substring(0, 20) + '...)' : 'None'}`));
         } catch (error) {
           // In dev mode, allow requests without token for keychain errors
           if (isDev) {
@@ -96,7 +99,7 @@ export class GraphynAPIClient {
             if (errorMsg.includes('keychain') || 
                 errorMsg.includes('SecKeychainSearchCopyNext') ||
                 errorMsg.includes('specified item could not be found')) {
-              console.debug('Dev mode: proceeding without auth token due to keychain error');
+              console.log(chalk.yellow(`⚠️  Dev mode: proceeding without auth token due to keychain error: ${errorMsg.substring(0, 50)}...`));
               // Continue without token in dev mode
             } else {
               throw error;
@@ -109,6 +112,8 @@ export class GraphynAPIClient {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+        
+        console.log(chalk.gray(`📤 Request headers being sent:`, JSON.stringify(config.headers, null, 2)));
         
         return config;
       },
@@ -233,8 +238,28 @@ export class GraphynAPIClient {
     };
   }): Promise<Thread> {
     return this.withRetry(async () => {
-      const response = await this.client.post<Thread>('/api/threads', data);
-      return response.data;
+      console.log(chalk.gray(`📡 Making HTTP POST request to /api/threads`));
+      console.log(chalk.gray(`   Payload:`, JSON.stringify(data, null, 2)));
+      
+      try {
+        const response = await this.client.post<any>('/api/threads', data);
+        console.log(chalk.gray(`✅ Raw response:`, JSON.stringify(response.data, null, 2)));
+        
+        // Handle wrapped response format {"thread": {...}}
+        const threadData = response.data.thread || response.data;
+        console.log(chalk.gray(`✅ Thread created successfully:`, threadData?.id));
+        return threadData;
+      } catch (error) {
+        console.log(chalk.red(`❌ Failed to create thread:`));
+        if (error.response) {
+          console.log(chalk.red(`   Status: ${error.response.status} ${error.response.statusText}`));
+          console.log(chalk.red(`   Response data:`, error.response.data));
+          console.log(chalk.red(`   Request URL: ${error.config?.baseURL}${error.config?.url}`));
+        } else {
+          console.log(chalk.red(`   Error:`, error.message));
+        }
+        throw error;
+      }
     });
   }
 
@@ -259,8 +284,39 @@ export class GraphynAPIClient {
     type?: 'builder' | 'testing' | 'production';
   }): Promise<Thread[]> {
     return this.withRetry(async () => {
+      console.log(chalk.gray(`📡 Making HTTP request to /api/threads`));
+      console.log(chalk.gray(`   Base URL: ${this.client.defaults.baseURL}`));
+      console.log(chalk.gray(`   Default headers:`, JSON.stringify(this.client.defaults.headers, null, 2)));
+      
       const response = await this.client.get<Thread[]>('/api/threads', { params });
-      return response.data;
+      
+      console.log(chalk.gray(`✅ HTTP response received:`));
+      console.log(chalk.gray(`   Status: ${response.status} ${response.statusText}`));
+      console.log(chalk.gray(`   Response headers:`, JSON.stringify(response.headers, null, 2)));
+      console.log(chalk.gray(`   Data type: ${typeof response.data}`));
+      console.log(chalk.gray(`   Data preview:`, JSON.stringify(response.data).substring(0, 200) + '...'));
+      
+      // Handle empty response body as empty array (backend bug workaround)
+      if (!response.data || (response.data as any) === '') {
+        console.log(chalk.yellow(`⚠️  Empty response from backend, treating as empty array (backend should return [])`));
+        return [];
+      }
+      
+      // Handle string responses that might be JSON
+      if (typeof response.data === 'string') {
+        try {
+          const parsed = JSON.parse(response.data);
+          if (Array.isArray(parsed)) {
+            return parsed;
+          }
+        } catch (parseError) {
+          console.log(chalk.yellow(`⚠️  Failed to parse string response as JSON:`, parseError.message));
+        }
+        // If string is empty or not JSON, treat as empty array
+        return [];
+      }
+      
+      return Array.isArray(response.data) ? response.data : [];
     });
   }
 
@@ -306,11 +362,27 @@ export class GraphynAPIClient {
    */
   async sendMessage(threadId: string, content: string): Promise<Message> {
     return this.withRetry(async () => {
-      const response = await this.client.post<Message>(`/api/threads/${threadId}/messages`, {
-        content,
-        role: 'user'
-      });
-      return response.data;
+      console.log(chalk.gray(`📡 Making HTTP POST request to /api/threads/${threadId}/messages`));
+      console.log(chalk.gray(`   Content length: ${content.length} characters`));
+      
+      try {
+        const response = await this.client.post<Message>(`/api/threads/${threadId}/messages`, {
+          content,
+          role: 'user'
+        });
+        console.log(chalk.gray(`✅ Message sent successfully:`, response.data?.id));
+        return response.data;
+      } catch (error) {
+        console.log(chalk.red(`❌ Failed to send message:`));
+        if (error.response) {
+          console.log(chalk.red(`   Status: ${error.response.status} ${error.response.statusText}`));
+          console.log(chalk.red(`   Response data:`, error.response.data));
+          console.log(chalk.red(`   Request URL: ${error.config?.baseURL}${error.config?.url}`));
+        } else {
+          console.log(chalk.red(`   Error:`, error.message));
+        }
+        throw error;
+      }
     });
   }
 

@@ -23,6 +23,18 @@ export class ThreadStreamHandler {
     private apiUrl: string = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz'
   ) {}
 
+  // Helper: safely parse SSE event data, fall back to text/raw without throwing
+  private safeParse(raw: any): any {
+    if (raw == null) return { raw: null };
+    if (typeof raw !== 'string') return raw;
+    const t = raw.trim();
+    if (!t) return { raw: '' };
+    if (t.startsWith('{') || t.startsWith('[')) {
+      try { return JSON.parse(t); } catch { return { raw: raw }; }
+    }
+    return { text: raw };
+  }
+
   connect(
     onMessage: (message: SSEMessage) => void,
     onError?: (error: any) => void,
@@ -43,34 +55,41 @@ export class ThreadStreamHandler {
     };
 
     this.eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as SSEMessage;
+      const parsed = this.safeParse(event.data);
+      
+      // If parsing failed, create a fallback message
+      if (!parsed || typeof parsed !== 'object' || !parsed.type) {
+        const fallbackMessage: SSEMessage = {
+          type: 'raw',
+          data: parsed
+        };
+        onMessage(fallbackMessage);
+        return;
+      }
+
+      const data = parsed as SSEMessage;
+      
+      // Handle message chunks
+      if (data.type === 'message.chunk' && data.agent_id) {
+        const currentContent = this.messages.get(data.agent_id) || '';
+        this.messages.set(data.agent_id, currentContent + (data.content || ''));
         
-        // Handle message chunks
-        if (data.type === 'message.chunk' && data.agent_id) {
-          const currentContent = this.messages.get(data.agent_id) || '';
-          this.messages.set(data.agent_id, currentContent + (data.content || ''));
-          
-          onMessage({
-            ...data,
-            content: this.messages.get(data.agent_id)
-          });
-        } else if (data.type === 'message.complete' && data.agent_id) {
-          // Clear accumulated message
-          const fullMessage = this.messages.get(data.agent_id) || '';
-          this.messages.delete(data.agent_id);
-          
-          onMessage({
-            ...data,
-            content: fullMessage
-          });
-        } else {
-          // Pass through other message types
-          onMessage(data);
-        }
-      } catch (err) {
-        console.error('Error parsing SSE message:', err);
-        onError?.(err);
+        onMessage({
+          ...data,
+          content: this.messages.get(data.agent_id)
+        });
+      } else if (data.type === 'message.complete' && data.agent_id) {
+        // Clear accumulated message
+        const fullMessage = this.messages.get(data.agent_id) || '';
+        this.messages.delete(data.agent_id);
+        
+        onMessage({
+          ...data,
+          content: fullMessage
+        });
+      } else {
+        // Pass through other message types
+        onMessage(data);
       }
     };
 
@@ -93,28 +112,24 @@ export class ThreadStreamHandler {
 
     // Custom event listeners for specific message types
     this.eventSource.addEventListener('squad.recommendation', (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        onMessage({
-          type: 'squad.recommendation',
-          data: data
-        });
-      } catch (err) {
-        console.error('Error parsing squad recommendation:', err);
-      }
+      const parsed = this.safeParse(event.data);
+      onMessage({
+        type: 'squad.recommendation',
+        data: parsed
+      });
     });
 
     this.eventSource.addEventListener('agent.thinking', (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        onMessage({
-          type: 'agent.thinking',
-          content: data.thought,
-          agent_id: data.agent_id
-        });
-      } catch (err) {
-        console.error('Error parsing agent thinking:', err);
-      }
+      const parsed = this.safeParse(event.data);
+      // Extract thought and agent_id safely from parsed data
+      const thought = (parsed && typeof parsed === 'object' && parsed.thought) || '';
+      const agent_id = (parsed && typeof parsed === 'object' && parsed.agent_id) || undefined;
+      
+      onMessage({
+        type: 'agent.thinking',
+        content: thought,
+        agent_id: agent_id
+      });
     });
   }
 

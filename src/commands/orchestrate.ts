@@ -405,7 +405,10 @@ async function findOrCreateAgentTeam(repoPath: string, apiClient: GraphynAPIClie
   const repoName = path.basename(repoPath);
 
   // 2. Check for existing agent team thread
+  console.log(chalk.gray(`🔗 Listing existing threads...`));
   const threads = await apiClient.listThreads();
+  console.log(chalk.gray(`🔍 Found ${threads.length} threads`));
+  
   const existingThread = threads.find(thread => 
     thread.metadata?.repository?.path === repoPath ||
     thread.name?.includes(`Agent Team: ${repoName}`)
@@ -461,7 +464,7 @@ Create 3-5 specialized agents that can work together on this codebase. Respond w
   ]
 }`;
 
-  await apiClient.sendMessage(builderThread.id, { content: teamPrompt, role: 'user' });
+  await apiClient.sendMessage(builderThread.id, teamPrompt);
 
   // 5. Wait for team configuration response
   const teamConfig = await waitForTeamConfig(builderThread.id, apiClient);
@@ -487,7 +490,7 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
     const timeout = setTimeout(() => {
       console.log(chalk.red(`⏰ Timeout after 30 seconds waiting for agent team configuration`));
       console.log(chalk.gray(`   Thread ID: ${threadId}`));
-      console.log(chalk.gray(`   Expected event: message.completed with agents array`));
+      console.log(chalk.gray(`   Expected event: message.created with agents array`));
       reject(new Error('Timeout waiting for agent team configuration'));
     }, 30000); // 30 second timeout
 
@@ -503,9 +506,9 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
       console.log(chalk.gray(`📥 Received SSE message ${messageCount}: ${event.type}`));
       
       try {
-        if ((event.type === 'message.completed' || event.type === 'message.complete') && event.data.content) {
+        if (event.type === 'message.created' && event.data.participant_type === 'agent' && event.data.content) {
           const content = event.data.content;
-          console.log(chalk.gray(`💬 Message content length: ${content.length} characters`));
+          console.log(chalk.gray(`💬 Agent message content length: ${content.length} characters`));
           
           // Try to extract JSON from the response
           const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -532,7 +535,7 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
             console.log(chalk.gray(`   Content preview: ${content.substring(0, 100)}...`));
           }
         } else {
-          console.log(chalk.gray(`📝 Event type: ${event.type}, has content: ${!!event.data.content}`));
+          console.log(chalk.gray(`📝 Event type: ${event.type}, participant: ${event.data.participant_type}, has content: ${!!event.data.content}`));
         }
       } catch (error) {
         console.log(chalk.red(`❌ Error processing message: ${error.message}`));
@@ -586,7 +589,7 @@ Respond with JSON:
   ]
 }`;
 
-  await apiClient.sendMessage(threadId, { content: taskPrompt, role: 'user' });
+  await apiClient.sendMessage(threadId, taskPrompt);
 
   // Wait for task generation response
   return new Promise((resolve, reject) => {
@@ -595,7 +598,7 @@ Respond with JSON:
     const timeout = setTimeout(() => {
       console.log(chalk.red(`⏰ Timeout after 60 seconds waiting for task generation`));
       console.log(chalk.gray(`   Thread ID: ${threadId}`));
-      console.log(chalk.gray(`   Expected event: message.completed with tasks array`));
+      console.log(chalk.gray(`   Expected event: message.created with tasks array`));
       reject(new Error('Timeout waiting for task generation'));
     }, 60000); // 60 second timeout
 
@@ -611,9 +614,9 @@ Respond with JSON:
       console.log(chalk.gray(`📥 Task gen - received SSE message ${messageCount}: ${event.type}`));
       
       try {
-        if ((event.type === 'message.completed' || event.type === 'message.complete') && event.data.content) {
+        if (event.type === 'message.created' && event.data.participant_type === 'agent' && event.data.content) {
           const content = event.data.content;
-          console.log(chalk.gray(`💬 Task gen - message content length: ${content.length} characters`));
+          console.log(chalk.gray(`💬 Task gen - agent message content length: ${content.length} characters`));
           
           // Try to extract JSON from the response
           const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -640,7 +643,7 @@ Respond with JSON:
             console.log(chalk.gray(`   Content preview: ${content.substring(0, 100)}...`));
           }
         } else {
-          console.log(chalk.gray(`📝 Task gen - event type: ${event.type}, has content: ${!!event.data.content}`));
+          console.log(chalk.gray(`📝 Task gen - event type: ${event.type}, participant: ${event.data.participant_type}, has content: ${!!event.data.content}`));
         }
       } catch (error) {
         console.log(chalk.red(`❌ Error processing task generation message: ${error.message}`));
