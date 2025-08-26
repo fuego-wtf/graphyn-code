@@ -461,7 +461,7 @@ Create 3-5 specialized agents that can work together on this codebase. Respond w
   ]
 }`;
 
-  await apiClient.sendMessage(builderThread.id, teamPrompt);
+  await apiClient.sendMessage(builderThread.id, { content: teamPrompt, role: 'user' });
 
   // 5. Wait for team configuration response
   const teamConfig = await waitForTeamConfig(builderThread.id, apiClient);
@@ -482,35 +482,76 @@ Create 3-5 specialized agents that can work together on this codebase. Respond w
 
 async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient): Promise<{ agents: any[] }> {
   return new Promise((resolve, reject) => {
+    console.log(chalk.gray(`🔗 Connecting to SSE stream for thread: ${threadId}`));
+    
     const timeout = setTimeout(() => {
+      console.log(chalk.red(`⏰ Timeout after 30 seconds waiting for agent team configuration`));
+      console.log(chalk.gray(`   Thread ID: ${threadId}`));
+      console.log(chalk.gray(`   Expected event: message.completed with agents array`));
       reject(new Error('Timeout waiting for agent team configuration'));
     }, 30000); // 30 second timeout
 
     const sseClient = createThreadSSEClient(threadId);
+    let messageCount = 0;
+    
+    sseClient.on('connect', () => {
+      console.log(chalk.green(`✅ SSE connection established for thread: ${threadId}`));
+    });
     
     sseClient.on('message', (event) => {
+      messageCount++;
+      console.log(chalk.gray(`📥 Received SSE message ${messageCount}: ${event.type}`));
+      
       try {
-        if (event.type === 'message.completed' && event.data.content) {
+        if ((event.type === 'message.completed' || event.type === 'message.complete') && event.data.content) {
           const content = event.data.content;
+          console.log(chalk.gray(`💬 Message content length: ${content.length} characters`));
           
           // Try to extract JSON from the response
           const jsonMatch = content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const teamConfig = JSON.parse(jsonMatch[0]);
-            if (teamConfig.agents && Array.isArray(teamConfig.agents)) {
-              clearTimeout(timeout);
-              sseClient.close();
-              resolve(teamConfig);
-              return;
+            console.log(chalk.gray(`📊 Found JSON in response, attempting to parse...`));
+            try {
+              const teamConfig = JSON.parse(jsonMatch[0]);
+              if (teamConfig.agents && Array.isArray(teamConfig.agents)) {
+                console.log(chalk.green(`✅ Successfully parsed agent team: ${teamConfig.agents.length} agents`));
+                clearTimeout(timeout);
+                sseClient.close();
+                resolve(teamConfig);
+                return;
+              } else {
+                console.log(chalk.yellow(`⚠️  JSON parsed but no valid agents array found`));
+                console.log(chalk.gray(`   Keys found: ${Object.keys(teamConfig).join(', ')}`));
+              }
+            } catch (parseError) {
+              console.log(chalk.yellow(`⚠️  Failed to parse JSON: ${parseError.message}`));
+              console.log(chalk.gray(`   JSON preview: ${jsonMatch[0].substring(0, 100)}...`));
             }
+          } else {
+            console.log(chalk.yellow(`⚠️  No JSON found in message content`));
+            console.log(chalk.gray(`   Content preview: ${content.substring(0, 100)}...`));
           }
+        } else {
+          console.log(chalk.gray(`📝 Event type: ${event.type}, has content: ${!!event.data.content}`));
         }
       } catch (error) {
-        // Continue listening for other messages
+        console.log(chalk.red(`❌ Error processing message: ${error.message}`));
       }
     });
 
     sseClient.on('error', (error) => {
+      console.log(chalk.red(`🚨 SSE connection error: ${error.message}`));
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    sseClient.on('disconnect', () => {
+      console.log(chalk.yellow(`🔌 SSE connection disconnected for thread: ${threadId}`));
+    });
+    
+    // Start the connection
+    sseClient.connect().catch((error) => {
+      console.log(chalk.red(`❌ Failed to connect SSE: ${error.message}`));
       clearTimeout(timeout);
       reject(error);
     });
@@ -545,39 +586,80 @@ Respond with JSON:
   ]
 }`;
 
-  await apiClient.sendMessage(threadId, taskPrompt);
+  await apiClient.sendMessage(threadId, { content: taskPrompt, role: 'user' });
 
   // Wait for task generation response
   return new Promise((resolve, reject) => {
+    console.log(chalk.gray(`🔗 Connecting to SSE stream for task generation, thread: ${threadId}`));
+    
     const timeout = setTimeout(() => {
+      console.log(chalk.red(`⏰ Timeout after 60 seconds waiting for task generation`));
+      console.log(chalk.gray(`   Thread ID: ${threadId}`));
+      console.log(chalk.gray(`   Expected event: message.completed with tasks array`));
       reject(new Error('Timeout waiting for task generation'));
     }, 60000); // 60 second timeout
 
     const sseClient = createThreadSSEClient(threadId);
+    let messageCount = 0;
+    
+    sseClient.on('connect', () => {
+      console.log(chalk.green(`✅ SSE connection established for task generation, thread: ${threadId}`));
+    });
     
     sseClient.on('message', (event) => {
+      messageCount++;
+      console.log(chalk.gray(`📥 Task gen - received SSE message ${messageCount}: ${event.type}`));
+      
       try {
-        if (event.type === 'message.completed' && event.data.content) {
+        if ((event.type === 'message.completed' || event.type === 'message.complete') && event.data.content) {
           const content = event.data.content;
+          console.log(chalk.gray(`💬 Task gen - message content length: ${content.length} characters`));
           
           // Try to extract JSON from the response
           const jsonMatch = content.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const taskResponse = JSON.parse(jsonMatch[0]);
-            if (taskResponse.tasks && Array.isArray(taskResponse.tasks)) {
-              clearTimeout(timeout);
-              sseClient.close();
-              resolve(taskResponse.tasks);
-              return;
+            console.log(chalk.gray(`📊 Found JSON in task generation response, attempting to parse...`));
+            try {
+              const taskResponse = JSON.parse(jsonMatch[0]);
+              if (taskResponse.tasks && Array.isArray(taskResponse.tasks)) {
+                console.log(chalk.green(`✅ Successfully parsed tasks: ${taskResponse.tasks.length} tasks`));
+                clearTimeout(timeout);
+                sseClient.close();
+                resolve(taskResponse.tasks);
+                return;
+              } else {
+                console.log(chalk.yellow(`⚠️  JSON parsed but no valid tasks array found`));
+                console.log(chalk.gray(`   Keys found: ${Object.keys(taskResponse).join(', ')}`));
+              }
+            } catch (parseError) {
+              console.log(chalk.yellow(`⚠️  Failed to parse task JSON: ${parseError.message}`));
+              console.log(chalk.gray(`   JSON preview: ${jsonMatch[0].substring(0, 100)}...`));
             }
+          } else {
+            console.log(chalk.yellow(`⚠️  No JSON found in task generation message content`));
+            console.log(chalk.gray(`   Content preview: ${content.substring(0, 100)}...`));
           }
+        } else {
+          console.log(chalk.gray(`📝 Task gen - event type: ${event.type}, has content: ${!!event.data.content}`));
         }
       } catch (error) {
-        // Continue listening for other messages
+        console.log(chalk.red(`❌ Error processing task generation message: ${error.message}`));
       }
     });
 
     sseClient.on('error', (error) => {
+      console.log(chalk.red(`🚨 SSE connection error for task generation: ${error.message}`));
+      clearTimeout(timeout);
+      reject(error);
+    });
+
+    sseClient.on('disconnect', () => {
+      console.log(chalk.yellow(`🔌 SSE connection disconnected for task generation, thread: ${threadId}`));
+    });
+    
+    // Start the connection
+    sseClient.connect().catch((error) => {
+      console.log(chalk.red(`❌ Failed to connect SSE for task generation: ${error.message}`));
       clearTimeout(timeout);
       reject(error);
     });

@@ -196,6 +196,22 @@ export class GraphynAPIClient {
     });
   }
 
+  async updateThread(threadId: string, data: {
+    name?: string;
+    metadata?: {
+      repository?: any;
+      agents?: any[];
+      [key: string]: any;
+    };
+    [key: string]: any;
+  }): Promise<Thread> {
+    const response = await this.request<{thread: Thread}>(`/api/threads/${threadId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return response.thread;
+  }
+
   async sendMessage(threadId: string, message: { content: string; role: 'user' | 'assistant' }): Promise<void> {
     await this.request<void>(`/api/threads/${threadId}/messages`, {
       method: 'POST',

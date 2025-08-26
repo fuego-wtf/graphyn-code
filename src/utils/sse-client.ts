@@ -130,6 +130,9 @@ export class SSEClient extends EventEmitter {
       'agent.message',
       'agent.joined',
       'thread.completed',
+      'message.complete',
+      'message.completed',
+      'message.chunk',
       'error'
     ];
 
