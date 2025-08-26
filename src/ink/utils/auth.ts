@@ -134,11 +134,11 @@ export const waitForOAuthCallback = (port: number, expectedState: string): Promi
     server.listen(port, '127.0.0.1', () => {
     });
     
-    // Timeout after 2 minutes (not 5)
+    // Timeout after 5 minutes
     const timeout = setTimeout(() => {
       server.close();
       reject(new Error('Authentication timeout'));
-    }, 120000);
+    }, 300000);
     
     server.on('close', () => clearTimeout(timeout));
   });

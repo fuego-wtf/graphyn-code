@@ -37,20 +37,21 @@ async function performInteractiveAuth(oauthManager: OAuthManager, isDev: boolean
   let waitTime = 0;
   const maxWaitTime = 300; // 5 minutes
   
-  // Show progress and options
+  // Show initial options once
+  const showOptions = () => {
+    console.log('\\n    Options while waiting:');
+    console.log('    [R] Retry auth check');
+    console.log('    [O] Open browser again');
+    console.log('    [H] Help');
+    console.log('    [Q] Quit');
+    console.log('');
+  };
+
+  // Show only progress (no repeated options)
   const showProgress = () => {
     const progressBar = createProgressBar(waitTime, maxWaitTime);
-    process.stdout.write(`\\r    [${progressBar}] ${waitTime}s`);
-    
-    if (waitTime % 10 === 0 && waitTime > 0) {
-      console.log('\\n');
-      console.log('    Options while waiting:');
-      console.log('    [R] Retry auth check');
-      console.log('    [O] Open browser again');
-      console.log('    [H] Help');
-      console.log('    [Q] Quit');
-      console.log('');
-    }
+    const remaining = Math.max(0, maxWaitTime - waitTime);
+    process.stdout.write(`\\r    [${progressBar}] ${waitTime}s (${remaining}s remaining)`);
   };
   
   // Handle keyboard input
@@ -69,7 +70,7 @@ async function performInteractiveAuth(oauthManager: OAuthManager, isDev: boolean
         console.log('  1. Visit the URL in your browser');
         console.log('  2. Sign in with your credentials');
         console.log('  3. The CLI will automatically detect authentication');
-        console.log('');
+        showOptions();
         break;
       case 'q':
         console.log('\\n\ud83d\udc4b Goodbye!');
@@ -116,6 +117,7 @@ async function performInteractiveAuth(oauthManager: OAuthManager, isDev: boolean
   } catch (error) {
     // If direct authentication fails, fall back to polling
     console.log('\\n\ud83d\udd04 Switching to manual verification mode...');
+    showOptions(); // Show options once at the beginning
     
     return new Promise<void>((resolve, reject) => {
       const pollInterval = setInterval(async () => {
