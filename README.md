@@ -5,6 +5,8 @@
 [![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+🚀 **LATEST**: Mission Control interface with real-time Claude streaming!
+
 🎨 **NEW**: Beautiful interactive CLI with real-time updates, powered by React!
 
 🔥 **GAME CHANGER**: Transform your static `.claude/agents` into living, learning AI agents!
@@ -33,16 +35,45 @@ Zero configuration needed—it just works.
 ## Quick Start
 
 ```bash
-# Just type this and Claude launches with full context
-graphyn backend "add user authentication"
+# Natural language queries launch Mission Control
+graphyn "help me understand this repo"
+graphyn "add user authentication"
+graphyn "create a dashboard component"
 
-# Other agents work the same way
+# Agent-specific queries
+graphyn backend "add user authentication"
 graphyn frontend "create a dashboard"  
 graphyn architect "review my API design"
 graphyn design figma.com/file/...  # Figma to code
 
-# Or launch interactive mode
+# Interactive Mission Control mode
 graphyn
+```
+
+## 🚀 Mission Control Interface
+
+Experience the future of AI development with our flight cockpit interface:
+
+- **🎯 Natural Language Processing**: Just describe what you want - "help me understand this repo", "add auth", "review my API"
+- **📺 Real-time Claude Streaming**: Watch Claude analyze your code with full repository context
+- **🖥️ Flight Cockpit UI**: Status panels, system logs, and live execution monitoring  
+- **📋 Task Management**: Upcoming task decomposition with @backend, @frontend, @architect assignments
+- **💬 Continuous Interaction**: Chat with Claude while it's working (coming in Phase 2)
+- **🛡️ Exit Protection**: No accidental closures - your work sessions are protected
+
+### Mission Control Features
+```bash
+# Launch Mission Control with any natural language query
+graphyn "explain the authentication system"
+
+# Mission Control provides:
+✅ Repository context detection (package.json, README, structure)
+✅ Real-time Claude output streaming
+✅ Flight cockpit status monitoring
+✅ Session history and query tracking
+🚧 Task approval workflow (REV-073)
+🚧 Split-screen with inline input (REV-071) 
+🚧 Exit protection dialog (REV-072)
 ```
 
 ## 🚀 Agent Revival: Bring Your Agents to Life!
