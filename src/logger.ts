@@ -27,7 +27,7 @@ export class GraphynLogger {
     const entry = {
       ...data,
       timestamp: data.timestamp || new Date(),
-      version: '0.1.62'
+      version: '0.1.70'
     };
     
     const logLine = JSON.stringify(entry) + '\n';

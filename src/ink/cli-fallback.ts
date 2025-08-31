@@ -107,7 +107,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.62');
+  console.log('0.1.70');
   process.exit(0);
 }
 
@@ -193,29 +193,42 @@ if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
 
 
 // Handle natural language (squad command routes to GraphNeuralSystem)
+if (process.env.DEBUG_GRAPHYN) {
+  console.log('Squad handler debug:');
+  console.log('- normalizedCommand:', JSON.stringify(normalizedCommand));
+  console.log('- query:', JSON.stringify(query));
+  console.log('- query truthy:', !!query);
+}
+
 if (normalizedCommand === 'squad' && query) {
-  // Route natural language queries to the main CLI (GraphNeuralSystem)
+  // Instead of handling squad in fallback, route back to main CLI for interactive mode
+  // The main CLI will handle the persistent session and flight cockpit interface
+  console.log('🚀 Routing to Graphyn Mission Control...');
+  
+  // Route to main CLI but force it to use interactive mode regardless of TTY
   import('child_process').then(({ execSync }) => {
-    const mainCliPath = new URL('../cli.js', import.meta.url).pathname;
+    const mainCliPath = new URL('./cli.js', import.meta.url).pathname;
     try {
-      // Pass the raw query (not the 'squad' command) to the main CLI
-      execSync(`node ${mainCliPath} "${query}"`, {
-        stdio: 'inherit'
+      // Set environment variables to force interactive mode
+      const env = {
+        ...process.env,
+        FORCE_INTERACTIVE: 'true',
+        GRAPHYN_INITIAL_QUERY: query
+      };
+      
+      execSync(`node ${mainCliPath}`, {
+        stdio: 'inherit',
+        env
       });
-      process.exit(0);
     } catch (error) {
+      console.error('❌ Failed to launch mission control');
       process.exit(1);
     }
   });
-  
-  // Keep process alive while async import executes
-  setInterval(() => {
-    // Keep the process alive until the squad command completes
-  }, 1000);
 }
 
 // Process agent commands
-if (isAgentType(normalizedCommand) && query) {
+else if (isAgentType(normalizedCommand) && query) {
   console.log(`Preparing ${normalizedCommand} agent context...`);
   
   // Read agent prompt

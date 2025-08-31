@@ -193,7 +193,7 @@ async function main(): Promise<void> {
   
   // Show version
   if (query === '--version' || query === '-v') {
-    console.log('0.1.62');
+    console.log('0.1.70');
     return;
   }
   

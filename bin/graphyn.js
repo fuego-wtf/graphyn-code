@@ -11,8 +11,8 @@ import { spawn } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Use the unified CLI - fast, simple, direct GraphNeuralSystem execution
-const cliPath = join(__dirname, '..', 'dist', 'cli.js');
+// Use the Ink CLI - works with GraphNeuralSystem integration
+const cliPath = join(__dirname, '..', 'dist', 'ink', 'cli.js');
 
 // Start the appropriate CLI
 const child = spawn('node', [cliPath, ...process.argv.slice(2)], {
