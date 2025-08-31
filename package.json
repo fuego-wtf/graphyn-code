@@ -1,15 +1,15 @@
 {
   "name": "@graphyn/code",
-  "version": "0.1.61",
+  "version": "0.1.70",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "type": "module",
   "main": "dist/ink/cli.js",
   "bin": {
-    "graphyn": "./dist/graphyn-wrapper.js"
+    "graphyn": "./bin/graphyn.js"
   },
   "scripts": {
-    "build": "./scripts/build-ink.sh",
-    "build:ink": "tsc --module ESNext --target ES2022 --jsx react --esModuleInterop --skipLibCheck --moduleResolution bundler --outDir dist",
+    "build": "tsc --module ESNext --target ES2022 --esModuleInterop --skipLibCheck --moduleResolution bundler --outDir dist",
+    "build:ink": "./scripts/build-ink.sh",
     "dev": "tsx src/ink/cli.tsx",
     "dev:minimal": "tsx src/minimal-app.tsx",
     "test": "vitest",
@@ -99,6 +99,7 @@
   },
   "files": [
     "dist",
+    "bin",
     "prompts",
     "templates",
     "scripts/postinstall.js",

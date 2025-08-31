@@ -170,14 +170,14 @@ async function checkTmux(): Promise<SystemCheck> {
       name: 'tmux',
       status: 'pass',
       message: `✓ ${version}`,
-      required: true
+      required: false
     };
   } catch {
     return {
       name: 'tmux',
-      status: 'fail',
-      message: '✗ tmux not found (required for squad workspace)',
-      required: true
+      status: 'warning',
+      message: '⚠ tmux not found (required for advanced squad workspace)',
+      required: false
     };
   }
 }

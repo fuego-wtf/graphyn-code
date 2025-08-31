@@ -74,7 +74,7 @@ export async function checkSystemRequirements(): Promise<QuietDoctorResult> {
   }
   
   return {
-    canProceed: hasNode && hasClaudeCode && hasTmux,
+    canProceed: hasNode && hasClaudeCode, // tmux not required for basic functionality
     needsClaudeCode: !hasClaudeCode,
     needsTmux: !hasTmux,
     needsFigmaMCP: false // Optional, don't block on this

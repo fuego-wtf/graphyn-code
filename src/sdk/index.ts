@@ -7,12 +7,10 @@
 
 // TODO: Generate SDK files
 // import { Configuration, DefaultApi } from './generated';
-import { OAuthManager } from '../auth/oauth.js';
 
 export interface GraphynSDKOptions {
   apiBaseUrl?: string;
   accessToken?: string;
-  oauthManager?: OAuthManager;
 }
 
 /**
@@ -20,7 +18,6 @@ export interface GraphynSDKOptions {
  */
 export class GraphynSDK {
   // private api: DefaultApi;
-  private oauthManager?: OAuthManager;
 
   constructor(options: GraphynSDKOptions = {}) {
     // const apiBaseUrl = options.apiBaseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';

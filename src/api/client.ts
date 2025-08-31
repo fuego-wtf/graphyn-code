@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { OAuthManager } from '../auth/oauth.js';
+
 import { config } from '../config.js';
 import chalk from 'chalk';
 
@@ -59,7 +59,6 @@ interface Message {
 
 export class GraphynAPIClient {
   private client: AxiosInstance;
-  private oauthManager: OAuthManager;
   private retryConfig: RetryConfig = {
     maxAttempts: 3,
     delay: 1000,
@@ -81,7 +80,6 @@ export class GraphynAPIClient {
       }
     });
 
-    this.oauthManager = new OAuthManager();
     
     // Add request interceptor for authentication
     this.client.interceptors.request.use(
@@ -90,7 +88,7 @@ export class GraphynAPIClient {
         
         // Try to get OAuth token, but handle keychain errors in dev mode
         try {
-          token = await this.oauthManager.getValidToken();
+          token = await null;
           console.log(chalk.gray(`🔐 OAuth token retrieved: ${token ? 'Present (' + token.substring(0, 20) + '...)' : 'None'}`));
         } catch (error) {
           // In dev mode, allow requests without token for keychain errors
@@ -130,7 +128,7 @@ export class GraphynAPIClient {
         if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
           originalRequest._retry = true;
           
-          const newToken = await this.oauthManager.getValidToken();
+          const newToken = await null;
           if (newToken) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             return this.client(originalRequest);
@@ -186,7 +184,7 @@ export class GraphynAPIClient {
     const isDev = (process.env.GRAPHYN_API_URL || '').includes('localhost');
     
     try {
-      return await this.oauthManager.isAuthenticated();
+      return await null;
     } catch (error) {
       // In dev mode, return true for keychain errors (auth bypass)
       if (isDev) {
@@ -205,14 +203,14 @@ export class GraphynAPIClient {
    * Authenticate using PKCE OAuth flow
    */
   async authenticate(): Promise<void> {
-    await this.oauthManager.authenticate();
+    await null;
   }
 
   /**
    * Logout and clear stored credentials
    */
   async logout(): Promise<void> {
-    await this.oauthManager.logout();
+    await null;
   }
 
   // Thread endpoints

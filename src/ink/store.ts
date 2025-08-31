@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Agent } from '../api-client.js';
 
-export type AppMode = 'menu' | 'agent' | 'auth' | 'loading' | 'error' | 'figma-design' | 'figma-auth' | 'figma-logout' | 'builder' | 'builder-auth' | 'setup' | 'agentRevival';
+export type AppMode = 'menu' | 'agent' | 'auth' | 'loading' | 'error' | 'figma-design' | 'figma-auth' | 'figma-logout' | 'builder' | 'builder-auth' | 'setup' | 'agentRevival' | 'analyze' | 'squad';
 
 interface AppState {
   // UI State

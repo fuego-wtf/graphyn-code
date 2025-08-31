@@ -1,7 +1,7 @@
 import EventSource from 'eventsource';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
-import { OAuthManager } from '../auth/oauth.js';
+
 
 const colors = {
   success: chalk.green,
@@ -37,7 +37,6 @@ export class SSEClient extends EventEmitter {
   private retryCount = 0;
   private isConnecting = false;
   private shouldReconnect = true;
-  private oauthManager: OAuthManager;
 
   constructor(options: SSEClientOptions) {
     super();
@@ -46,7 +45,6 @@ export class SSEClient extends EventEmitter {
     this.retryDelay = options.retryDelay ?? 1000;
     this.backoffMultiplier = options.backoffMultiplier ?? 2;
     this.headers = options.headers ?? {};
-    this.oauthManager = new OAuthManager();
   }
 
   async connect(): Promise<void> {
@@ -59,7 +57,7 @@ export class SSEClient extends EventEmitter {
 
     try {
       // Get Bearer token for authentication
-      const token = await this.oauthManager.getValidToken();
+      const token = await null;
       
       // In Node, EventSource supports custom headers; prefer Authorization header over query params
       const headers: Record<string, string> = { ...this.headers };

@@ -9,6 +9,8 @@ import { FigmaAuth } from './components/FigmaAuth.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { ErrorFallback } from './components/ErrorFallback.js';
 import { AgentRevival } from './components/AgentRevival.js';
+import { RepositoryAnalysis } from './components/RepositoryAnalysis.js';
+import { MultiAgentOrchestrator } from './components/MultiAgentOrchestrator.js';
 import { TerminalFrame } from './components/TerminalFrame.js';
 import { useAPI } from './hooks/useAPI.js';
 import { AutoSetup } from './components/AutoSetup.js';
@@ -29,6 +31,16 @@ interface AppProps {
 }
 
 export const App: React.FC<AppProps> = ({ command, query }) => {
+  // Debug logging right at component start
+  if (process.env.DEBUG_GRAPHYN) {
+    console.log('=== App Component Started ===');
+    console.log('Props received:');
+    console.log('- command:', JSON.stringify(command));
+    console.log('- query:', JSON.stringify(query));
+    console.log('- typeof command:', typeof command);
+    console.log('- typeof query:', typeof query);
+  }
+  
   const { exit } = useApp();
   
   // Check for direct agent command early
@@ -48,6 +60,30 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
     setQuery,
     reset
   } = useStore();
+  
+  // Update store state for squad queries (for consistency)
+  if (command === 'squad' && mode !== 'squad') {
+    setMode('squad');
+    setQuery(query || '');
+  }
+
+  // Debug current state immediately
+  if (process.env.DEBUG_GRAPHYN) {
+    console.log('🔍 Current state:');
+    console.log('- mode:', mode);
+    console.log('- selectedAgent:', selectedAgent);
+    console.log('- loading:', loading);
+    console.log('- error:', error);
+  }
+  
+  // Squad mode is handled in the main useEffect below
+  
+  // Debug mode changes
+  useEffect(() => {
+    if (process.env.DEBUG_GRAPHYN) {
+      console.log('🎯 Mode changed to:', mode);
+    }
+  }, [mode]);
   const { handleError, clearError } = useErrorHandler();
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
@@ -177,17 +213,37 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
 
   // Handle direct command mode
   useEffect(() => {
+    // Debug logging
+    if (process.env.DEBUG_GRAPHYN) {
+      console.log('🔍 useEffect triggered with dependencies:');
+      console.log('- command:', command);
+      console.log('- query:', query);
+      console.log('- current mode:', mode);
+    }
+    
     // Check if graphyn was called without any arguments - show menu
     if (!command && !query) {
+      if (process.env.DEBUG_GRAPHYN) {
+        console.log('→ Taking no command/query path - showing menu');
+      }
       // Show menu when no arguments provided
       setMode('menu');
     } else if (command === 'design' && query === 'auth') {
+      if (process.env.DEBUG_GRAPHYN) {
+        console.log('→ Taking figma auth path');
+      }
       // Special case: Figma OAuth authentication
       setMode('figma-auth');
     } else if (command === 'design' && query === 'logout') {
+      if (process.env.DEBUG_GRAPHYN) {
+        console.log('→ Taking figma logout path');
+      }
       // Special case: Figma logout
       setMode('figma-logout');
     } else if (command && query) {
+      if (process.env.DEBUG_GRAPHYN) {
+        console.log('→ Taking command + query path, checking command:', command);
+      }
       // Normalize command to lowercase to handle case-insensitive inputs
       const normalizedCmd = command.toLowerCase();
       if (normalizedCmd === 'design' && query.includes('figma.com')) {
@@ -195,6 +251,17 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         setSelectedAgent('design');
         setQuery(query);
         setMode('figma-design');
+      } else if (normalizedCmd === 'squad') {
+        // Natural language query - use multi-agent orchestration
+        if (process.env.DEBUG_GRAPHYN) {
+          console.log('✓ Squad mode detected! Setting mode to squad with query:', query);
+          console.log('📝 About to call setQuery and setMode...');
+        }
+        setQuery(query);
+        setMode('squad');
+        if (process.env.DEBUG_GRAPHYN) {
+          console.log('✅ setQuery and setMode called successfully');
+        }
       } else if (isAgentType(normalizedCmd)) {
         setSelectedAgent(normalizedCmd);
         setQuery(query);
@@ -206,11 +273,12 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         exit();
       }
     } else if (command && !query) {
-      // Command without query
+      if (process.env.DEBUG_GRAPHYN) {
+        console.log('→ Taking command without query path:', command);
+      }
+      // Command without query - auth commands removed
       const directCommands: Record<string, AppMode> = {
-        'auth': 'auth',
-        'whoami': 'auth',
-        'logout': 'auth'
+        // All auth commands removed - no authentication required
       };
       
       // Debug logging
@@ -230,7 +298,7 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         exit();
       }
     }
-  }, [command, query, exit]);
+  }, [command, query, exit, setMode, setQuery, setSelectedAgent]);
 
   const handleMenuSelect = (value: string) => {
     switch (value) {
@@ -242,11 +310,12 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         }, 100);
         break;
       case 'auth':
-        setMode('auth');
+        // Auth disabled - redirect to menu
+        setMode('menu');
         break;
       case 'analyze':
-        // Launch builder mode for analyzing repository
-        setMode('builder');
+        // Launch repository analysis
+        setMode('analyze');
         break;
       case 'revive':
         // Launch agent revival in builder mode with special context
@@ -288,18 +357,29 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
 
   // Mode-based rendering with error boundary
   const renderContent = () => {
+    // Override mode based on props for squad commands
+    const effectiveMode = (command === 'squad') ? 'squad' : mode;
+    const effectiveQuery = (command === 'squad') ? query : '';
+    
+    if (process.env.DEBUG_GRAPHYN) {
+      console.log('📺 Rendering with mode:', effectiveMode, 'query:', effectiveQuery || '');
+      console.log('  - original mode from store:', mode);
+      console.log('  - command prop:', command);
+    }
+    
     // For direct agent commands, skip store state and render directly
     if (isDirectAgentCommand && !selectedAgent) {
       return <AgentContext agent={initialAgent} query={initialQuery} />;
     }
     
-    switch (mode) {
+    switch (effectiveMode) {
       case 'menu':
         return <MainMenu onSelect={handleMenuSelect} />;
       case 'agent':
         return <AgentContext agent={selectedAgent} query={query || ''} />;
       case 'auth':
-        return <Authentication />;
+        // Auth is disabled - redirect to menu immediately
+        return <MainMenu onSelect={handleMenuSelect} />;
       case 'figma-design':
         return <FigmaDesign url={query || ''} framework="react" />;
         
@@ -348,6 +428,17 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
       case 'agentRevival':
         // Agent revival flow
         return <AgentRevival onComplete={() => setMode('menu')} />;
+      
+      case 'analyze':
+        // Repository analysis flow
+        return <RepositoryAnalysis onComplete={() => setMode('menu')} />;
+      
+      case 'squad':
+        // Multi-agent orchestration for natural language queries
+        if (process.env.DEBUG_GRAPHYN) {
+          console.log('✓ Rendering MultiAgentOrchestrator with query:', effectiveQuery);
+        }
+        return <MultiAgentOrchestrator query={effectiveQuery || ''} onComplete={() => setMode('menu')} />;
       
       default:
         return null;

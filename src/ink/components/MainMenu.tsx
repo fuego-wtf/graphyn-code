@@ -13,7 +13,6 @@ interface MainMenuProps {
 
 // Menu items matching Figma design
 const menuItems = [
-  { label: 'Login', value: 'auth' },
   { label: 'Analyze my repository', value: 'analyze' },
   { label: 'Revive .claude/agents 🔥', value: 'revive' },
   { label: 'Connect your accounts', value: 'connect' },

@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "outDir": "dist",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "strict": false,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "src/clyde/index.ts",
+    "src/clyde/mode-manager.ts",
+    "src/clyde/interactive-shell.ts",
+    "src/clyde/context-preserving-session.ts",
+    "src/coordinator/smart-coordinator.ts",
+    "src/engines/standalone-engine.ts",
+    "src/engines/dynamic-engine.ts",
+    "src/types/claude-code.d.ts"
+  ]
+}

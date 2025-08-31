@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { OAuthManager } from './auth/oauth.js';
+// OAuthManager removed - auth disabled
 import { analyzeRepository } from './commands/analyze.js';
 import { doctor } from './commands/doctor.js';
 import { checkSystemRequirements } from './utils/system-check.js';
@@ -27,8 +27,7 @@ async function startInteractiveConsole(): Promise<void> {
   let threadService: ThreadService | null = null;
   
   try {
-    // Check authentication and system requirements
-    const oauthManager = new OAuthManager();
+    // Check system requirements
     const doctorResult = await checkSystemRequirements();
     
     if (!doctorResult.canProceed) {
@@ -37,11 +36,8 @@ async function startInteractiveConsole(): Promise<void> {
       return;
     }
 
-    if (!(await oauthManager.isAuthenticated())) {
-      console.log(colors.info('🔗 Authentication required for interactive mode...'));
-      await oauthManager.authenticate();
-      console.log(colors.success('✓ Authentication successful!\n'));
-    }
+    // Auth disabled - skip authentication check
+    console.log(colors.info('⚠️ Authentication disabled - offline mode'));
 
     threadService = new ThreadService();
     console.log(colors.success('✓ Ready for development requests!\n'));
@@ -206,16 +202,15 @@ Examples:
   
   // Handle auth command
   if (userMessage === 'auth' || userMessage.startsWith('auth ')) {
-    // Use PKCE OAuth flow
-    const oauthManager = new OAuthManager();
-    await oauthManager.authenticate();
+    console.log('⚠️ Authentication disabled - system is fully offline');
+    console.log('ℹ️ All features available without authentication');
     process.exit(0);
   }
   
   // Handle logout command
   if (userMessage === 'logout') {
-    const oauthManager = new OAuthManager();
-    await oauthManager.logout();
+    console.log('⚠️ Authentication disabled - system is fully offline');
+    console.log('ℹ️ No logout necessary');
     process.exit(0);
   }
   
@@ -297,35 +292,11 @@ Examples:
       process.exit(0);
     }
     
-    // Step 1: Check authentication
-    const oauthManager = new OAuthManager();
-    if (!(await oauthManager.isAuthenticated())) {
-      console.log(colors.info('\n🔗 Connecting to Graphyn platform...'));
-      console.log(colors.info('🌐 Opening browser for authentication...\n'));
-      
-      // Authenticate user
-      await oauthManager.authenticate();
-      console.log(colors.success('\n✓ Authentication successful!\n'));
-    }
+    // Step 1: Auth check (disabled)
+    console.log(colors.info('⚠️  Authentication disabled - continuing in offline mode'));
     
-    // Step 2: Get valid token
-    let token = await oauthManager.getValidToken();
-    if (!token) {
-      // Token might be expired, try to re-authenticate
-      console.log(colors.warning('⚠️  Session expired. Re-authenticating...'));
-      console.log(colors.info('🌐 Opening browser for authentication...\n'));
-      
-      await oauthManager.authenticate();
-      
-      // Try to get token again
-      token = await oauthManager.getValidToken();
-      if (!token) {
-        console.log(colors.error('❌ Authentication failed. Please try "graphyn auth" manually.'));
-        process.exit(1);
-      }
-      
-      console.log(colors.success('\n✓ Re-authentication successful!\n'));
-    }
+    // Step 2: Token (disabled)
+    let token = null; // No token needed in offline mode
     
     // Step 3: Process query with Thread service
     const threadService = new ThreadService();

@@ -5,7 +5,7 @@ import { promisify } from 'util';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 
-import { OAuthManager } from '../auth/oauth.js';
+
 import { GraphynAPIClient } from '../api/client.js';
 import { createThreadSSEClient } from '../utils/sse-client.js';
 import { RepositoryAnalyzer } from '../services/repository-analyzer.js';
@@ -14,152 +14,6 @@ import readline from 'readline';
 
 const execAsync = promisify(exec);
 
-async function performInteractiveAuth(oauthManager: OAuthManager, isDev: boolean): Promise<void> {
-  const frontendUrl = isDev ? 'http://localhost:3000/auth/signin' : 'https://app.graphyn.xyz/auth';
-  
-  // Open browser automatically
-  try {
-    await open(frontendUrl);
-    console.log(`\u2713 Browser opened`);
-  } catch (error) {
-    console.log(`\u26a0\ufe0f  Could not open browser automatically`);
-    console.log(`Please visit: ${frontendUrl}`);
-  }
-  
-  console.log('\\n\u23f3 Waiting for authentication...');
-  
-  // Setup keyboard interaction
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
-  
-  let waitTime = 0;
-  const maxWaitTime = 300; // 5 minutes
-  
-  // Show initial options once
-  const showOptions = () => {
-    console.log('\\n    Options while waiting:');
-    console.log('    [R] Retry auth check');
-    console.log('    [O] Open browser again');
-    console.log('    [H] Help');
-    console.log('    [Q] Quit');
-    console.log('');
-  };
-
-  // Show only progress (no repeated options)
-  const showProgress = () => {
-    const progressBar = createProgressBar(waitTime, maxWaitTime);
-    const remaining = Math.max(0, maxWaitTime - waitTime);
-    process.stdout.write(`\\r    [${progressBar}] ${waitTime}s (${remaining}s remaining)`);
-  };
-  
-  // Handle keyboard input
-  const handleKeypress = (key: string) => {
-    switch (key.toLowerCase()) {
-      case 'r':
-        console.log('\\n\ud83d\udd04 Checking authentication...');
-        checkAuthAndResolve();
-        break;
-      case 'o':
-        console.log('\\n\ud83c\udf10 Opening browser again...');
-        open(frontendUrl).catch(() => console.log('\u26a0\ufe0f  Failed to open browser'));
-        break;
-      case 'h':
-        console.log('\\n\ud83d\udcda Help:');
-        console.log('  1. Visit the URL in your browser');
-        console.log('  2. Sign in with your credentials');
-        console.log('  3. The CLI will automatically detect authentication');
-        showOptions();
-        break;
-      case 'q':
-        console.log('\\n\ud83d\udc4b Goodbye!');
-        rl.close();
-        process.exit(0);
-        break;
-    }
-  };
-  
-  // Set up keypress handler
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  process.stdin.on('data', (data) => {
-    const key = data.toString().trim();
-    handleKeypress(key);
-  });
-  
-  let resolved = false;
-  
-  let checkAuthAndResolve = async () => {
-    if (resolved) return;
-    
-    try {
-      const isAuth = await oauthManager.isAuthenticated();
-      if (isAuth) {
-        resolved = true;
-        process.stdin.setRawMode(false);
-        rl.close();
-        console.log('\\n\ud83d\udd04 Authentication status confirmed!');
-        return;
-      }
-    } catch (error) {
-      // Continue waiting
-    }
-  };
-  
-  // Start the authentication flow in the OAuthManager
-  try {
-    await oauthManager.authenticate();
-    resolved = true;
-    process.stdin.setRawMode(false);
-    rl.close();
-    return;
-  } catch (error) {
-    // If direct authentication fails, fall back to polling
-    console.log('\\n\ud83d\udd04 Switching to manual verification mode...');
-    showOptions(); // Show options once at the beginning
-    
-    return new Promise<void>((resolve, reject) => {
-      const pollInterval = setInterval(async () => {
-        if (resolved) {
-          clearInterval(pollInterval);
-          resolve();
-          return;
-        }
-        
-        waitTime++;
-        showProgress();
-        
-        if (waitTime >= maxWaitTime) {
-          clearInterval(pollInterval);
-          process.stdin.setRawMode(false);
-          rl.close();
-          reject(new Error('Authentication timeout after 5 minutes'));
-          return;
-        }
-        
-        // Check auth every 5 seconds
-        if (waitTime % 5 === 0) {
-          await checkAuthAndResolve();
-          if (resolved) {
-            clearInterval(pollInterval);
-            resolve();
-          }
-        }
-      }, 1000);
-      
-      // Override the checkAuthAndResolve for this promise context
-      const originalCheck = checkAuthAndResolve;
-      checkAuthAndResolve = async () => {
-        await originalCheck();
-        if (resolved) {
-          clearInterval(pollInterval);
-          resolve();
-        }
-      };
-    });
-  }
-}
 
 function createProgressBar(current: number, total: number, length: number = 20): string {
   const percentage = Math.min(current / total, 1);
@@ -302,12 +156,11 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     
     // 2. Check authentication
     process.stdout.write('Checking authentication... ');
-    const oauthManager = new OAuthManager();
     
     let isAuthenticated = false;
     
     try {
-      isAuthenticated = await oauthManager.isAuthenticated();
+      isAuthenticated = false; // Auth disabled
     } catch (error) {
       // Handle keychain errors gracefully
       const errorMsg = error.message || error.toString();
@@ -326,17 +179,8 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     if (!isAuthenticated) {
       console.log('✗ FAILED');
       
-      if (options.dev) {
-        // Interactive OAuth flow for dev mode
-        console.log('\n🌐 Opening Graphyn login page...');
-        console.log('👤 Please authenticate at: http://localhost:3000/auth/signin');
-        
-        await performInteractiveAuth(oauthManager, options.dev);
-        console.log('✅ Authentication successful!');
-      } else {
-        console.log('\nPlease run: graphyn auth');
-        return;
-      }
+      // Authentication disabled - skip auth check
+      console.log('⚠️ Authentication disabled - continuing in offline mode');
     } else {
       console.log('✓ AUTHENTICATED');
     }

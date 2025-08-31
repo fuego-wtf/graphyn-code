@@ -8,19 +8,76 @@ This submodule is part of the graphyn-workspace monorepo and handles:
 - Claude Code integration and configuration bridge
 - MCP client for communicating with backend
 
-## Issue Management
+## File Deletion Safety Rule
+- **MANDATORY**: Consult user before ANY `rm` command unless explicitly requested
+- **Process**: Show what will be deleted, ask for confirmation, wait for approval
+- **Exception**: Only skip when user explicitly states "remove X" or "delete Y"
+- **NEVER use `rm -rf` without explicit user request** - Destructive file operations
 
-- Issues should be created in this repository: `fuego-wtf/graphyn-code`
-- Use `gh issue create --repo fuego-wtf/graphyn-code`
-- Transfer issues from parent: `gh issue transfer [number] fuego-wtf/graphyn-code --repo fuego-wtf/graphyn-workspace`
-- Check existing issues: `gh issue list --repo fuego-wtf/graphyn-code --search "KEYWORD"`
+## GitHub-Native Issue Management (Claude Code Orchestrator)
 
-## Claude Code Subagent Context
+Since @graphyn/code is a Claude Code orchestrator, it leverages GitHub's native features fully:
 
-- This module participates in agent squad coordination
-- Enables Claude Code sessions to register as subagents
-- Auto-discovers tools and MCP servers
-- Integrates with Claude's existing MCP configuration
+### Issue Creation Protocol
+```bash
+# 1. Check existing issues before creating
+gh issue list --repo fuego-wtf/graphyn-code --search "KEYWORD"
+gh issue list --repo fuego-wtf/graphyn-workspace --search "KEYWORD"
+
+# 2. Create with structured REV format
+gh issue create --repo fuego-wtf/graphyn-code --title "REV-{number}: CLI - Feature description"
+
+# 3. Use dependency keywords in issue body
+# "This issue blocks #25"
+# "This issue depends on fuego-wtf/graphyn-backyard#23"
+```
+
+### GitHub Native Dependencies
+```bash
+# Create issue relationships
+gh issue comment {issue_number} --body "This issue is blocked by fuego-wtf/graphyn-backyard#{backend_issue}"
+gh issue comment {issue_number} --body "This issue blocks fuego-wtf/graphyn-desktop#{desktop_issue}"
+
+# Transfer between repos when needed
+gh issue transfer {number} fuego-wtf/graphyn-code --repo fuego-wtf/graphyn-workspace
+```
+
+### Project Board Integration
+- All CLI issues start in **No Status** for weekly planning
+- **Backlog** → **In Progress** → **In Review** → **Done**
+- Use labels: `priority:critical`, `phase:1-cli`, `component:mcp`
+
+## Claude Code Orchestrator Features
+
+Since this CLI is designed to work with Claude Code, it leverages GitHub's native capabilities:
+
+### GitHub Integration (Built-in)
+```bash
+# CLI automatically detects GitHub context
+graphyn init    # Scans repo, creates .claude/agents/, sets up MCP
+
+# Native GitHub workflow support
+graphyn issue create "Add authentication"     # Creates REV-formatted issue
+graphyn branch "auth-45-jwt-validation"      # Creates issue-based branch
+graphyn pr create                             # Links PR to issue automatically
+
+# Project board integration
+graphyn planning                              # Shows current sprint items
+graphyn status                                # Shows current work progress
+```
+
+### Claude Code Session Coordination
+- **Multi-Agent Squads**: CLI coordinates multiple Claude Code sessions
+- **Context Sharing**: Shared repository context across sessions
+- **Issue Tracking**: Each session tied to specific GitHub issues  
+- **Dependency Management**: Respects GitHub issue relationships
+- **Progress Tracking**: Updates project board automatically
+
+### MCP Server Integration
+- **Auto-Discovery**: Scans for available MCP servers
+- **Context Bridge**: Shares repository context with Claude sessions
+- **Tool Registration**: Exposes GitHub tools to Claude Code
+- **Configuration Management**: Manages .claude/ directory structure
 
 ## CLI Architecture
 
@@ -171,7 +228,10 @@ const stream = graphyn.threads.stream(threadId);
 - Menu navigation: 60fps
 - API response: < 200ms
 - Claude launch: < 1s
-- Design extraction: < 5s
+- GitHub API calls: < 300ms
+- Issue creation: < 500ms
+- Project board updates: < 200ms
+- MCP server discovery: < 1s
 
 ## Security & Privacy
 - OAuth tokens in system keychain

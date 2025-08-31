@@ -58,12 +58,30 @@ if (isDev) {
   }
 }
 
-// Check if this is a natural language query (wrapped in quotes or starting with "I")
+// Check if this is a natural language query - AGGRESSIVE DETECTION
+// Treat anything that's not a known command as natural language
+const knownCommands = ['backend', 'frontend', 'architect', 'design', 'cli', 'analyze', 'revive', '--version', '-v', '--help', '-h', 'help'];
+
 const isNaturalLanguage = rawCommand && (
+  // Quoted queries (single quoted string passed as full command)
+  (rawCommand.startsWith('"') && rawCommand.endsWith('"') && rawCommand.length > 2) ||
   (rawCommand.startsWith('"') && args[args.length - 1]?.endsWith('"')) ||
-  rawCommand.toLowerCase().startsWith('i ') ||
-  (rawCommand === 'I' && args.length > 0)
+  // Multi-word commands (contains spaces) - most natural language
+  rawCommand.includes(' ') ||
+  // Commands starting with common words
+  /^(help|tell|show|create|build|make|add|implement|fix|update|generate|write|explain|what|how|why|when|where|can|could|should|would|please|i |the |a |an )/i.test(rawCommand) ||
+  // Any unrecognized single word with arguments
+  (args.length > 0 && !knownCommands.includes(rawCommand?.toLowerCase() || '')) ||
+  // Any unrecognized single word that's not in known commands
+  (!knownCommands.includes(rawCommand?.toLowerCase() || ''))
 );
+
+if (process.env.DEBUG_GRAPHYN) {
+  console.log('🔍 Natural language detection:');
+  console.log('- rawCommand:', JSON.stringify(rawCommand));
+  console.log('- args:', JSON.stringify(args));
+  console.log('- isNaturalLanguage:', isNaturalLanguage);
+}
 
 let command: string | undefined;
 let query: string;
@@ -87,11 +105,11 @@ const agentAliases: Record<string, string> = {
 };
 
 // Normalize command if it's an alias
-const normalizedCommand = command ? (agentAliases[command] || command) : undefined;
+let normalizedCommand = command ? (agentAliases[command] || command) : undefined;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.60');
+  console.log('0.1.70');
   process.exit(0);
 }
 
@@ -126,11 +144,11 @@ Examples:
 }
 
 // Check if this is a direct agent command - always use fallback for these
-const agents = ['backend', 'frontend', 'architect', 'design', 'cli', 'squad'];
+const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
 const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
 
 // Commands that should always use fallback mode
-const fallbackCommands = ['orchestrate'];
+const fallbackCommands = ['orchestrate']; // Remove 'squad' so it uses interactive mode
 const isFallbackCommand = fallbackCommands.includes(normalizedCommand);
 
 // Check if graphyn was called without any arguments (builder mode)
@@ -140,6 +158,7 @@ const isBuilderMode = !normalizedCommand;
 const isInteractive = Boolean(
   process.stdin.isTTY || 
   process.env.FORCE_COLOR ||
+  process.env.FORCE_INTERACTIVE || // Allow forcing interactive mode
   (process.env.TERM && process.env.TERM !== 'dumb')
 );
 
@@ -153,6 +172,13 @@ const isCI = Boolean(
   process.env.JENKINS_URL
 );
 
+// Handle forced interactive mode with initial query
+if (process.env.FORCE_INTERACTIVE && process.env.GRAPHYN_INITIAL_QUERY) {
+  // Override command and query for mission control mode
+  normalizedCommand = 'squad'; // Set to squad mode for mission control
+  query = process.env.GRAPHYN_INITIAL_QUERY;
+}
+
 // Determine if we should use fallback mode
 let useFallback = false;
 
@@ -165,6 +191,11 @@ if (isDirectAgentCommand || isFallbackCommand) {
 } else {
   // Other commands: use fallback if non-interactive
   useFallback = !isInteractive || isCI;
+}
+
+// Never use fallback when FORCE_INTERACTIVE is set
+if (process.env.FORCE_INTERACTIVE) {
+  useFallback = false;
 }
 
 // Debug output for terminal detection (only when DEBUG_GRAPHYN is set)
