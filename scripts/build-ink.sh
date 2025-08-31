@@ -58,6 +58,8 @@ cat > tsconfig.ink.json << EOF
     "src/cli/**/*.ts",
     "src/cli/**/*.tsx",
     "src/context/**/*.ts",
+    "src/orchestrator/**/*.ts",
+    "src/orchestrator/**/*.tsx",
     "src/cli-main.ts"
   ],
   "exclude": [
@@ -71,7 +73,7 @@ cat > tsconfig.ink.json << EOF
 }
 EOF
 
-./node_modules/.bin/tsc -p tsconfig.ink.json --noEmitOnError false || true
+tsc -p tsconfig.ink.json --noEmitOnError false || true
 
 # Clean up temp tsconfig
 rm tsconfig.ink.json

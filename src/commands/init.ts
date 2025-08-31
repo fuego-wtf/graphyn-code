@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
-import { OAuthManager } from '../auth/oauth.js';
+
 import { AgentRevivalService } from '../services/agent-revival.js';
 import { checkSystemRequirements } from '../utils/system-check.js';
 import { ConfigManager } from '../config-manager.js';
@@ -28,13 +28,13 @@ export interface InitOptions {
 }
 
 export class InitCommand {
-  private authManager: OAuthManager;
+  // Auth manager removed - offline mode
   private revivalService: AgentRevivalService;
   private configManager: ConfigManager;
   private mcpGenerator: MCPConfigGenerator;
   
   constructor() {
-    this.authManager = new OAuthManager();
+    // Auth disabled for offline mode
     this.revivalService = new AgentRevivalService();
     this.configManager = new ConfigManager();
     this.mcpGenerator = new MCPConfigGenerator();
@@ -117,7 +117,7 @@ export class InitCommand {
     const spinner = ora('Checking authentication...').start();
     
     try {
-      const isAuthenticated = await this.authManager.isAuthenticated();
+      const isAuthenticated = false; // Auth disabled
       
       if (isAuthenticated) {
         spinner.succeed('Already authenticated');
@@ -144,7 +144,7 @@ export class InitCommand {
         
         if (authenticate) {
           console.log(colors.highlight('\n🔐 Starting authentication...\n'));
-          await this.authManager.authenticate();
+          console.log('Auth disabled - skipping authentication');
         } else {
           console.log(colors.info('\nYou can authenticate later by running "graphyn auth"'));
         }

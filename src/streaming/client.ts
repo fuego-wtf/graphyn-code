@@ -1,5 +1,5 @@
-import { EventSource } from 'eventsource';
-import { OAuthManager } from '../auth/oauth.js';
+import EventSource from 'eventsource';
+
 import { config } from '../config.js';
 
 export interface StreamEvent {
@@ -24,7 +24,6 @@ export interface FeedbackRequest {
 }
 
 export class StreamingClient {
-  private oauthManager: OAuthManager;
   private apiUrl: string;
   private eventSource?: EventSource;
   private reconnectAttempts = 0;
@@ -32,7 +31,6 @@ export class StreamingClient {
   private reconnectDelay = 1000;
 
   constructor() {
-    this.oauthManager = new OAuthManager();
     this.apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
   }
 
@@ -44,7 +42,7 @@ export class StreamingClient {
     message: string, 
     options: StreamOptions = {}
   ): Promise<void> {
-    const token = await this.oauthManager.getValidToken();
+    const token = await null;
     if (!token) {
       throw new Error('Authentication required. Please run `graphyn auth login`');
     }
@@ -179,7 +177,7 @@ export class StreamingClient {
    * Send feedback response to the server
    */
   async sendFeedback(threadId: string, feedbackId: string, response: any): Promise<void> {
-    const token = await this.oauthManager.getValidToken();
+    const token = await null;
     if (!token) {
       throw new Error('Authentication required');
     }
@@ -211,7 +209,7 @@ export class StreamingClient {
    * Connect to thread stream for real-time updates (read-only)
    */
   async connectToThread(threadId: string, options: StreamOptions = {}): Promise<void> {
-    const token = await this.oauthManager.getValidToken();
+    const token = await null;
     if (!token) {
       throw new Error('Authentication required. Please run `graphyn auth login`');
     }

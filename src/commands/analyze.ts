@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { OAuthManager } from '../auth/oauth.js';
+// OAuthManager removed - auth disabled
 import { GraphynAPIClient } from '../api-client.js';
 import { RepositoryAnalyzerService } from '../services/repository-analyzer.js';
 import { ConfigManager } from '../config-manager.js';
@@ -29,23 +29,7 @@ export async function analyzeRepository(options: AnalyzeOptions = {}) {
 
     // In dev mode, we can skip authentication and work locally
     if (!options.dev) {
-      // Check authentication
-      const oauthManager = new OAuthManager();
-      if (!(await oauthManager.isAuthenticated())) {
-        console.log(colors.error('❌ Not authenticated. Please run "graphyn auth" first.'));
-        return;
-      }
-
-      // Get valid token
-      const token = await oauthManager.getValidToken();
-      if (!token) {
-        throw new Error('Failed to get authentication token');
-      }
-
-      // Initialize API client
-      const apiUrl = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
-      const apiClient = new GraphynAPIClient(apiUrl);
-      apiClient.setToken(token);
+      console.log(colors.info('⚠️  Authentication disabled - working in offline mode'));
     }
 
     // Create analyzer service (no longer needs apiClient)
@@ -170,8 +154,6 @@ export async function getCachedAnalysis(): Promise<any> {
  */
 async function generateRepositoryExplanation(analysis: any, query: string): Promise<string> {
   // Try to use the API client to get an AI explanation
-  const oauthManager = new OAuthManager();
-  
   try {
     // First, let's try to connect to the backend
     const apiUrl = process.env.GRAPHYN_API_URL || 'http://localhost:4000';
@@ -185,13 +167,7 @@ async function generateRepositoryExplanation(analysis: any, query: string): Prom
       throw new Error(`Backend not reachable at ${apiUrl}: ${pingError.message}`);
     }
     
-    // If authenticated, use authenticated endpoints
-    if (await oauthManager.isAuthenticated()) {
-      const token = await oauthManager.getValidToken();
-      if (token) {
-        apiClient.setToken(token);
-      }
-    }
+    // Auth disabled - continue without token
     
     // Create a prompt for the AI to explain the repository
     const prompt = `Based on this repository analysis, please answer the user's question: "${query}"

@@ -11,9 +11,9 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { OAuthManager } from '../auth/oauth.js';
+
 import { GraphynAPIClient } from '../api/client.js';
-import { getSecureTokenStorage } from '../auth/secure-storage-v2.js';
+
 
 export interface MCPBridgeOptions {
   apiUrl?: string;
@@ -23,10 +23,10 @@ export interface MCPBridgeOptions {
 export class GraphynMCPBridge {
   private server: Server;
   private apiClient: GraphynAPIClient;
-  private authManager: OAuthManager;
+  // Auth manager removed - offline mode
   
   constructor(options: MCPBridgeOptions = {}) {
-    this.authManager = new OAuthManager();
+    // Auth disabled for offline mode
     this.apiClient = new GraphynAPIClient();
     
     this.server = new Server(

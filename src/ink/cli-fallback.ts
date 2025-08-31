@@ -64,11 +64,21 @@ if (isDev) {
   }
 }
 
-// Check if this is a natural language query (wrapped in quotes or starting with "I")
+// Check if this is a natural language query - AGGRESSIVE DETECTION (same as main ink cli)
+const knownCommands = ['backend', 'frontend', 'architect', 'design', 'cli', 'analyze', 'revive', '--version', '-v', '--help', '-h', 'help'];
+
 const isNaturalLanguage = rawCommand && (
+  // Quoted queries (single quoted string passed as full command)
+  (rawCommand.startsWith('"') && rawCommand.endsWith('"') && rawCommand.length > 2) ||
   (rawCommand.startsWith('"') && args[args.length - 1]?.endsWith('"')) ||
-  rawCommand.toLowerCase().startsWith('i ') ||
-  (rawCommand === 'I' && args.length > 0)
+  // Multi-word commands (contains spaces) - most natural language
+  rawCommand.includes(' ') ||
+  // Commands starting with common words
+  /^(help|tell|show|create|build|make|add|implement|fix|update|generate|write|explain|what|how|why|when|where|can|could|should|would|please|i |the |a |an )/i.test(rawCommand) ||
+  // Any unrecognized single word with arguments
+  (args.length > 0 && !knownCommands.includes(rawCommand?.toLowerCase() || '')) ||
+  // Any unrecognized single word that's not in known commands
+  (!knownCommands.includes(rawCommand?.toLowerCase() || ''))
 );
 
 let command: string | undefined;
@@ -97,7 +107,7 @@ const normalizedCommand = agentAliases[command] || command;
 
 // Show version
 if (normalizedCommand === '--version' || normalizedCommand === '-v') {
-  console.log('0.1.60');
+  console.log('0.1.62');
   process.exit(0);
 }
 
@@ -169,23 +179,9 @@ if (normalizedCommand === 'orchestrate') {
 
 // Handle auth command in fallback mode
 if (normalizedCommand === 'auth') {
-  console.log('🔐 Initiating authentication...');
-  
-  // Import OAuth manager and start authentication
-  import('../auth/oauth.js').then(({ OAuthManager }) => {
-    const oauth = new OAuthManager();
-    
-    return oauth.authenticate();
-  }).then(() => {
-    console.log('✅ Authentication completed successfully!');
-    process.exit(0);
-  }).catch((error) => {
-    console.error('❌ Authentication failed:', error.message);
-    process.exit(1);
-  });
-  
-  // Keep the process alive for authentication
-  setInterval(() => {}, 1000);
+  console.log('⚠️ Authentication disabled - system is fully offline');
+  console.log('ℹ️ All features available without authentication');
+  process.exit(0);
 }
 
 // Handle commands that require interactive mode
@@ -196,20 +192,26 @@ if (['init', 'init-graphyn', 'thread', 'agent'].includes(normalizedCommand)) {
 }
 
 
-// Handle natural language (legacy squad label)
+// Handle natural language (squad command routes to GraphNeuralSystem)
 if (normalizedCommand === 'squad' && query) {
-  // Process squad command (natural language)
-  console.log('Creating squad with natural language query...');
+  // Route natural language queries to the main CLI (GraphNeuralSystem)
+  import('child_process').then(({ execSync }) => {
+    const mainCliPath = new URL('../cli.js', import.meta.url).pathname;
+    try {
+      // Pass the raw query (not the 'squad' command) to the main CLI
+      execSync(`node ${mainCliPath} "${query}"`, {
+        stdio: 'inherit'
+      });
+      process.exit(0);
+    } catch (error) {
+      process.exit(1);
+    }
+  });
   
-  // For squad mode in non-TTY, we need to show a helpful message
-  console.error('Squad creation requires an interactive terminal for authentication and team selection.');
-  console.error('');
-  console.error('Please run this command in a proper terminal:');
-  console.error(`  graphyn "${query}"`);
-  console.error('');
-  console.error('Or use a specific agent directly:');
-  console.error('  graphyn backend "add authentication"');
-  process.exit(1);
+  // Keep process alive while async import executes
+  setInterval(() => {
+    // Keep the process alive until the squad command completes
+  }, 1000);
 }
 
 // Process agent commands

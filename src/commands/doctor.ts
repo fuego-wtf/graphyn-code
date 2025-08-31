@@ -3,6 +3,7 @@ import { runDoctor } from '../utils/doctor.js';
 import { render } from 'ink';
 import React from 'react';
 import { AutoSetup } from '../ink/components/AutoSetupSimple.js';
+import { createInterface } from 'readline';
 
 const colors = {
   success: chalk.green,
@@ -58,7 +59,7 @@ export async function doctor(options: { skipSetup?: boolean } = {}) {
  */
 async function promptForSetup(needsClaudeCode: boolean, needsTmux: boolean, needsFigmaMCP: boolean): Promise<boolean> {
   return new Promise((resolve) => {
-    const readline = require('readline').createInterface({
+    const readline = createInterface({
       input: process.stdin,
       output: process.stdout
     });

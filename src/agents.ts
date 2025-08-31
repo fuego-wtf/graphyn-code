@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import axios from 'axios';
-import { OAuthManager } from './auth/oauth.js';
 import { config } from './config.js';
 import { 
   colors, 
@@ -21,11 +20,10 @@ export async function fetchAgentPrompt(type: string): Promise<string> {
 }
 
 export class AgentManager {
-  private oauthManager: OAuthManager;
   private promptService: AgentPromptService;
 
   constructor() {
-    this.oauthManager = new OAuthManager();
+    // Auth disabled for offline mode
     this.promptService = new AgentPromptService();
   }
 
@@ -99,17 +97,13 @@ You are now in an interactive session. The user will provide queries and you sho
   }
 
   async queryAgent(type: string, query: string): Promise<string> {
-    // Check if authenticated with OAuth
-    const isAuthenticated = await this.oauthManager.isAuthenticated();
-    
-    if (!isAuthenticated) {
-      console.log(colors.warning('⚠️  Not authenticated. Please run "graphyn auth" first.'));
-      return await this.getLocalPrompt(type, query);
-    }
+    // Auth disabled - use local prompts
+    console.log(colors.info('⚠️  Authentication disabled - using local prompts'));
+    return await this.getLocalPrompt(type, query);
 
     try {
-      // Get valid OAuth token
-      const token = await this.oauthManager.getValidToken();
+      // Token disabled
+      const token = null;
       if (!token) {
         throw new Error('Failed to get authentication token');
       }
@@ -212,10 +206,48 @@ Please analyze the above query in the context of the ${type} agent role and prov
       try {
         // Use direct argument passing to avoid shell escaping issues
         const { spawnSync } = require('child_process');
-        spawnSync(claudeResult.path, [fullContext], { 
-          stdio: 'inherit',
-          shell: false 
-        });
+        
+        // Check if we're in an interactive environment (like Ink)
+        const isInteractive = process.stdout.isTTY && process.stdin.isTTY;
+        
+        if (isInteractive && process.env.FORCE_COLOR) {
+          // When launched from Ink, spawn in a new terminal to avoid raw mode conflicts
+          console.log(colors.info('✨ Starting Claude Code...\n'));
+          
+          // For macOS, use 'open -a Terminal' to launch in new terminal window
+          if (process.platform === 'darwin') {
+            spawnSync('open', ['-a', 'Terminal', claudeResult.path, '--args', fullContext], {
+              stdio: 'ignore',
+              detached: true
+            });
+          } else if (process.platform === 'win32') {
+            // For Windows, use 'start' command
+            spawnSync('start', ['cmd', '/c', claudeResult.path, fullContext], {
+              stdio: 'ignore',
+              shell: true,
+              detached: true
+            });
+          } else {
+            // For Linux, try to use gnome-terminal or fallback to xterm
+            try {
+              spawnSync('gnome-terminal', ['--', claudeResult.path, fullContext], {
+                stdio: 'ignore',
+                detached: true
+              });
+            } catch {
+              spawnSync('xterm', ['-e', claudeResult.path, fullContext], {
+                stdio: 'ignore',
+                detached: true
+              });
+            }
+          }
+        } else {
+          // Normal CLI mode - use inherited stdio
+          spawnSync(claudeResult.path, [fullContext], { 
+            stdio: 'inherit',
+            shell: false 
+          });
+        }
       } catch (error) {
         // Claude exited - this is normal
       }

@@ -33,7 +33,7 @@ export const config = {
   
   // Client configuration
   timeout: 30000,
-  userAgent: 'Graphyn Code CLI v0.1.60',
+  userAgent: 'Graphyn Code CLI v0.1.62',
   
   // OAuth configuration
   oauth: {
