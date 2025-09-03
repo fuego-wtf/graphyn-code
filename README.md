@@ -1,336 +1,130 @@
-# Graphyn Code
+# Graphyn Desktop Implementation
 
-> **Your AI development team, one command away.**
+This repository contains the implementation plan and example code for building a desktop application with Agent Management and MCP (Model Context Protocol) Server Configuration features.
 
-[![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## Overview
 
-🚀 **LATEST**: Mission Control interface with real-time Claude streaming!
+Based on the reference images provided, this project implements:
 
-🎨 **NEW**: Beautiful interactive CLI with real-time updates, powered by React!
+1. **Agent/Project Management Interface** - A sidebar with color-coded agents, their status, and type indicators
+2. **Text Input Area** - Command palette with @ mentions for agent selection and auto-completion
+3. **MCP Server Configuration** - Settings panel for managing and configuring MCP servers
 
-🔥 **GAME CHANGER**: Transform your static `.claude/agents` into living, learning AI agents!
+## Project Structure
 
-## Why Graphyn?
-
-We believe AI assistants should understand your project deeply—not just respond to prompts. Graphyn gives Claude Code specialized agents that know your stack, follow your standards, and evolve with your codebase.
-
-**One command. Full context. Real development.**
-
-## Install
-
-```bash
-npm install -g @graphyn/code
+```
+/workspace/
+├── IMPLEMENTATION_PLAN.md          # Detailed implementation plan
+├── example-implementations/        # Example code implementation
+│   ├── package.json               # Project dependencies
+│   ├── src/
+│   │   ├── shared/
+│   │   │   └── types.ts          # TypeScript interfaces and types
+│   │   ├── renderer/
+│   │   │   ├── App.tsx           # Main application component
+│   │   │   ├── components/
+│   │   │   │   ├── AgentList/   # Agent management components
+│   │   │   │   ├── MCPConfig/   # MCP server configuration
+│   │   │   │   ├── TextInput/   # Command input components
+│   │   │   │   └── ui/          # Reusable UI components
+│   │   │   ├── stores/          # Zustand state management
+│   │   │   └── utils/           # Utility functions
+│   │   └── main/                # Electron main process (TBD)
 ```
 
-Zero configuration needed—it just works.
+## Key Features Implemented
 
-## Platform Support
+### 1. Agent Management
+- **Visual Status Indicators**: Color-coded dots showing agent status (active, inactive, error, loading)
+- **Agent Types**: Support for 'agent', 'project', and 'global' scopes
+- **Search & Filter**: Real-time search and filtering by agent type
+- **Interactive Selection**: Click to select active agent
 
-- ✅ **macOS** - Fully supported
-- ✅ **Linux** - Fully supported  
-- ⚠️ **Windows** - Experimental (WSL recommended)
+### 2. Command Input System
+- **@ Mentions**: Type @ to see agent autocomplete
+- **Command History**: Navigate previous commands with arrow keys
+- **Auto-completion**: Smart suggestions for agent names
+- **Visual Feedback**: Selected agent shown in input area
 
+### 3. MCP Server Management
+- **Server Cards**: Visual representation of each server with status
+- **Enable/Disable**: Toggle switches for each server
+- **Add Custom Servers**: Modal dialog for adding new MCP servers
+- **Configuration**: Support for command, arguments, and transport protocols
 
-## Quick Start
+## Technology Stack
 
-```bash
-# Natural language queries launch Mission Control
-graphyn "help me understand this repo"
-graphyn "add user authentication"
-graphyn "create a dashboard component"
+- **Electron**: Cross-platform desktop framework
+- **React + TypeScript**: UI development
+- **Tailwind CSS**: Styling and dark theme
+- **Zustand**: State management
+- **@modelcontextprotocol/sdk**: MCP integration
+- **Radix UI**: Accessible UI primitives
 
-# Agent-specific queries
-graphyn backend "add user authentication"
-graphyn frontend "create a dashboard"  
-graphyn architect "review my API design"
-graphyn design figma.com/file/...  # Figma to code
+## Getting Started
 
-# Interactive Mission Control mode
-graphyn
-```
-
-## 🚀 Mission Control Interface
-
-Experience the future of AI development with our flight cockpit interface:
-
-- **🎯 Natural Language Processing**: Just describe what you want - "help me understand this repo", "add auth", "review my API"
-- **📺 Real-time Claude Streaming**: Watch Claude analyze your code with full repository context
-- **🖥️ Flight Cockpit UI**: Status panels, system logs, and live execution monitoring  
-- **📋 Task Management**: Upcoming task decomposition with @backend, @frontend, @architect assignments
-- **💬 Continuous Interaction**: Chat with Claude while it's working (coming in Phase 2)
-- **🛡️ Exit Protection**: No accidental closures - your work sessions are protected
-
-### Mission Control Features
-```bash
-# Launch Mission Control with any natural language query
-graphyn "explain the authentication system"
-
-# Mission Control provides:
-✅ Repository context detection (package.json, README, structure)
-✅ Real-time Claude output streaming
-✅ Flight cockpit status monitoring
-✅ Session history and query tracking
-🚧 Task approval workflow (REV-073)
-🚧 Split-screen with inline input (REV-071) 
-🚧 Exit protection dialog (REV-072)
-```
-
-## 🚀 Agent Revival: Bring Your Agents to Life!
-
-Do you have static `.claude/agents` files? Transform them into living, learning AI agents with one command:
-
-```bash
-# During project initialization
-graphyn init
-
-# Or revive agents anytime
-graphyn agents revive
-```
-
-When Graphyn detects your `.claude/agents` folder:
-- 🎯 **Found 5 static agents! Want to bring them to life?**
-- Select which agents to transform
-- Converts static prompts to living Graphyn agents
-- Agents learn from every conversation
-- Collaborate with your team
-- Deploy as APIs
-
-**Before**: Static markdown files that never improve
-**After**: Living agents that learn, evolve, and collaborate
-
-## 🔧 API Integration
-
-Graphyn provides a powerful REST API for building custom integrations:
-
-### Authentication
-
-```bash
-# Set your API key (optional - will prompt when needed)
-graphyn auth gph_sk_your_api_key
-```
-
-### API Examples
-
-```bash
-# Extract Figma design via API
-curl -X POST https://api.graphyn.xyz/v1/design/extract \
-  -H "Authorization: Bearer gph_sk_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{"figma_url": "https://figma.com/file/xyz/Component"}'
-
-# Create custom agent
-curl -X POST https://api.graphyn.xyz/v1/agents \
-  -H "Authorization: Bearer gph_sk_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "FinTech UI Agent",
-    "description": "Specialized for financial dashboards",
-    "configuration": {
-      "prompt": "You specialize in secure financial UIs..."
-    }
-  }'
-
-# Chat with agent
-curl -X POST https://api.graphyn.xyz/v1/agents/agent_123/chat \
-  -H "Authorization: Bearer gph_sk_your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Create a secure transaction form"}'
-```
-
-### CI/CD Integration
-
-```yaml
-# GitHub Action example
-- name: Extract Figma Design
-  run: |
-    curl -X POST https://api.graphyn.xyz/v1/design/extract \
-      -H "Authorization: Bearer ${{ secrets.GRAPHYN_API_KEY }}" \
-      -d '{"figma_url": "${{ github.event.inputs.figma_url }}"}'
-```
-
-### JavaScript SDK
-
-```javascript
-import { GraphynClient } from '@graphyn/sdk';
-
-const graphyn = new GraphynClient({
-  apiKey: process.env.GRAPHYN_API_KEY
-});
-
-// Extract Figma design
-const component = await graphyn.design.extract({
-  figmaUrl: 'https://figma.com/file/xyz/Component'
-});
-
-// Chat with agent
-const response = await graphyn.agents.chat('agent_123', {
-  message: 'Build a payment form with Stripe'
-});
-```
-
-### Rate Limits
-
-- **Free Tier**: 3 design extractions per day
-- **Ultra ($39/month)**: Unlimited API calls
-- Check `X-RateLimit-Remaining` header for current limits
-
-Full API documentation: [app.graphyn.xyz/docs](https://app.graphyn.xyz/docs)
-
-### 🚀 New in v0.1.51: Production Ready
-
-Graphyn now connects to the production backend at api.graphyn.xyz:
-
-```bash
-# OAuth authentication (port 8989)
-graphyn init
-# → Opens browser for GitHub/Figma OAuth
-# → Stores secure Better Auth tokens
-# → Creates organization context
-
-# Build agents through conversation
-graphyn thread
-# → Start agent builder conversation
-# → Natural language agent creation
-# → Test in WhatsApp-style interface
-
-# Deploy agents as APIs
-graphyn agent deploy abc123
-# → Get API endpoint: https://api.graphyn.xyz/api/v1/agents/abc123/invoke
-# → Receive API key for external access
-# → Usage tracking and rate limiting included
-```
-
-## The Philosophy
-
-**Documentation should be alive.** Not static files that rot in repos, but living knowledge that grows with your project. Every interaction teaches Graphyn about your codebase. Every decision gets remembered. Every pattern gets recognized.
-
-This is the future of development: AI that truly understands your project.
-
-## Your AI Development Squad
-
-### 🔧 Backend Agent
-Expert in APIs, databases, and server architecture. Knows Encore.ts, Node.js, and cloud patterns.
-
-### 🎨 Frontend Agent  
-Master of UI/UX, React, and modern web. Builds components that users love.
-
-### 🏗️ Architect Agent
-Your technical advisor. Reviews designs, suggests improvements, ensures best practices.
-
-### 🎨 Design Agent
-Converts Figma prototypes to working code. Analyzes designs, creates implementation plans, and launches Claude Code with full MCP integration.
-
-## Local Development Setup
-
-1. Clone the repository:
+1. **Clone the repository**:
    ```bash
-   git clone https://github.com/graphyn/graphyn-code.git
-   cd graphyn-code
+   git clone <repository-url>
+   cd graphyn-desktop
    ```
 
-2. Install dependencies:
+2. **Install dependencies**:
    ```bash
+   cd example-implementations
    npm install
    ```
 
-3. Build the project:
+3. **Run in development mode**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Build for production**:
    ```bash
    npm run build
+   npm run dist
    ```
 
-4. Test locally:
-   ```bash
-   node dist/ink/cli.js
-   ```
+## Implementation Timeline
 
-### Figma OAuth Setup
+- **Week 1**: Project setup and basic layout
+- **Week 2-3**: Agent management features
+- **Week 3-4**: MCP server integration
+- **Week 5**: Polish, testing, and optimization
 
-The Figma OAuth credentials are embedded in the code for local testing:
-- Client ID: `YbqfPAJUb1ro4HEUVuiwhj`
-- Client Secret: `4ZXEVoSX0VcINAIMgRKnvi1d38eS39`
-- Redirect URI: `http://localhost:3456/callback`
+## Key Implementation Files
 
-To authenticate with Figma:
-```bash
-graphyn design auth
-```
+### Types and Interfaces
+- `/src/shared/types.ts` - Core TypeScript interfaces for Agent, MCPServer, Commands
 
-To use Figma design extraction:
-```bash
-# Extract and generate components from a Figma prototype
-graphyn design <figma-url>
+### Components
+- `/src/renderer/components/AgentList/` - Agent list with search and filtering
+- `/src/renderer/components/TextInput/` - Command input with autocomplete
+- `/src/renderer/components/MCPConfig/` - MCP server configuration UI
 
-# Extract components with i18n-ready translation mapping
-graphyn design <figma-url> --extract-components
-```
+### State Management
+- `/src/renderer/stores/agentStore.ts` - Agent state management
+- `/src/renderer/stores/mcpStore.ts` - MCP server state
+- `/src/renderer/stores/commandStore.ts` - Command history
 
-The `--extract-components` flag provides:
-- Automatic text extraction from all components
-- Smart translation key generation (e.g., `button.addToCart.action`)
-- Component categorization using atomic design principles
-- Generated translation files (en.json)
-- Components with built-in i18n hooks
-- TypeScript types for translation keys
+## Next Steps
 
-**Note**: These are test credentials for local development. For production, create your own OAuth app at https://www.figma.com/developers/apps
+1. **Electron Main Process**: Implement IPC communication between main and renderer
+2. **MCP Integration**: Connect actual MCP SDK for server communication
+3. **Agent Communication**: Implement real agent command execution
+4. **Persistence**: Add local storage for settings and configuration
+5. **Error Handling**: Comprehensive error handling and recovery
+6. **Testing**: Unit and integration tests
+7. **Performance**: Optimize for large numbers of agents/servers
 
-## Living Documentation
+## Design Considerations
 
-Create a `GRAPHYN.md` file in your project:
+- **Dark Theme**: Matches the reference UI with gray-900 backgrounds
+- **Accessibility**: Keyboard navigation and screen reader support
+- **Performance**: Virtual scrolling for large lists
+- **Security**: Context isolation and input sanitization
 
-```markdown
-# Our Stack
-- Backend: Encore.ts with PostgreSQL
-- Frontend: Next.js with Tailwind
-- Auth: Clerk
+## Contributing
 
-# Our Standards
-- TypeScript everywhere
-- Tests for critical paths
-- Accessibility first
-```
-
-Now every agent knows your project's DNA.
-
-## Coming Soon
-
-- **Context Evolution**: Graphyn learns from Claude's work
-- **Squad Sync**: Share knowledge across your organization
-- **Pattern Recognition**: Detect and suggest improvements
-- **Sleep-time Compute**: AI improves while you rest
-
-## Commands
-
-```bash
-# Specialized agents
-graphyn backend "create a REST API"
-graphyn frontend "build a dashboard" 
-graphyn architect "review my system design"
-graphyn design "https://figma.com/..."
-
-# Setup and diagnostics
-graphyn setup     # Run setup wizard
-graphyn doctor    # Check your environment
-graphyn auth      # Authenticate with Graphyn
-
-# Advanced
-graphyn chain "complex multi-agent task"
-graphyn history   # View recent interactions
-```
-
-## Troubleshooting
-
-**Setup issues?**
-```bash
-graphyn doctor -v  # Detailed diagnostics
-```
-
-**Need help?**
-- Check [COMPATIBILITY.md](COMPATIBILITY.md) for platform support
-- Run `graphyn setup` to reconfigure
-- Report issues at [github.com/fuego-wtf/graphyn-code](https://github.com/fuego-wtf/graphyn-code)
-
----
-
-**Built for developers who ship fast and dream big.**
+Please refer to the `IMPLEMENTATION_PLAN.md` for detailed technical specifications and architecture decisions.

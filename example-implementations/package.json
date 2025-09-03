@@ -1,0 +1,43 @@
+{
+  "name": "graphyn-desktop",
+  "version": "0.1.0",
+  "description": "Desktop application with Agent Management and MCP Server Configuration",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev:main": "electron-esbuild dev",
+    "dev:renderer": "vite",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:main": "electron-esbuild build",
+    "build:renderer": "vite build",
+    "dist": "electron-builder",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "electron-store": "^8.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "zustand": "^4.4.7",
+    "clsx": "^2.0.0",
+    "lucide-react": "^0.294.0",
+    "@radix-ui/react-switch": "^1.0.3",
+    "@radix-ui/react-dialog": "^1.0.5",
+    "tailwind-merge": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-esbuild": "^1.0.2",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.7",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  }
+}
