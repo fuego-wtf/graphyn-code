@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { LocalOrchestrator, type OrchestratorResult, type LocalTask } from '../../orchestrator/local-orchestrator.js';
+import { queryAnalyzer } from '../../utils/query-analyzer.js';
 
 interface MultiAgentOrchestratorProps {
   query: string;
@@ -11,36 +13,90 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
   query, 
   onComplete
 }) => {
-  // Simplified Mission Control state
+  // Enhanced orchestration state
+  const [orchestrator] = useState(() => new LocalOrchestrator());
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [status, setStatus] = useState<OrchestratorResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [output, setOutput] = useState<string[]>([]);
   const [currentQuery, setCurrentQuery] = useState(query);
   const [queryHistory, setQueryHistory] = useState<string[]>([query]);
-  const [claudeOutput, setClaudeOutput] = useState<string>('');
-  const [status, setStatus] = useState<'ready' | 'analyzing' | 'complete' | 'error'>('ready');
+  const [analysis, setAnalysis] = useState<any>(null);
   
   // Input handling state
   const [inputMode, setInputMode] = useState(false);
   const [newQuery, setNewQuery] = useState('');
+  
+  // Task output tracking
+  const [taskOutputs, setTaskOutputs] = useState<Record<string, string>>({});
+  const [activeStage, setActiveStage] = useState<string>('initialization');
 
-  // Simple Claude execution function
-  const executeClaudeQuery = async (queryText: string) => {
-    setStatus('analyzing');
+  // Execute orchestration with smart analysis
+  const executeOrchestration = async (queryText: string) => {
     setIsRunning(true);
     setError(null);
-    setClaudeOutput(''); // Clear previous output
-    setOutput(prev => [...prev, `🚀 Processing: "${queryText}"`]);
+    setOutput(prev => [...prev, `🔍 Analyzing query: "${queryText}"`]);
+    setActiveStage('analysis');
     
     try {
-      // Build repository context (same as fallback CLI)
+      // 1. Analyze the query to determine orchestration strategy
+      const queryAnalysis = queryAnalyzer.analyze(queryText);
+      setAnalysis(queryAnalysis);
+      
+      setOutput(prev => [...prev, 
+        `📊 Query Analysis:`,
+        `   • Complexity: ${queryAnalysis.complexity}`,
+        `   • Orchestration needed: ${queryAnalysis.needsOrchestration ? 'YES' : 'NO'}`,
+        `   • Suggested agents: ${queryAnalysis.suggestedAgents.join(', ')}`,
+        `   • Execution mode: ${queryAnalysis.executionMode}`,
+        `   • Confidence: ${(queryAnalysis.confidence * 100).toFixed(0)}%`
+      ]);
+
+      if (!queryAnalysis.needsOrchestration) {
+        // Simple query - use single Claude execution
+        setOutput(prev => [...prev, `🎯 Simple query detected - using direct Claude execution`]);
+        await executeSingleAgent(queryText, queryAnalysis.suggestedAgents[0]);
+        return;
+      }
+
+      // 2. Complex query - use orchestration
+      setOutput(prev => [...prev, `🎺 Complex query detected - starting orchestration`]);
+      setActiveStage('orchestration');
+
+      const taskId = await orchestrator.orchestrate({
+        repository: process.cwd(),
+        query: queryText,
+        mode: queryAnalysis.executionMode
+      });
+
+      setCurrentTaskId(taskId);
+      
+      // 3. Monitor orchestration progress
+      await monitorOrchestration(taskId);
+
+    } catch (error) {
+      setIsRunning(false);
+      setError(error instanceof Error ? error.message : 'Unknown error');
+      setOutput(prev => [...prev, `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      setActiveStage('error');
+    }
+  };
+
+  // Execute simple single-agent query
+  const executeSingleAgent = async (queryText: string, agent: string) => {
+    setOutput(prev => [...prev, `🤖 Executing with ${agent} agent`]);
+    setActiveStage('execution');
+    
+    try {
+      // Build repository context
       const fs = await import('fs');
       const path = await import('path');
       const { spawn } = await import('child_process');
       const { findClaude } = await import('../../utils/claude-detector.js');
       
       const repoPath = process.cwd();
-      let contextPrompt = `# Repository Analysis Request\n\n`;
+      let contextPrompt = `# ${agent.toUpperCase()} Agent - Repository Analysis\n\n`;
       contextPrompt += `**User Query**: ${queryText}\n\n`;
       contextPrompt += `**Repository**: ${path.basename(repoPath)}\n`;
       contextPrompt += `**Location**: ${repoPath}\n\n`;
@@ -63,8 +119,8 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
         }
       }
       
-      contextPrompt += `\n## Task\nPlease help the user understand this repository based on their query: "${queryText}"\n`;
-      contextPrompt += `Focus on explaining the project's purpose, architecture, and how to get started.\n`;
+      contextPrompt += `\n## Task\nAs a ${agent} agent, help with: "${queryText}"\n`;
+      contextPrompt += `Provide practical guidance and actionable recommendations.\n`;
       
       // Execute Claude
       const claudeResult = await findClaude();
@@ -74,55 +130,110 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
       
       setOutput(prev => [...prev, `✅ Found Claude at: ${claudeResult.path}`]);
       
-      return new Promise<void>((resolve, reject) => {
-        const claude = spawn(claudeResult.path, ['-p', contextPrompt], {
+      await new Promise<void>((resolve, reject) => {
+        const claudePath = claudeResult.path as string;
+        const claude: any = spawn(claudePath, ['-p', contextPrompt], {
           stdio: ['ignore', 'pipe', 'pipe'],
           shell: false
         });
         
-        claude.stdout?.on('data', (data) => {
+        claude.stdout?.on('data', (data: any) => {
           const text = data.toString();
-          setClaudeOutput(prev => prev + text);
+          setTaskOutputs(prev => ({ ...prev, [agent]: (prev[agent] || '') + text }));
         });
         
-        claude.stderr?.on('data', (data) => {
+        claude.stderr?.on('data', (data: any) => {
           const text = data.toString();
           setOutput(prev => [...prev, `⚠️ ${text}`]);
         });
         
-        claude.on('close', (code) => {
+        claude.on('close', (code: any) => {
           setIsRunning(false);
           if (code === 0) {
-            setStatus('complete');
-            setOutput(prev => [...prev, `✅ Analysis complete`]);
-            setOutput(prev => [...prev, `💫 Ready for next query...`]);
+            setActiveStage('complete');
+            setOutput(prev => [...prev, `✅ ${agent} agent completed successfully`]);
             resolve();
           } else {
-            setStatus('error');
+            setActiveStage('error');
             setError(`Claude exited with code ${code}`);
             reject(new Error(`Claude exited with code ${code}`));
           }
         });
         
-        claude.on('error', (error) => {
+        claude.on('error', (error: any) => {
           setIsRunning(false);
-          setStatus('error');
+          setActiveStage('error');
           setError(error.message);
           reject(error);
         });
       });
-      
+
     } catch (error) {
       setIsRunning(false);
-      setStatus('error');
+      setActiveStage('error');
       setError(error instanceof Error ? error.message : 'Unknown error');
-      setOutput(prev => [...prev, `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      setOutput(prev => [...prev, `❌ ${agent} agent failed: ${error instanceof Error ? error.message : 'Unknown error'}`]);
     }
   };
 
+  // Monitor orchestration progress
+  const monitorOrchestration = async (taskId: string) => {
+    const updateStatus = () => {
+      const currentStatus = orchestrator.getStatus(taskId);
+      if (currentStatus) {
+        setStatus(currentStatus);
+        setActiveStage(currentStatus.progress.currentStage);
+        
+        if (currentStatus.status === 'completed') {
+          setIsRunning(false);
+          setOutput(prev => [...prev, `🎉 Orchestration completed successfully!`]);
+          setActiveStage('complete');
+        } else if (currentStatus.status === 'failed') {
+          setIsRunning(false);
+          setError(currentStatus.errors.join('; '));
+          setActiveStage('error');
+        }
+      }
+    };
+
+    // Set up event listeners
+    orchestrator.on('task_started', (data) => {
+      setOutput(prev => [...prev, `🔄 Started: ${data.task.title}`]);
+    });
+
+    orchestrator.on('task_completed', (data) => {
+      setOutput(prev => [...prev, `✅ Completed: ${data.task.title}`]);
+    });
+
+    orchestrator.on('task_failed', (data) => {
+      setOutput(prev => [...prev, `❌ Failed: ${data.task.title} - ${data.error}`]);
+    });
+
+    orchestrator.on('task_output', (data) => {
+      setTaskOutputs(prev => ({
+        ...prev,
+        [data.taskId || data.sessionId]: (prev[data.taskId || data.sessionId] || '') + data.chunk
+      }));
+    });
+
+    // Poll for status updates
+    const pollInterval = setInterval(updateStatus, 1000);
+    
+    // Wait for completion
+    while (true) {
+      const currentStatus = orchestrator.getStatus(taskId);
+      if (!currentStatus || currentStatus.status !== 'running') {
+        clearInterval(pollInterval);
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  };
+
+  // Initialize orchestration on mount
   useEffect(() => {
-    if (query && status === 'ready') {
-      executeClaudeQuery(query);
+    if (query && !isRunning) {
+      executeOrchestration(query);
     }
   }, [query]);
 
@@ -134,6 +245,10 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
         setInputMode(false);
         setNewQuery('');
       } else {
+        // Cancel running orchestration if any
+        if (currentTaskId && isRunning) {
+          orchestrator.cancel(currentTaskId);
+        }
         // Exit mission control
         if (onComplete) onComplete();
       }
@@ -148,7 +263,9 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
         setCurrentQuery(trimmedQuery);
         setInputMode(false);
         setNewQuery('');
-        executeClaudeQuery(trimmedQuery);
+        setTaskOutputs({}); // Clear previous outputs
+        setOutput([]); // Clear previous logs
+        executeOrchestration(trimmedQuery);
       } else if (!isRunning && !inputMode) {
         // Enter input mode
         setInputMode(true);
@@ -166,13 +283,13 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
     }
   });
 
-  // Flight Cockpit UI Render
+  // Render the enhanced Flight Cockpit UI
   return (
     <Box flexDirection="column" padding={1}>
       {/* Header */}
       <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
         <Box flexDirection="column">
-          <Text bold color="cyan">🚀 Graphyn Mission Control</Text>
+          <Text bold color="cyan">🚀 Graphyn Orchestrator</Text>
           <Text color="gray">Repository: {process.cwd().split('/').pop()}</Text>
         </Box>
       </Box>
@@ -181,29 +298,70 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
       <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
         <Box justifyContent="space-between" width="100%">
           <Box flexDirection="column">
-            <Text bold>Status: {status === 'analyzing' ? <Text color="yellow">🔄 ANALYZING</Text> : 
-                              status === 'complete' ? <Text color="green">✅ COMPLETE</Text> :
-                              status === 'error' ? <Text color="red">❌ ERROR</Text> :
-                              <Text color="blue">💫 READY</Text>}</Text>
+            <Text bold>
+              Stage: {activeStage === 'analysis' ? <Text color="yellow">🔍 ANALYZING</Text> : 
+                     activeStage === 'orchestration' ? <Text color="blue">🎺 ORCHESTRATING</Text> :
+                     activeStage === 'execution' ? <Text color="blue">🤖 EXECUTING</Text> :
+                     activeStage === 'complete' ? <Text color="green">✅ COMPLETE</Text> :
+                     activeStage === 'error' ? <Text color="red">❌ ERROR</Text> :
+                     <Text color="gray">💫 READY</Text>}
+            </Text>
             <Text color="gray">Query: {currentQuery}</Text>
           </Box>
           <Box flexDirection="column" alignItems="flex-end">
-            <Text color="cyan">Claude: {isRunning ? '🟢 ACTIVE' : inputMode ? '🟡 WAITING' : '🔴 IDLE'}</Text>
+            <Text color="cyan">
+              Mode: {analysis?.needsOrchestration ? '🎺 ORCHESTRATION' : '🤖 SINGLE AGENT'}
+            </Text>
             <Text color="gray">Session: {queryHistory.length} queries</Text>
           </Box>
         </Box>
       </Box>
 
-      {/* Claude Output Panel */}
+      {/* Task Progress Panel (for orchestration) */}
+      {status && (
+        <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
+          <Box flexDirection="column" width="100%">
+            <Text bold color="cyan">📋 Task Progress:</Text>
+            <Text color="gray">
+              {status.progress.completed}/{status.progress.total} tasks completed
+            </Text>
+            <Box marginTop={1}>
+              {status.tasks.slice(0, 3).map((task) => (
+                <Text key={task.id} color={
+                  task.status === 'completed' ? 'green' :
+                  task.status === 'in_progress' ? 'yellow' :
+                  task.status === 'failed' ? 'red' : 'gray'
+                }>
+                  {task.status === 'completed' ? '✅' : 
+                   task.status === 'in_progress' ? '🔄' :
+                   task.status === 'failed' ? '❌' : '⏸️'} {task.title}
+                </Text>
+              ))}
+              {status.tasks.length > 3 && (
+                <Text color="gray">... and {status.tasks.length - 3} more</Text>
+              )}
+            </Box>
+          </Box>
+        </Box>
+      )}
+
+      {/* Output Panel */}
       <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1} flexGrow={1}>
         <Box flexDirection="column" width="100%">
-          <Text bold color="cyan">📺 Claude Analysis:</Text>
+          <Text bold color="cyan">📺 Agent Output:</Text>
           <Box marginTop={1} flexDirection="column">
-            {claudeOutput ? (
-              <Text>{claudeOutput}</Text>
+            {Object.keys(taskOutputs).length > 0 ? (
+              Object.entries(taskOutputs).map(([agentOrTaskId, output]) => (
+                <Box key={agentOrTaskId} marginBottom={1}>
+                  <Box flexDirection="column">
+                    <Text color="cyan" bold>📝 {agentOrTaskId}:</Text>
+                    <Text>{output}</Text>
+                  </Box>
+                </Box>
+              ))
             ) : isRunning ? (
-              <Text color="yellow">⏳ Waiting for Claude response...</Text>
-            ) : status === 'ready' ? (
+              <Text color="yellow">⏳ Waiting for agent output...</Text>
+            ) : activeStage === 'initialization' ? (
               <Text color="gray">Ready to process your query...</Text>
             ) : null}
           </Box>
@@ -254,7 +412,7 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
           ) : !isRunning ? (
             <Text color="gray">ENTER: New Query | ESC: Exit</Text>
           ) : (
-            <Text color="gray">ESC: Exit (after completion)</Text>
+            <Text color="gray">ESC: Cancel & Exit</Text>
           )}
         </Box>
       </Box>
