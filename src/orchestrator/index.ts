@@ -13,6 +13,15 @@ export {
   type OrchestrationResult
 } from './multi-agent-orchestrator.js';
 
+// Local orchestrator (TO-BE architecture)
+export {
+  LocalOrchestrator,
+  type LocalTask,
+  type OrchestratorConfig,
+  type ExecutionContext,
+  type OrchestratorResult
+} from './local-orchestrator.js';
+
 // Graph-Neural Coordination System
 export {
   GraphNeuralSystem,

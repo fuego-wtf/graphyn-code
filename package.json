@@ -8,7 +8,7 @@
     "graphyn": "./bin/graphyn.js"
   },
   "scripts": {
-    "build": "tsc --module ESNext --target ES2022 --esModuleInterop --skipLibCheck --moduleResolution bundler --outDir dist",
+    "build": "npm run build:ink",
     "build:ink": "./scripts/build-ink.sh",
     "dev": "tsx src/ink/cli.tsx",
     "dev:minimal": "tsx src/minimal-app.tsx",
