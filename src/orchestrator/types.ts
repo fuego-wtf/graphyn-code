@@ -16,6 +16,8 @@ export type AgentType =
   | 'architect'           // System design and technical planning
   | 'backend'            // Backend development and API creation
   | 'frontend'           // Frontend development and UI creation
+  | 'tester'             // Bug finding and testing operations
+  | 'assistant'          // General help and guidance
   | 'test-writer'        // Test creation and quality assurance
   | 'design'             // UI/UX design and prototyping
   | 'cli'                // CLI development and tooling

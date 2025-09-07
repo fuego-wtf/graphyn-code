@@ -51,6 +51,7 @@
     "@modelcontextprotocol/sdk": "^0.6.0",
     "@types/node-fetch": "^2.6.13",
     "@types/uuid": "^10.0.0",
+    "@types/which": "^3.0.4",
     "@types/yargs": "^17.0.33",
     "axios": "^1.6.0",
     "boxen": "^8.0.1",
@@ -78,6 +79,7 @@
     "react": "^18.2.0",
     "simple-git": "^3.20.0",
     "uuid": "^11.1.0",
+    "which": "^5.0.0",
     "yargs": "^18.0.0",
     "zustand": "^4.4.0"
   },
