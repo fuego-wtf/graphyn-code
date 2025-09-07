@@ -163,7 +163,7 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
       isAuthenticated = false; // Auth disabled
     } catch (error) {
       // Handle keychain errors gracefully
-      const errorMsg = error.message || error.toString();
+      const errorMsg = (error as any).message || (error as any).toString();
       if (errorMsg.includes('keychain') || 
           errorMsg.includes('SecKeychainSearchCopyNext') ||
           errorMsg.includes('specified item could not be found')) {
@@ -229,7 +229,7 @@ export async function orchestrateCommand(options: OrchestrateOptions): Promise<v
     console.log('\n┌─────────────────────────────────────────────────────────────────┐');
     console.log('│                         ERROR                                   │');
     console.log('└─────────────────────────────────────────────────────────────────┘');
-    console.error('\n' + (error instanceof Error ? error.message : error) + '\n');
+    console.error('\n' + (error instanceof Error ? (error as any).message : error) + '\n');
     
     // Clean up worktrees even on error
     try {
@@ -371,7 +371,7 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
                 console.log(chalk.gray(`   Keys found: ${Object.keys(teamConfig).join(', ')}`));
               }
             } catch (parseError) {
-              console.log(chalk.yellow(`⚠️  Failed to parse JSON: ${parseError.message}`));
+              console.log(chalk.yellow(`⚠️  Failed to parse JSON: ${(parseError as any).message}`));
               console.log(chalk.gray(`   JSON preview: ${jsonMatch[0].substring(0, 100)}...`));
             }
           } else {
@@ -382,12 +382,12 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
           console.log(chalk.gray(`📝 Event type: ${event.type}, participant: ${event.data.participant_type}, has content: ${!!event.data.content}`));
         }
       } catch (error) {
-        console.log(chalk.red(`❌ Error processing message: ${error.message}`));
+        console.log(chalk.red(`❌ Error processing message: ${(error as any).message}`));
       }
     });
 
     sseClient.on('error', (error) => {
-      console.log(chalk.red(`🚨 SSE connection error: ${error.message}`));
+      console.log(chalk.red(`🚨 SSE connection error: ${(error as any).message}`));
       clearTimeout(timeout);
       reject(error);
     });
@@ -398,7 +398,7 @@ async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient):
     
     // Start the connection
     sseClient.connect().catch((error) => {
-      console.log(chalk.red(`❌ Failed to connect SSE: ${error.message}`));
+      console.log(chalk.red(`❌ Failed to connect SSE: ${(error as any).message}`));
       clearTimeout(timeout);
       reject(error);
     });
@@ -479,7 +479,7 @@ Respond with JSON:
                 console.log(chalk.gray(`   Keys found: ${Object.keys(taskResponse).join(', ')}`));
               }
             } catch (parseError) {
-              console.log(chalk.yellow(`⚠️  Failed to parse task JSON: ${parseError.message}`));
+              console.log(chalk.yellow(`⚠️  Failed to parse task JSON: ${(parseError as any).message}`));
               console.log(chalk.gray(`   JSON preview: ${jsonMatch[0].substring(0, 100)}...`));
             }
           } else {
@@ -490,12 +490,12 @@ Respond with JSON:
           console.log(chalk.gray(`📝 Task gen - event type: ${event.type}, participant: ${event.data.participant_type}, has content: ${!!event.data.content}`));
         }
       } catch (error) {
-        console.log(chalk.red(`❌ Error processing task generation message: ${error.message}`));
+        console.log(chalk.red(`❌ Error processing task generation message: ${(error as any).message}`));
       }
     });
 
     sseClient.on('error', (error) => {
-      console.log(chalk.red(`🚨 SSE connection error for task generation: ${error.message}`));
+      console.log(chalk.red(`🚨 SSE connection error for task generation: ${(error as any).message}`));
       clearTimeout(timeout);
       reject(error);
     });
@@ -506,7 +506,7 @@ Respond with JSON:
     
     // Start the connection
     sseClient.connect().catch((error) => {
-      console.log(chalk.red(`❌ Failed to connect SSE for task generation: ${error.message}`));
+      console.log(chalk.red(`❌ Failed to connect SSE for task generation: ${(error as any).message}`));
       clearTimeout(timeout);
       reject(error);
     });
@@ -619,7 +619,7 @@ async function executeTasksWithStreaming(tasks: Task[], repoPath: string, origin
       currentIndex++;
       
     } catch (error) {
-      console.log(chalk.red(`\n❌ Task failed: ${error instanceof Error ? error.message : error}\n`));
+      console.log(chalk.red(`\n❌ Task failed: ${error instanceof Error ? (error as any).message : error}\n`));
       
       const { continueWithNext } = await inquirer.prompt([{
         type: 'confirm',
@@ -762,7 +762,7 @@ async function buildRepositoryContext(repoPath: string): Promise<string> {
   } catch (error) {
     return `=== REPOSITORY CONTEXT ===
 Repository: ${path.basename(repoPath)}
-Context analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}
+Context analysis failed: ${error instanceof Error ? (error as any).message : 'Unknown error'}
 === END CONTEXT ===\n`;
   }
 }
@@ -777,8 +777,8 @@ async function getRecentlyModifiedFiles(repoPath: string): Promise<string[]> {
     
     const files = output
       .split('\n')
-      .filter(line => line.trim() && !line.startsWith(' '))
-      .filter((file, index, arr) => arr.indexOf(file) === index) // Unique files
+      .filter((line: any) => line.trim() && !line.startsWith(' '))
+      .filter((file: any, index: any, arr: any) => arr.indexOf(file) === index) // Unique files
       .slice(0, 10);
     
     return files;
@@ -844,7 +844,7 @@ TASK: ${task.prompt}`;
       hasOutput = true;
       const text = data.toString();
       // Add slight indentation to distinguish from system output
-      const indentedText = text.split('\n').map(line => 
+      const indentedText = text.split('\n').map((line: any) => 
         line.trim() ? `  ${line}` : line
       ).join('\n');
       process.stdout.write(indentedText);
@@ -870,7 +870,7 @@ TASK: ${task.prompt}`;
     });
     
     claudeProcess.on('error', (error) => {
-      reject(new Error(`Failed to start Claude CLI: ${error.message}`));
+      reject(new Error(`Failed to start Claude CLI: ${(error as any).message}`));
     });
   });
 }
@@ -1126,8 +1126,8 @@ claude -p "${task.prompt.replace(/"/g, '\\"')}"
     try {
       await execAsync(`start "Task: ${sanitizedTitleWin}" cmd /k "cd /d \"${worktreePath}\" && ${claudeCmd}"`);
     } catch (error) {
-      console.error(`❌ Failed to spawn Windows terminal for task "${task.title}":`, error instanceof Error ? error.message : error);
-      throw new Error(`Windows terminal spawn failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`❌ Failed to spawn Windows terminal for task "${task.title}":`, error instanceof Error ? (error as any).message : error);
+      throw new Error(`Windows terminal spawn failed: ${error instanceof Error ? (error as any).message : 'Unknown error'}`);
     }
   } else {
     // Linux: Try common terminal emulators  
@@ -1224,6 +1224,6 @@ export async function cleanupSessionWorktrees(repoPath: string): Promise<void> {
     console.log(`✓ Session cleanup complete: ${cleanedCount} worktrees removed\n`);
     
   } catch (error) {
-    console.log('⚠ Session cleanup encountered errors:', error instanceof Error ? error.message : error);
+    console.log('⚠ Session cleanup encountered errors:', error instanceof Error ? (error as any).message : error);
   }
 }

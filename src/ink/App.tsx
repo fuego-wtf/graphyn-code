@@ -11,6 +11,7 @@ import { ErrorFallback } from './components/ErrorFallback.js';
 import { AgentRevival } from './components/AgentRevival.js';
 import { RepositoryAnalysis } from './components/RepositoryAnalysis.js';
 import { MultiAgentOrchestrator } from './components/MultiAgentOrchestrator.js';
+import { EnhancedMissionControl } from './components/EnhancedMissionControl.js';
 import { TerminalFrame } from './components/TerminalFrame.js';
 import { useAPI } from './hooks/useAPI.js';
 import { AutoSetup } from './components/AutoSetup.js';
@@ -434,11 +435,11 @@ export const App: React.FC<AppProps> = ({ command, query }) => {
         return <RepositoryAnalysis onComplete={() => setMode('menu')} />;
       
       case 'squad':
-        // Multi-agent orchestration for natural language queries
+        // Enhanced Mission Control for natural language queries - optimized for customer demonstrations
         if (process.env.DEBUG_GRAPHYN) {
-          console.log('✓ Rendering MultiAgentOrchestrator with query:', effectiveQuery);
+          console.log('✓ Rendering EnhancedMissionControl with query:', effectiveQuery);
         }
-        return <MultiAgentOrchestrator query={effectiveQuery || ''} onComplete={() => setMode('menu')} />;
+        return <EnhancedMissionControl query={effectiveQuery || ''} onComplete={() => setMode('menu')} />;
       
       default:
         return null;

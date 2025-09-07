@@ -3,6 +3,7 @@
  * Provides auto-completion, command history, and intuitive user experience
  */
 
+/// <reference path="../types/globals.d.ts" />
 import * as readline from 'readline';
 import chalk from 'chalk';
 import { SmartCoordinator } from '../coordinator/smart-coordinator.js';

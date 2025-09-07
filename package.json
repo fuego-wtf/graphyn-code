@@ -3,14 +3,14 @@
   "version": "0.1.70",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "type": "module",
-  "main": "dist/ink/cli.js",
+  "main": "dist/cli-orchestrator.js",
   "bin": {
     "graphyn": "./bin/graphyn.js"
   },
   "scripts": {
     "build": "tsc --module ESNext --target ES2022 --esModuleInterop --skipLibCheck --moduleResolution bundler --outDir dist",
     "build:ink": "./scripts/build-ink.sh",
-    "dev": "tsx src/ink/cli.tsx",
+    "dev": "tsx src/cli-orchestrator.ts",
     "dev:minimal": "tsx src/minimal-app.tsx",
     "test": "vitest",
     "test:unit": "vitest run",

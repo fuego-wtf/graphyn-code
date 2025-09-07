@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { spawn, ChildProcess } from 'child_process';
 
 interface MultiAgentOrchestratorProps {
   query: string;
@@ -75,22 +76,22 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
       setOutput(prev => [...prev, `✅ Found Claude at: ${claudeResult.path}`]);
       
       return new Promise<void>((resolve, reject) => {
-        const claude = spawn(claudeResult.path, ['-p', contextPrompt], {
+        const claude: ChildProcess = spawn(claudeResult.path || 'claude', ['-p', contextPrompt], {
           stdio: ['ignore', 'pipe', 'pipe'],
           shell: false
         });
         
-        claude.stdout?.on('data', (data) => {
+        claude.stdout?.on('data', (data: any) => {
           const text = data.toString();
           setClaudeOutput(prev => prev + text);
         });
         
-        claude.stderr?.on('data', (data) => {
+        claude.stderr?.on('data', (data: any) => {
           const text = data.toString();
           setOutput(prev => [...prev, `⚠️ ${text}`]);
         });
         
-        claude.on('close', (code) => {
+        claude.on('close', (code: any) => {
           setIsRunning(false);
           if (code === 0) {
             setStatus('complete');
@@ -104,7 +105,7 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
           }
         });
         
-        claude.on('error', (error) => {
+        claude.on('error', (error: any) => {
           setIsRunning(false);
           setStatus('error');
           setError(error.message);
@@ -166,87 +167,71 @@ export const MultiAgentOrchestrator: React.FC<MultiAgentOrchestratorProps> = ({
     }
   });
 
-  // Flight Cockpit UI Render
+  // Flight Cockpit UI Render (Compact Version)
   return (
-    <Box flexDirection="column" padding={1}>
-      {/* Header */}
-      <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
-        <Box flexDirection="column">
-          <Text bold color="cyan">🚀 Graphyn Mission Control</Text>
-          <Text color="gray">Repository: {process.cwd().split('/').pop()}</Text>
-        </Box>
-      </Box>
-
-      {/* Status Panel */}
-      <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
+    <Box flexDirection="column">
+      {/* Header - Compact */}
+      <Box borderStyle="round" paddingX={1} paddingY={0}>
         <Box justifyContent="space-between" width="100%">
-          <Box flexDirection="column">
-            <Text bold>Status: {status === 'analyzing' ? <Text color="yellow">🔄 ANALYZING</Text> : 
-                              status === 'complete' ? <Text color="green">✅ COMPLETE</Text> :
-                              status === 'error' ? <Text color="red">❌ ERROR</Text> :
-                              <Text color="blue">💫 READY</Text>}</Text>
-            <Text color="gray">Query: {currentQuery}</Text>
-          </Box>
-          <Box flexDirection="column" alignItems="flex-end">
-            <Text color="cyan">Claude: {isRunning ? '🟢 ACTIVE' : inputMode ? '🟡 WAITING' : '🔴 IDLE'}</Text>
-            <Text color="gray">Session: {queryHistory.length} queries</Text>
-          </Box>
+          <Text bold color="cyan">🚀 Mission Control</Text>
+          <Text color="gray">{process.cwd().split('/').pop()}</Text>
         </Box>
       </Box>
 
-      {/* Claude Output Panel */}
-      <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1} flexGrow={1}>
+      {/* Status Panel - Compact */}
+      <Box borderStyle="single" paddingX={1} paddingY={0}>
+        <Box justifyContent="space-between" width="100%">
+          <Text bold>Status: {status === 'analyzing' ? <Text color="yellow">🔄 ANALYZING</Text> : 
+                            status === 'complete' ? <Text color="green">✅ COMPLETE</Text> :
+                            status === 'error' ? <Text color="red">❌ ERROR</Text> :
+                            <Text color="blue">💫 READY</Text>} | Query: {currentQuery}</Text>
+          <Text color="cyan">Claude: {isRunning ? '🟢 ACTIVE' : inputMode ? '🟡 WAITING' : '🔴 IDLE'} | Session: {queryHistory.length}</Text>
+        </Box>
+      </Box>
+
+      {/* Claude Output Panel - Compact */}
+      <Box borderStyle="single" paddingX={1} paddingY={0} flexGrow={1}>
         <Box flexDirection="column" width="100%">
           <Text bold color="cyan">📺 Claude Analysis:</Text>
-          <Box marginTop={1} flexDirection="column">
-            {claudeOutput ? (
-              <Text>{claudeOutput}</Text>
-            ) : isRunning ? (
-              <Text color="yellow">⏳ Waiting for Claude response...</Text>
-            ) : status === 'ready' ? (
-              <Text color="gray">Ready to process your query...</Text>
-            ) : null}
-          </Box>
+          {claudeOutput ? (
+            <Text>{claudeOutput}</Text>
+          ) : isRunning ? (
+            <Text color="yellow">⏳ Waiting for Claude response...</Text>
+          ) : status === 'ready' ? (
+            <Text color="gray">Ready to process your query...</Text>
+          ) : null}
         </Box>
       </Box>
 
-      {/* System Logs */}
-      <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1} height={6}>
+      {/* System Logs - Dynamic Height */}
+      <Box borderStyle="single" paddingX={1} paddingY={0} height={3}>
         <Box flexDirection="column" width="100%">
           <Text bold color="cyan">📋 System Log:</Text>
-          <Box marginTop={1} flexDirection="column">
-            {output.slice(-3).map((line, index) => (
-              <Text key={index} color="gray">{line}</Text>
-            ))}
-          </Box>
+          {output.slice(-2).map((line, index) => (
+            <Text key={index} color="gray">{line}</Text>
+          ))}
         </Box>
       </Box>
 
-      {/* Error Panel */}
+      {/* Error Panel - Compact */}
       {error && (
-        <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
-          <Box flexDirection="column">
-            <Text bold color="red">❌ Error:</Text>
-            <Text color="red">{error}</Text>
-          </Box>
+        <Box borderStyle="single" paddingX={1} paddingY={0}>
+          <Text bold color="red">❌ Error: </Text>
+          <Text color="red">{error}</Text>
         </Box>
       )}
 
-      {/* Query Input */}
+      {/* Query Input - Compact */}
       {inputMode && (
-        <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
-          <Box flexDirection="column" width="100%">
-            <Text bold color="cyan">💬 New Query:</Text>
-            <Box marginTop={1}>
-              <Text color="green">&gt; {newQuery}</Text>
-              <Text color="yellow">█</Text>
-            </Box>
-          </Box>
+        <Box borderStyle="single" paddingX={1} paddingY={0}>
+          <Text bold color="cyan">💬 New Query: </Text>
+          <Text color="green">&gt; {newQuery}</Text>
+          <Text color="yellow">█</Text>
         </Box>
       )}
 
-      {/* Controls */}
-      <Box borderStyle="single" paddingX={2} paddingY={1}>
+      {/* Controls - Compact */}
+      <Box borderStyle="single" paddingX={1} paddingY={0}>
         <Box justifyContent="space-between" width="100%">
           <Text color="gray">Controls:</Text>
           {inputMode ? (

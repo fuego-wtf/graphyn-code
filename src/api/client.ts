@@ -37,6 +37,19 @@ interface Agent {
   organization_id: string;
   created_at: string;
   updated_at: string;
+  // Extended properties for compatibility
+  status?: 'active' | 'draft' | 'inactive';
+  capabilities?: string[];
+  lastModified?: string;
+}
+
+interface UpdateAgentRequest {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  model?: string;
+  status?: 'active' | 'draft' | 'inactive';
+  capabilities?: string[];
 }
 
 interface Squad {
@@ -88,12 +101,12 @@ export class GraphynAPIClient {
         
         // Try to get OAuth token, but handle keychain errors in dev mode
         try {
-          token = await null;
-          console.log(chalk.gray(`🔐 OAuth token retrieved: ${token ? 'Present (' + token.substring(0, 20) + '...)' : 'None'}`));
+          token = null; // TODO: Implement OAuth token retrieval
+          console.log(chalk.gray(`🔐 OAuth token retrieved: None (TODO: Implement OAuth)`));
         } catch (error) {
           // In dev mode, allow requests without token for keychain errors
           if (isDev) {
-            const errorMsg = error.message || error.toString();
+            const errorMsg = (error as any).message || (error as any).toString();
             if (errorMsg.includes('keychain') || 
                 errorMsg.includes('SecKeychainSearchCopyNext') ||
                 errorMsg.includes('specified item could not be found')) {
@@ -184,11 +197,11 @@ export class GraphynAPIClient {
     const isDev = (process.env.GRAPHYN_API_URL || '').includes('localhost');
     
     try {
-      return await null;
+      return false; // TODO: Implement OAuth authentication check
     } catch (error) {
       // In dev mode, return true for keychain errors (auth bypass)
       if (isDev) {
-        const errorMsg = error.message || error.toString();
+        const errorMsg = (error as any).message || (error as any).toString();
         if (errorMsg.includes('keychain') || 
             errorMsg.includes('SecKeychainSearchCopyNext') ||
             errorMsg.includes('specified item could not be found')) {
@@ -249,12 +262,12 @@ export class GraphynAPIClient {
         return threadData;
       } catch (error) {
         console.log(chalk.red(`❌ Failed to create thread:`));
-        if (error.response) {
-          console.log(chalk.red(`   Status: ${error.response.status} ${error.response.statusText}`));
-          console.log(chalk.red(`   Response data:`, error.response.data));
-          console.log(chalk.red(`   Request URL: ${error.config?.baseURL}${error.config?.url}`));
+        if ((error as any).response) {
+          console.log(chalk.red(`   Status: ${(error as any).response.status} ${(error as any).response.statusText}`));
+          console.log(chalk.red(`   Response data:`, (error as any).response.data));
+          console.log(chalk.red(`   Request URL: ${(error as any).config?.baseURL}${(error as any).config?.url}`));
         } else {
-          console.log(chalk.red(`   Error:`, error.message));
+          console.log(chalk.red(`   Error:`, (error as any).message));
         }
         throw error;
       }
@@ -308,7 +321,7 @@ export class GraphynAPIClient {
             return parsed;
           }
         } catch (parseError) {
-          console.log(chalk.yellow(`⚠️  Failed to parse string response as JSON:`, parseError.message));
+          console.log(chalk.yellow(`⚠️  Failed to parse string response as JSON:`, (parseError as any).message));
         }
         // If string is empty or not JSON, treat as empty array
         return [];
@@ -372,12 +385,12 @@ export class GraphynAPIClient {
         return response.data;
       } catch (error) {
         console.log(chalk.red(`❌ Failed to send message:`));
-        if (error.response) {
-          console.log(chalk.red(`   Status: ${error.response.status} ${error.response.statusText}`));
-          console.log(chalk.red(`   Response data:`, error.response.data));
-          console.log(chalk.red(`   Request URL: ${error.config?.baseURL}${error.config?.url}`));
+        if ((error as any).response) {
+          console.log(chalk.red(`   Status: ${(error as any).response.status} ${(error as any).response.statusText}`));
+          console.log(chalk.red(`   Response data:`, (error as any).response.data));
+          console.log(chalk.red(`   Request URL: ${(error as any).config?.baseURL}${(error as any).config?.url}`));
         } else {
-          console.log(chalk.red(`   Error:`, error.message));
+          console.log(chalk.red(`   Error:`, (error as any).message));
         }
         throw error;
       }
@@ -427,6 +440,7 @@ export class GraphynAPIClient {
     description?: string;
     instructions?: string;
     model?: string;
+    capabilities?: string[];
   }): Promise<Agent> {
     return this.withRetry(async () => {
       const response = await this.client.post<Agent>('/api/agents', data);
@@ -460,12 +474,7 @@ export class GraphynAPIClient {
   /**
    * Update an agent
    */
-  async updateAgent(agentId: string, data: {
-    name?: string;
-    description?: string;
-    instructions?: string;
-    model?: string;
-  }): Promise<Agent> {
+  async updateAgent(agentId: string, data: UpdateAgentRequest): Promise<Agent> {
     return this.withRetry(async () => {
       const response = await this.client.patch<Agent>(`/api/agents/${agentId}`, data);
       return response.data;

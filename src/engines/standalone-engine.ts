@@ -3,6 +3,7 @@
  * Handles all operations through direct Claude Code integration
  */
 
+/// <reference path="../types/globals.d.ts" />
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -484,11 +485,11 @@ How can I help you in this thread?`;
       }
       
     } catch (error) {
-      console.error(chalk.red('❌ Claude Code execution failed:'), error.message);
+      console.error(chalk.red('❌ Claude Code execution failed:'), (error as any).message);
       
       return {
         success: false,
-        error: error.message,
+        error: (error as any).message,
         agent: agentType,
         timestamp: Date.now()
       };

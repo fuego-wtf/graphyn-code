@@ -148,95 +148,75 @@ export const ClydeMissionControlBridge: React.FC<ClydeMissionControlBridgeProps>
   });
 
   return (
-    <Box flexDirection="column" padding={1}>
-      {/* Header */}
-      <Box borderStyle="round" paddingX={2} paddingY={1} marginBottom={1}>
-        <Box flexDirection="column">
-          <Text bold color="cyan">🚀 Mission Control - Powered by Clyde</Text>
-          <Text color="gray">Repository: {process.cwd().split('/').pop()}</Text>
-          <Text color="gray">
-            Mode: {clyde['modeManager']?.getCurrentMode() || 'initializing'} | 
-            Session: {queryHistory.length} queries
-          </Text>
-        </Box>
-      </Box>
-
-      {/* Status Panel */}
-      <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
+    <Box flexDirection="column">
+      {/* Header - Compact */}
+      <Box borderStyle="round" paddingX={1} paddingY={0}>
         <Box justifyContent="space-between" width="100%">
-          <Box flexDirection="column">
-            <Text bold>
-              Stage: {activeStage === 'initialization' ? <Text color="yellow">🤖 INITIALIZING</Text> : 
-                     activeStage === 'ready' ? <Text color="green">💫 READY</Text> :
-                     activeStage === 'execution' ? <Text color="blue">🚀 EXECUTING</Text> :
-                     activeStage === 'complete' ? <Text color="green">✅ COMPLETE</Text> :
-                     activeStage === 'error' ? <Text color="red">❌ ERROR</Text> :
-                     <Text color="gray">⏸️ STANDBY</Text>}
-            </Text>
-            <Text color="gray">Query: {currentQuery}</Text>
-          </Box>
-          <Box flexDirection="column" alignItems="flex-end">
-            <Text color="cyan">🤖 CLYDE ORCHESTRATOR</Text>
-            <Text color="gray">Enhanced with context preservation</Text>
-          </Box>
+          <Text bold color="cyan">🚀 Mission Control - Clyde</Text>
+          <Text color="gray">{process.cwd().split('/').pop()} | Mode: {clyde['modeManager']?.getCurrentMode() || 'init'} | Session: {queryHistory.length}</Text>
         </Box>
       </Box>
 
-      {/* Claude Output Panel */}
-      <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1} flexGrow={1}>
+      {/* Status Panel - Compact */}
+      <Box borderStyle="single" paddingX={1} paddingY={0}>
+        <Box justifyContent="space-between" width="100%">
+          <Text bold>
+            Stage: {activeStage === 'initialization' ? <Text color="yellow">🤖 INITIALIZING</Text> : 
+                   activeStage === 'ready' ? <Text color="green">💫 READY</Text> :
+                   activeStage === 'execution' ? <Text color="blue">🚀 EXECUTING</Text> :
+                   activeStage === 'complete' ? <Text color="green">✅ COMPLETE</Text> :
+                   activeStage === 'error' ? <Text color="red">❌ ERROR</Text> :
+                   <Text color="gray">⏸️ STANDBY</Text>} | Query: {currentQuery}
+          </Text>
+          <Text color="cyan">🤖 CLYDE ORCHESTRATOR</Text>
+        </Box>
+      </Box>
+
+      {/* Claude Output Panel - Compact */}
+      <Box borderStyle="single" paddingX={1} paddingY={0} flexGrow={1}>
         <Box flexDirection="column" width="100%">
           <Text bold color="cyan">🧠 Claude Output:</Text>
-          <Box marginTop={1} flexDirection="column">
-            {claudeOutput ? (
-              <Text>{claudeOutput}</Text>
-            ) : isRunning ? (
-              <Text color="yellow">⏳ Waiting for Claude response...</Text>
-            ) : activeStage === 'ready' ? (
-              <Text color="gray">Ready to process your query through Clyde...</Text>
-            ) : (
-              <Text color="gray">Initializing Clyde orchestrator...</Text>
-            )}
-          </Box>
+          {claudeOutput ? (
+            <Text>{claudeOutput}</Text>
+          ) : isRunning ? (
+            <Text color="yellow">⏳ Waiting for Claude response...</Text>
+          ) : activeStage === 'ready' ? (
+            <Text color="gray">Ready to process your query through Clyde...</Text>
+          ) : (
+            <Text color="gray">Initializing Clyde orchestrator...</Text>
+          )}
         </Box>
       </Box>
 
-      {/* System Logs */}
-      <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1} height={6}>
+      {/* System Logs - Dynamic Height */}
+      <Box borderStyle="single" paddingX={1} paddingY={0} height={3}>
         <Box flexDirection="column" width="100%">
           <Text bold color="cyan">📋 System Log:</Text>
-          <Box marginTop={1} flexDirection="column">
-            {systemLogs.slice(-3).map((line, index) => (
-              <Text key={index} color="gray">{line}</Text>
-            ))}
-          </Box>
+          {systemLogs.slice(-2).map((line, index) => (
+            <Text key={index} color="gray">{line}</Text>
+          ))}
         </Box>
       </Box>
 
-      {/* Error Panel */}
+      {/* Error Panel - Compact */}
       {error && (
-        <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
-          <Box flexDirection="column">
-            <Text bold color="red">❌ Error:</Text>
-            <Text color="red">{error}</Text>
-          </Box>
+        <Box borderStyle="single" paddingX={1} paddingY={0}>
+          <Text bold color="red">❌ Error: </Text>
+          <Text color="red">{error}</Text>
         </Box>
       )}
 
-      {/* Query Input */}
+      {/* Query Input - Compact */}
       {inputMode && (
-        <Box borderStyle="single" paddingX={2} paddingY={1} marginBottom={1}>
-          <Box flexDirection="column" width="100%">
-            <Text bold color="cyan">💬 New Query:</Text>
-            <Box marginTop={1}>
-              <Text color="green">&gt; {newQuery}</Text>
-              <Text color="yellow">█</Text>
-            </Box>
-          </Box>
+        <Box borderStyle="single" paddingX={1} paddingY={0}>
+          <Text bold color="cyan">💬 New Query: </Text>
+          <Text color="green">&gt; {newQuery}</Text>
+          <Text color="yellow">█</Text>
         </Box>
       )}
 
-      {/* Controls */}
-      <Box borderStyle="single" paddingX={2} paddingY={1}>
+      {/* Controls - Compact */}
+      <Box borderStyle="single" paddingX={1} paddingY={0}>
         <Box justifyContent="space-between" width="100%">
           <Text color="gray">Controls:</Text>
           {inputMode ? (

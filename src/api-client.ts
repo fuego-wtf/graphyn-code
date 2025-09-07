@@ -10,6 +10,10 @@ export interface Thread {
   created_by: string;
   created_at: string;
   updated_at: string;
+  
+  // PROCESS-010: Extended properties for dynamic-engine.ts compatibility
+  lastActivity?: string;    // Required by dynamic-engine.ts line 511
+  status?: 'active' | 'archived' | 'closed';
 }
 
 export interface ThreadsResponse {
@@ -47,6 +51,14 @@ export interface Agent {
   };
   organization_id?: string;
   squad_id?: string;
+  
+  // PROCESS-010: Extended properties for dynamic-engine.ts compatibility  
+  status?: 'active' | 'draft' | 'inactive';
+  capabilities?: string[];
+  created?: string;        // Alias for created_by timestamp
+  lastModified?: string;   // Timestamp for last update
+  created_at?: string;     // Standard timestamp
+  updated_at?: string;     // Standard timestamp
 }
 
 export interface AgentAvailableResponse {
@@ -63,6 +75,15 @@ export interface CreateAgentRequest {
     tools?: string[];
     context?: Record<string, any>;
   };
+}
+
+export interface UpdateAgentRequest {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  model?: string;
+  status?: 'active' | 'draft' | 'inactive';
+  capabilities?: string[];
 }
 
 export interface RepositoryContext {
@@ -241,7 +262,7 @@ export class GraphynAPIClient {
   // Health Check with port discovery
   async ping(): Promise<{ status: string }> {
     const commonPorts = [4000, 4001, 4002, 4003];
-    let lastError: Error;
+    let lastError: Error | undefined;
     
     // If baseUrl is already set to a specific port, try that first
     if (this.baseUrl !== 'http://localhost:4000') {
