@@ -105,6 +105,7 @@ export class InteractiveInput extends EventEmitter {
     console.log('  • Request new features or changes');
     console.log('  • Get explanations about the implementation');
     console.log('  • Start a completely new task');
+    console.log('  • Type "exit" or "quit" to stop');
     console.log('');
     
     return this.getSingleInput('graphyn> ');

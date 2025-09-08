@@ -16,6 +16,8 @@ import {
   TaskResult,
   TaskStatus 
 } from './types.js';
+import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
+import { AgentOrchestrator } from './AgentOrchestrator.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -36,95 +38,188 @@ export class RealTimeExecutor extends EventEmitter {
   private queryProcessor: QueryProcessor;
   private activeProcesses = new Map<string, ChildProcess>();
   private taskResults = new Map<string, TaskResult>();
-  private claudeAvailable = false;
+  private agentOrchestrator: AgentOrchestrator;
 
-  constructor() {
+  constructor(agentsPath?: string) {
     super();
     this.consoleOutput = new ConsoleOutput();
     this.queryProcessor = new QueryProcessor();
-    this.checkClaudeAvailability();
-  }
-
-  /**
-   * Check if Claude Code CLI is available
-   */
-  private async checkClaudeAvailability(): Promise<void> {
-    try {
-      const which = await import('which');
-      const claudePath = await which.default('claude');
-      this.claudeAvailable = !!claudePath;
-    } catch (error) {
-      this.claudeAvailable = false;
+    
+    // Use singleton pattern to prevent double initialization
+    this.agentOrchestrator = AgentOrchestrator.getInstance(agentsPath);
+    
+    // Set up orchestrator event handlers (only if not already set)
+    if (this.agentOrchestrator.listenerCount('agent-error') === 0) {
+      this.agentOrchestrator.on('agent-error', (error) => {
+        this.consoleOutput.streamError('orchestrator', error, 'Agent orchestration');
+      });
+    }
+    
+    if (this.agentOrchestrator.listenerCount('agent-retry') === 0) {
+      this.agentOrchestrator.on('agent-retry', ({ attempt, error }) => {
+        this.consoleOutput.streamAgentActivity(
+          'orchestrator', 
+          `Agent retry (attempt ${attempt + 1}): ${error.message}`, 
+          'progress'
+        );
+      });
     }
   }
 
   /**
-   * Execute query with real Claude Code integration
+   * Initialize the executor and load agent configurations
+   */
+  async initialize(): Promise<void> {
+    await this.agentOrchestrator.initialize();
+  }
+
+  /**
+   * Execute query with real-time streaming
+   */
+  async *executeQueryStream(
+    query: string,
+    context: ExecutionContext,
+    options?: {
+      maxAgents?: number;
+      requireApproval?: boolean;
+    }
+  ): AsyncGenerator<{ type: string; data: any }> {
+    const startTime = Date.now();
+    
+    try {
+      // Start streaming
+      yield { type: 'start', data: { query, timestamp: startTime } };
+
+      // Build repository context
+      yield { type: 'context', data: { message: 'Building repository context...' } };
+      const repositoryContext = await this.buildRepositoryContext(context.workingDirectory);
+      
+      // Stream through orchestrator
+      for await (const event of this.agentOrchestrator.executeQueryStream(query, repositoryContext, options)) {
+        yield event;
+      }
+      
+    } catch (error) {
+      yield { 
+        type: 'error', 
+        data: { 
+          error: error instanceof Error ? error.message : String(error),
+          timestamp: Date.now()
+        }
+      };
+    }
+  }
+
+  /**
+   * Execute query with real Claude Code integration using multi-agent orchestration (blocking version)
    */
   async executeQuery(
     query: string, 
-    context: ExecutionContext
+    context: ExecutionContext,
+    options?: {
+      maxAgents?: number;
+      requireApproval?: boolean;
+    }
   ): Promise<ExecutionResults> {
     const startTime = Date.now();
     
     try {
       // Stream initial analysis
       this.consoleOutput.streamAgentActivity(
-        'claude', 
+        'orchestrator', 
         `Processing: "${query}"`, 
         'starting'
       );
 
-      // Build repository context for Claude
+      // Build repository context
       const repositoryContext = await this.buildRepositoryContext(context.workingDirectory);
       
-      // Create context prompt for Claude
-      const contextPrompt = this.buildClaudePrompt(query, repositoryContext);
-
-      // Execute with real Claude Code
-      const claudeResult = await this.executeWithClaude(contextPrompt, context.workingDirectory);
+      // Execute with multi-agent orchestration
+      const orchestrationResult = await this.agentOrchestrator.executeQuery(
+        query,
+        repositoryContext,
+        options
+      );
 
       const totalDuration = Date.now() - startTime;
       
-      return {
-        success: true,
-        executionId: `exec-${Date.now()}`,
-        completedTasks: [{
-          taskId: 'claude-response',
-          agentType: 'assistant',
-          result: claudeResult.output,
-          duration: totalDuration,
-          timestamp: new Date()
-        }],
-        failedTasks: claudeResult.error ? [{
-          taskId: 'claude-response',
-          agentType: 'assistant',
-          error: claudeResult.error,
-          duration: totalDuration,
-          timestamp: new Date()
-        }] : [],
-        totalDuration,
-        statistics: {
-          totalTasks: 1,
-          completedTasks: claudeResult.error ? 0 : 1,
-          failedTasks: claudeResult.error ? 1 : 0,
-          activeSessions: 0,
-          startTime: new Date(startTime),
-          duration: totalDuration,
-          totalCost: 0,
-          averageTaskTime: totalDuration
-        }
-      };
+      if (orchestrationResult.success) {
+        return {
+          success: true,
+          executionId: `exec-${Date.now()}`,
+          completedTasks: [{
+            taskId: 'orchestrated-response',
+            agentType: 'assistant', // Map to compatible type
+            result: this.formatOrchestrationResponse(orchestrationResult),
+            duration: totalDuration,
+            timestamp: new Date()
+          }],
+          failedTasks: [],
+          totalDuration,
+          statistics: {
+            totalTasks: orchestrationResult.agentsUsed.length,
+            completedTasks: orchestrationResult.agentsUsed.length,
+            failedTasks: 0,
+            activeSessions: 0,
+            startTime: new Date(startTime),
+            duration: totalDuration,
+            totalCost: 0,
+            averageTaskTime: totalDuration / orchestrationResult.agentsUsed.length
+          }
+        };
+      } else {
+        return {
+          success: false,
+          executionId: `exec-${Date.now()}`,
+          completedTasks: [],
+          failedTasks: [{
+            taskId: 'orchestrated-response',
+            agentType: 'assistant',
+            error: orchestrationResult.error || 'Unknown orchestration error',
+            duration: totalDuration,
+            timestamp: new Date()
+          }],
+          totalDuration,
+          statistics: {
+            totalTasks: 1,
+            completedTasks: 0,
+            failedTasks: 1,
+            activeSessions: 0,
+            startTime: new Date(startTime),
+            duration: totalDuration,
+            totalCost: 0,
+            averageTaskTime: totalDuration
+          }
+        };
+      }
 
     } catch (error) {
       this.consoleOutput.streamError(
-        'claude',
+        'orchestrator',
         error instanceof Error ? error : new Error(String(error)),
-        'Claude Code execution'
+        'Multi-agent orchestration execution'
       );
       
       throw error;
     }
+  }
+
+  /**
+   * Format orchestration response for display
+   */
+  private formatOrchestrationResponse(result: any): string {
+    let response = `**Agent Analysis (${result.agentsUsed.join(', ')})**\n\n`;
+    response += result.primaryResponse;
+
+    if (result.supportingResponses) {
+      for (const [agentName, agentResponse] of Object.entries(result.supportingResponses)) {
+        response += `\n\n**${agentName} Analysis:**\n${agentResponse}`;
+      }
+    }
+
+    response += `\n\n*Response generated using ${result.agentsUsed.length} specialized agent(s) in ${result.totalDuration}ms*`;
+    
+    return response;
   }
 
   /**
@@ -300,121 +395,19 @@ Do not provide generic advice - tailor your response to this specific repository
     return prompt;
   }
 
+
   /**
-   * Execute with real Claude Code CLI or fallback to Task tool
+   * Get available agents from orchestrator
    */
-  private async executeWithClaude(contextPrompt: string, workingDirectory: string): Promise<{
-    output: string;
-    error?: string;
-  }> {
-    try {
-      // First try using Claude Code CLI if available
-      if (this.claudeAvailable) {
-        return await this.executeWithClaudeCLI(contextPrompt, workingDirectory);
-      }
-      
-      // Fallback to using the global Task tool
-      return await this.executeWithTaskTool(contextPrompt);
-      
-    } catch (error) {
-      return {
-        output: '',
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
+  getAvailableAgents(): string[] {
+    return this.agentOrchestrator.getAvailableAgents();
   }
 
   /**
-   * Execute using Claude Code CLI (spawn method)
+   * Get agent configuration
    */
-  private async executeWithClaudeCLI(contextPrompt: string, workingDirectory: string): Promise<{
-    output: string;
-    error?: string;
-  }> {
-    return new Promise((resolve) => {
-      this.consoleOutput.streamAgentActivity('claude', 'Starting Claude Code session...', 'progress');
-      
-      // Use spawn pattern like Mission Control demo
-      const claude = spawn('claude', ['-p', contextPrompt], {
-        cwd: workingDirectory,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: false
-      });
-
-      let output = '';
-      let error = '';
-
-      claude.stdout?.on('data', (data) => {
-        const chunk = data.toString();
-        output += chunk;
-        
-        // Stream real-time output to console
-        this.consoleOutput.streamAgentActivity('claude', chunk.trim(), 'progress');
-      });
-
-      claude.stderr?.on('data', (data) => {
-        error += data.toString();
-      });
-
-      claude.on('close', (code) => {
-        if (code === 0) {
-          this.consoleOutput.streamAgentActivity('claude', 'Response completed', 'completed');
-          resolve({ output: output.trim() });
-        } else {
-          this.consoleOutput.streamAgentActivity('claude', 'Error in Claude execution', 'failed');
-          resolve({ 
-            output: output.trim() || 'No output', 
-            error: error.trim() || `Claude process exited with code ${code}` 
-          });
-        }
-      });
-
-      claude.on('error', (err) => {
-        resolve({ 
-          output: '', 
-          error: `Failed to start Claude: ${err.message}` 
-        });
-      });
-    });
-  }
-
-  /**
-   * Execute using fallback when Claude CLI is not available
-   */
-  private async executeWithTaskTool(contextPrompt: string): Promise<{
-    output: string;
-    error?: string;
-  }> {
-    this.consoleOutput.streamAgentActivity('claude', 'Claude CLI not available, providing fallback response...', 'progress');
-    
-    // Provide a helpful fallback when Claude CLI is not installed
-    const fallbackResponse = `Claude Code CLI is not available on this system.
-
-To get real AI-powered responses, please:
-
-1. Install Claude Code CLI: Visit https://claude.ai/code to download
-2. Ensure 'claude' command is in your PATH
-3. Authenticate with your Anthropic account
-
-For now, here's what I can determine from the repository structure:
-
-This appears to be the @graphyn/code project - an AI-powered CLI orchestrator.
-
-**Project Details:**
-- TypeScript/Node.js CLI application
-- Uses Ink for terminal UI components
-- Integrates with Claude Code for AI responses
-- Has orchestration and multi-agent coordination features
-
-**To enable full AI analysis:**
-- Install Claude Code CLI
-- Run this command again for real intelligent responses
-
-**Query was:** "${contextPrompt.includes('User Query:') ? contextPrompt.split('User Query: "')[1]?.split('"')[0] || 'Unknown' : 'Repository analysis'}"`;
-
-    return {
-      output: fallbackResponse
-    };
+  getAgentConfig(agentName: string) {
+    return this.agentOrchestrator.getAgentConfig(agentName);
   }
 
   /**
@@ -429,6 +422,9 @@ This appears to be the @graphyn/code project - an AI-powered CLI orchestrator.
         // Process might already be dead
       }
     }
+    
+    // Cleanup agent orchestrator
+    await this.agentOrchestrator.cleanup();
     
     this.activeProcesses.clear();
     this.taskResults.clear();

@@ -9,9 +9,12 @@
 
 import { RealTimeExecutor } from './orchestrator/RealTimeExecutor.js';
 import { ConsoleOutput } from './console/ConsoleOutput.js';
+import { StreamingConsoleOutput } from './console/StreamingConsoleOutput.js';
 import { InteractiveInput } from './console/InteractiveInput.js';
+import { InteractiveOrchestrator } from './orchestrator/InteractiveOrchestrator.js';
 import { FigmaExtractor } from './figma/FigmaExtractor.js';
 import { FigmaAuthManager } from './figma/FigmaAuthManager.js';
+import { OrchestratorBridge } from './orchestrator/OrchestratorBridge.js';
 
 /**
  * Main CLI entry point
@@ -25,13 +28,30 @@ export async function main(): Promise<void> {
     // Initialize components with Claude Code style interface
     const realTimeExecutor = new RealTimeExecutor();
     const consoleOutput = new ConsoleOutput();
+    const streamingOutput = new StreamingConsoleOutput();
     const interactiveInput = new InteractiveInput();
     const figmaAuth = new FigmaAuthManager();
+    
+    // Create bridge for potential Ink UI integration (preserves UI investment)
+    const orchestratorBridge = new OrchestratorBridge();
+    
+    // Initialize the executor before using it (critical fix)
+    try {
+      await realTimeExecutor.initialize();
+      await orchestratorBridge.initialize();
+    } catch (error) {
+      console.error('❌ Failed to initialize orchestrator:', error instanceof Error ? error.message : error);
+      console.error('💡 Make sure .claude/agents/ directory exists with agent configuration files');
+      process.exit(1);
+    }
 
     // Handle different command patterns
     if (!command) {
-      // Interactive mode: graphyn (Claude Code style)
-      await handleInteractiveMode(interactiveInput, realTimeExecutor, consoleOutput);
+      // Interactive orchestrator mode: graphyn (split-screen experience)
+      await handleOrchestratorMode();
+    } else if (command === '--simple' || command === '-s') {
+      // Simple interactive mode: graphyn --simple (original style)
+      await handleInteractiveMode(interactiveInput, realTimeExecutor, streamingOutput);
     } else if (command === 'design' && queryParts.length > 0) {
       // Figma design extraction: graphyn design <figma-url>
       await handleFigmaCommand(queryParts.join(' '), consoleOutput, figmaAuth);
@@ -41,7 +61,7 @@ export async function main(): Promise<void> {
     } else if (queryParts.length > 0 || isNaturalLanguageQuery(command)) {
       // Direct query: graphyn "build API" (Claude Code style - immediate execution)
       const fullQuery = queryParts.length > 0 ? `${command} ${queryParts.join(' ')}` : command;
-      await handleDirectQuery(fullQuery, realTimeExecutor, interactiveInput, consoleOutput);
+      await handleDirectQuery(fullQuery, realTimeExecutor, interactiveInput, streamingOutput);
     } else {
       // Show help for unknown commands
       showHelp();
@@ -60,47 +80,165 @@ export async function handleDirectQuery(
   query: string,
   realTimeExecutor: RealTimeExecutor,
   interactiveInput: InteractiveInput,
-  consoleOutput: ConsoleOutput
+  streamingOutput: StreamingConsoleOutput
 ): Promise<void> {
   try {
-    // Show immediate start without confusing task plan
-    consoleOutput.streamAgentActivity('system', `Processing: "${query}"`, 'starting');
+    console.log(`🚀 Processing: "${query}"`);
+    console.log('─'.repeat(60));
+
+    let finalResult: any = null;
+    let completedTasks = 0;
+    let currentAgent = '';
 
     // Execute with real-time streaming
-    const result = await realTimeExecutor.executeQuery(query, {
+    for await (const event of realTimeExecutor.executeQueryStream(query, {
       workingDirectory: process.cwd()
-    });
-
-    // Show completion
-    const successRate = Math.round((result.completedTasks.length / (result.completedTasks.length + result.failedTasks.length)) * 100);
-    consoleOutput.streamSystemEvent('coordination', `Completed with ${successRate}% success rate`);
-
-    // Show results
-    if (result.completedTasks.length > 0) {
-      console.log('\n🎉 Results:');
-      result.completedTasks.forEach(task => {
-        console.log(`   ✅ ${task.result}`);
-      });
+    })) {
+      
+      // Handle different streaming events
+      switch (event.type) {
+        case 'start':
+          streamingOutput.showAnalysis('Starting query analysis...', 'routing');
+          break;
+          
+        case 'context':
+          streamingOutput.showAnalysis(event.data.message || 'Building context...');
+          break;
+          
+        case 'analysis':
+          if (event.data.agent && event.data.confidence) {
+            streamingOutput.showRouting(event.data.agent, event.data.confidence, event.data.reasoning);
+          } else {
+            streamingOutput.showAnalysis(event.data.message, event.data.stage);
+          }
+          break;
+          
+        case 'agent_start':
+          currentAgent = event.data.agent;
+          streamingOutput.startAgentStream(currentAgent);
+          streamingOutput.showStatus(currentAgent, 'thinking', 'analyzing query');
+          break;
+          
+        case 'message':
+          if (event.data.message) {
+            const message = event.data.message;
+            
+            // Stream different message types
+            if (message.type === 'assistant') {
+              streamingOutput.showStatus(currentAgent, 'writing', 'generating response');
+              streamingOutput.streamMessage({
+                type: 'assistant',
+                agent: currentAgent,
+                content: message.message?.content,
+                timestamp: Date.now()
+              });
+            } else if (message.type === 'tool_use') {
+              streamingOutput.showStatus(currentAgent, 'reading', message.tool?.name || 'using tool');
+              streamingOutput.streamMessage({
+                type: 'tool_use',
+                agent: currentAgent,
+                tool: message.tool?.name,
+                timestamp: Date.now()
+              });
+            } else if (message.type === 'result') {
+              streamingOutput.showStatus(currentAgent, 'complete');
+              streamingOutput.streamMessage({
+                type: 'result',
+                agent: currentAgent,
+                timestamp: Date.now()
+              });
+              
+              // Extract final result
+              if ('subtype' in message && message.subtype === 'success') {
+                finalResult = (message as any).result || '';
+              }
+            }
+          }
+          break;
+          
+        case 'result':
+          completedTasks++;
+          // Extract the actual response content from orchestrator result
+          if (event.data && event.data.primaryResponse) {
+            finalResult = event.data.primaryResponse;
+          } else if (event.data && typeof event.data === 'string') {
+            finalResult = event.data;
+          }
+          streamingOutput.finishAgentStream();
+          break;
+          
+        case 'error':
+          console.error(`\n❌ Error: ${event.data.error}`);
+          break;
+      }
     }
 
-    if (result.failedTasks.length > 0) {
-      console.log('\n⚠️ Issues:');
-      result.failedTasks.forEach(task => {
-        console.log(`   ❌ ${task.error}`);
-      });
+    // Show final result if available
+    if (finalResult && typeof finalResult === 'string' && finalResult.trim()) {
+      console.log('\n' + '─'.repeat(60));
+      console.log('📋 Agent Response:');
+      console.log('─'.repeat(60));
+      console.log(finalResult.trim());
+    } else if (completedTasks === 0) {
+      console.log('\n⚠️  No response was generated. This may indicate an issue with the agent execution.');
     }
 
+    // Show completion summary
+    console.log('\n' + '─'.repeat(60));
+    console.log(`🎉 Task completed! (${completedTasks} agent${completedTasks !== 1 ? 's' : ''} used)`);
+    
     // Offer continuation like Claude Code
+    console.log('\n💡 You can:');
+    console.log('  • Ask for clarification or improvements');
+    console.log('  • Request new features or changes');
+    console.log('  • Get explanations about the implementation');
+    console.log('  • Start a completely new task');
+    
     console.log('');
     const followUp = await interactiveInput.showContinuationPrompt();
     
     if (followUp && followUp.toLowerCase() !== 'exit' && followUp.toLowerCase() !== 'quit') {
       // Continue with new query
-      await handleDirectQuery(followUp, realTimeExecutor, interactiveInput, consoleOutput);
+      console.log(''); // Add spacing
+      await handleDirectQuery(followUp, realTimeExecutor, interactiveInput, streamingOutput);
     }
 
   } catch (error) {
-    consoleOutput.streamError('executor', error instanceof Error ? error : new Error(String(error)), 'Direct query execution');
+    console.error('\n❌ Execution failed:', error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+/**
+ * Handle split-screen orchestrator mode (default)
+ */
+async function handleOrchestratorMode(): Promise<void> {
+  try {
+    console.log('🚀 Starting Interactive Orchestrator...');
+    
+    const orchestrator = new InteractiveOrchestrator();
+    await orchestrator.initialize();
+    
+    // Handle graceful shutdown
+    process.on('SIGINT', async () => {
+      console.log('\n📊 Session Summary:');
+      const stats = orchestrator.getSessionStats();
+      if (stats) {
+        const duration = Math.round((Date.now() - stats.startTime) / 1000);
+        console.log(`   • Session ID: ${stats.id}`);
+        console.log(`   • Duration: ${duration}s`);
+        console.log(`   • Queries processed: ${stats.queryCount}`);
+      }
+      
+      await orchestrator.cleanup();
+      process.exit(0);
+    });
+    
+    // Start the interactive experience
+    await orchestrator.startInteractive();
+    
+  } catch (error) {
+    console.error('❌ Orchestrator mode failed:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -111,42 +249,117 @@ export async function handleDirectQuery(
 export async function handleInteractiveMode(
   interactiveInput: InteractiveInput,
   realTimeExecutor: RealTimeExecutor,
-  consoleOutput: ConsoleOutput
+  streamingOutput: StreamingConsoleOutput
 ): Promise<void> {
   try {
     // Setup event handler for user inputs
     interactiveInput.on('userInput', async (query: string) => {
       try {
-        // Execute query immediately with streaming
-        consoleOutput.streamAgentActivity('system', `Processing: "${query}"`, 'starting');
+        console.log(`🚀 Processing: "${query}"`);
+        console.log('─'.repeat(60));
 
-        const result = await realTimeExecutor.executeQuery(query, {
+        let finalResult: any = null;
+        let completedTasks = 0;
+        let currentAgent = '';
+
+        // Execute with real-time streaming
+        for await (const event of realTimeExecutor.executeQueryStream(query, {
           workingDirectory: process.cwd()
-        });
-
-        // Show completion
-        const successRate = Math.round((result.completedTasks.length / (result.completedTasks.length + result.failedTasks.length)) * 100);
-        consoleOutput.streamSystemEvent('coordination', `Completed with ${successRate}% success rate`);
-
-        // Show results
-        if (result.completedTasks.length > 0) {
-          console.log('\n🎉 Results:');
-          result.completedTasks.forEach(task => {
-            console.log(`   ✅ ${task.result}`);
-          });
+        })) {
+          
+          // Handle different streaming events
+          switch (event.type) {
+            case 'start':
+              streamingOutput.showAnalysis('Starting query analysis...', 'routing');
+              break;
+              
+            case 'context':
+              streamingOutput.showAnalysis(event.data.message || 'Building context...');
+              break;
+              
+            case 'analysis':
+              if (event.data.agent && event.data.confidence) {
+                streamingOutput.showRouting(event.data.agent, event.data.confidence, event.data.reasoning);
+              } else {
+                streamingOutput.showAnalysis(event.data.message, event.data.stage);
+              }
+              break;
+              
+            case 'agent_start':
+              currentAgent = event.data.agent;
+              streamingOutput.startAgentStream(currentAgent);
+              streamingOutput.showStatus(currentAgent, 'thinking', 'analyzing query');
+              break;
+              
+            case 'message':
+              if (event.data.message) {
+                const message = event.data.message;
+                
+                // Stream different message types
+                if (message.type === 'assistant') {
+                  streamingOutput.showStatus(currentAgent, 'writing', 'generating response');
+                  streamingOutput.streamMessage({
+                    type: 'assistant',
+                    agent: currentAgent,
+                    content: message.message?.content,
+                    timestamp: Date.now()
+                  });
+                } else if (message.type === 'tool_use') {
+                  streamingOutput.showStatus(currentAgent, 'reading', message.tool?.name || 'using tool');
+                  streamingOutput.streamMessage({
+                    type: 'tool_use',
+                    agent: currentAgent,
+                    tool: message.tool?.name,
+                    timestamp: Date.now()
+                  });
+                } else if (message.type === 'result') {
+                  streamingOutput.showStatus(currentAgent, 'complete');
+                  streamingOutput.streamMessage({
+                    type: 'result',
+                    agent: currentAgent,
+                    timestamp: Date.now()
+                  });
+                  
+                  // Extract final result
+                  if ('subtype' in message && message.subtype === 'success') {
+                    finalResult = (message as any).result || '';
+                  }
+                }
+              }
+              break;
+              
+            case 'result':
+              completedTasks++;
+              // Extract the actual response content from orchestrator result
+              if (event.data && event.data.primaryResponse) {
+                finalResult = event.data.primaryResponse;
+              } else if (event.data && typeof event.data === 'string') {
+                finalResult = event.data;
+              }
+              streamingOutput.finishAgentStream();
+              break;
+              
+            case 'error':
+              console.error(`\n❌ Error: ${event.data.error}`);
+              break;
+          }
         }
 
-        if (result.failedTasks.length > 0) {
-          console.log('\n⚠️ Issues:');
-          result.failedTasks.forEach(task => {
-            console.log(`   ❌ ${task.error}`);
-          });
+        // Show final result if available
+        if (finalResult && typeof finalResult === 'string' && finalResult.trim()) {
+          console.log('\n' + '─'.repeat(60));
+          console.log('📋 Agent Response:');
+          console.log('─'.repeat(60));
+          console.log(finalResult.trim());
         }
 
+        // Show completion summary
+        console.log('\n' + '─'.repeat(60));
+        console.log(`🎉 Task completed! (${completedTasks} agent${completedTasks !== 1 ? 's' : ''} used)`);
         console.log(''); // Space before next prompt
 
       } catch (error) {
-        consoleOutput.streamError('interactive', error instanceof Error ? error : new Error(String(error)), 'Interactive execution');
+        console.error('\n❌ Execution failed:', error instanceof Error ? error.message : String(error));
         console.log(''); // Space before next prompt
       }
     });
@@ -155,7 +368,7 @@ export async function handleInteractiveMode(
     await interactiveInput.startInteractiveMode();
 
   } catch (error) {
-    consoleOutput.showError(error instanceof Error ? error : new Error(String(error)), 'Interactive mode');
+    console.error('❌ Interactive mode failed:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -248,35 +461,44 @@ function showHelp(): void {
 Graphyn Code - AI Development Assistant (Claude Code Style)
 
 Usage:
-  graphyn                        Interactive chat mode (like Claude Code)
+  graphyn                        Interactive orchestrator (split-screen mode)
+  graphyn --simple               Simple interactive chat mode
   graphyn "your query"           Direct query with immediate execution
   graphyn design <figma-url>     Extract Figma design to code
   graphyn design auth            Authenticate with Figma
 
 Examples:
-  graphyn                                          # Start interactive chat
+  graphyn                                          # Start split-screen orchestrator
+  graphyn --simple                                 # Start simple chat mode
   graphyn "help me understand this repository"    # Immediate analysis
   graphyn "build a REST API with authentication"  # Direct implementation
   graphyn "create a dashboard component"           # UI development
   graphyn "review my system architecture"          # Code review
 
-Interactive Features:
-  • Continuous chat like Claude Code
-  • Real-time streaming of agent progress
-  • No confusing task plans - just immediate execution
-  • Natural follow-up conversations
-  • Repository analysis and code understanding
+Orchestrator Features:
+  • Split-screen: streaming responses above, input below
+  • Non-blocking input: type while agents work
+  • Queue multiple requests during execution
+  • Real-time status indicators and session stats
+  • Persistent interaction throughout session
+
+Simple Mode Features:
+  • Traditional chat-style interaction
+  • One query at a time with full responses
+  • Direct follow-up conversations
+  • Claude Code style completion prompts
 
 Options:
+  -s, --simple                   Use simple interactive mode
   -v, --version                  Show version
   -h, --help                     Show help
   --debug                        Show debug information
 
 Experience:
-  ✨ Works exactly like Claude Code but for repository tasks
-  🚀 Real-time streaming shows what agents are doing
-  💬 Continuous conversation after each completion
-  🎯 No complex interfaces - just natural language
+  ✨ Split-screen orchestrator for continuous workflow
+  🚀 Real-time streaming with persistent input
+  💬 Queue multiple tasks while agents execute
+  🎯 Choose your interaction style: orchestrator or chat
 `);
 }
 
