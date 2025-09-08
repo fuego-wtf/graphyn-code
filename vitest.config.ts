@@ -5,8 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./src/ink/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // setupFiles: ['./src/ink/test/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       reporter: ['text', 'json', 'html'],
       exclude: [
