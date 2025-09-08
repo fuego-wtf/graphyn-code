@@ -8,8 +8,8 @@
 import { EventEmitter } from 'events';
 import { ANSIController } from './ANSIController.js';
 import { PanelConfiguration } from './TerminalLayoutManager.js';
-import { EnhancedInputHandler, InputContext } from '../console/EnhancedInputHandler.js';
-import { BufferState } from '../console/InputBufferManager.js';
+import { EnhancedInputHandler, InputContext } from '../../console/EnhancedInputHandler.js';
+import { BufferState } from '../../console/InputBufferManager.js';
 
 export interface RepositoryContext {
   workingDirectory: string;
@@ -147,7 +147,7 @@ export class ContinuousInputPanel extends EventEmitter {
     });
 
     // Handle context-specific navigation
-    this.inputHandler.on('navigationRequest', (event) => {
+    this.inputHandler.on('navigationRequest', (event: any) => {
       this.emit('navigationRequest', event);
     });
 
@@ -563,7 +563,7 @@ export class ContinuousInputPanel extends EventEmitter {
         const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
         
         context.projectType = 'node';
-        context.packageManager = await this.detectPackageManager(workingDirectory);
+        context.packageManager = await this.detectPackageManager(workingDirectory) as any;
         context.mainLanguages = ['javascript'];
         
         // Check for TypeScript
