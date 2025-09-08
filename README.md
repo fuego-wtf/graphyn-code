@@ -221,28 +221,125 @@ Your technical advisor. Reviews designs, suggests improvements, ensures best pra
 ### 🎨 Design Agent
 Converts Figma prototypes to working code. Analyzes designs, creates implementation plans, and launches Claude Code with full MCP integration.
 
+## 🔧 Process-Driven Development Architecture
+
+Graphyn CLI follows a **process-mapped development approach** where each component is tracked as a numbered process (PROCESS-001 through PROCESS-012) for systematic troubleshooting and end-to-end delivery.
+
+### Build Status Analysis
+
+Current build has **22 TypeScript errors** across 3 files. Here's the process-by-process breakdown:
+
+#### **PROCESS-001: Type System Integration** ❌ BROKEN
+- **Issue**: Missing Claude Code SDK global declarations
+- **Files**: `src/clyde/interactive-shell.ts`, `src/engines/standalone-engine.ts`
+- **Errors**: `Cannot find name 'Task'` (3 occurrences)
+- **Fix**: Create `/src/types/globals.d.ts` with proper SDK declarations
+
+#### **PROCESS-008: Event Streaming Pipeline** ❌ NOT IMPLEMENTED
+- **Issue**: No real-time event streaming during orchestration
+- **Location**: `/src/orchestrator/EventStream.ts` (missing)
+- **Impact**: Users can't see live progress during multi-agent execution
+- **Fix**: Implement SSE-style event emitter with console streaming
+
+#### **PROCESS-009: Dynamic Engine Methods** ❌ BROKEN  
+- **Issue**: 8 missing method implementations in `dynamic-engine.ts`
+- **Missing Methods**: `testRemoteAgent`, `updateRemoteAgent`, `deleteRemoteAgent`, `cloneAgentRepository`, `forkAgentRepository`, `startRemoteThread`, `inviteToThread`, `leaveThread`
+- **Errors**: 18 TypeScript errors
+- **Fix**: Implement missing methods or remove unused calls
+
+#### **PROCESS-010: API Client Type Alignment** ❌ BROKEN
+- **Issue**: Agent/Thread interfaces missing required properties
+- **Missing Properties**: `status`, `capabilities`, `lastModified`, `created`, `lastActivity`
+- **Files**: `/src/api-client.ts`
+- **Fix**: Extend interfaces to match backend API schema
+
+### Process Flow Map
+```
+CLI ORCHESTRATION PROCESS CHAIN
+══════════════════════════════════════════════════
+
+PROCESS-002: CLI Entry ✅ WORKING
+    ↓
+PROCESS-003: Query Analysis ✅ IMPLEMENTED  
+    ↓
+PROCESS-004: Task Graph ✅ IMPLEMENTED
+    ↓
+PROCESS-005: Session Pool ⚠️ PARTIALLY BROKEN
+    ↓
+PROCESS-006: Multi-Agent Coordination ✅ IMPLEMENTED
+    ↓
+PROCESS-007: Context Sync ✅ IMPLEMENTED
+    ↓
+PROCESS-008: Event Streaming ❌ NOT IMPLEMENTED
+    ↓
+PROCESS-011: Console Output ⚠️ LIMITED
+    ↓
+PROCESS-012: Figma Integration ✅ PRESERVED
+
+BROKEN CHAIN: Process-008 blocks real-time user feedback
+```
+
+### Real-Time Streaming Architecture
+
+The CLI should stream events like this:
+```bash
+$ graphyn "build API"
+🚀 Analyzing query and decomposing tasks...
+🔄 @architect: Designing system architecture... 15%
+🔄 @backend: Implementing REST endpoints... 30%  
+📊 @test-writer: Creating integration tests... 45%
+✅ @architect: System design complete
+🔄 @backend: Database migrations running... 60%
+✅ Mission Complete! API built with tests
+```
+
+Currently shows: Static progress updates only
+**Needed**: Live streaming with `process.stdout.write()` and event emitters
+
 ## Local Development Setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/graphyn/graphyn-code.git
-   cd graphyn-code
-   ```
+### Quick Start
+```bash
+# Clone and setup
+git clone https://github.com/graphyn/graphyn-code.git
+cd graphyn-code
+npm install
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+# Build (will show 22 errors currently)
+./scripts/build-ink.sh
 
-3. Build the project:
-   ```bash
-   npm run build
-   ```
+# Or build orchestration engine (newer architecture) 
+npm run build
+```
 
-4. Test locally:
-   ```bash
-   node dist/ink/cli.js
-   ```
+### Build Status
+- **Ink.js Build**: ❌ 22 TypeScript errors 
+- **Orchestration Engine**: ✅ Builds successfully
+- **Runtime Test**: Use `npm run dev` to test new architecture
+
+### Testing Process Sequence
+```bash
+# TEST-001: Type system compilation
+npm run build          # Should compile without errors (after fixes)
+
+# TEST-002: CLI entry routing  
+graphyn "test query"    # Should parse and route correctly
+
+# TEST-003: Event streaming
+graphyn "build API" --stream  # Should show real-time progress
+
+# TEST-004: Multi-agent coordination  
+graphyn "complex task"  # Should launch parallel sessions
+
+# TEST-005: Figma preservation
+graphyn design <url>    # Should extract and generate code
+```
+
+### Architecture Status
+- **Old Ink.js UI**: 2,500+ lines, complex React components ❌ Build broken
+- **New Orchestration**: 980 lines, invisible coordination ✅ Working
+- **Event Pipeline**: Missing real-time streaming ⚠️ Needs implementation
+- **Type System**: Disconnected between old/new code ❌ Needs alignment
 
 ### Figma OAuth Setup
 

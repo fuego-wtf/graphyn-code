@@ -145,11 +145,11 @@ Examples:
 
 // Check if this is a direct agent command - always use fallback for these
 const agents = ['backend', 'frontend', 'architect', 'design', 'cli'];
-const isDirectAgentCommand = agents.includes(normalizedCommand) && query;
+const isDirectAgentCommand = normalizedCommand && agents.includes(normalizedCommand) && query;
 
 // Commands that should always use fallback mode
 const fallbackCommands = ['orchestrate']; // Remove 'squad' so it uses interactive mode
-const isFallbackCommand = fallbackCommands.includes(normalizedCommand);
+const isFallbackCommand = normalizedCommand && fallbackCommands.includes(normalizedCommand);
 
 // Check if graphyn was called without any arguments (builder mode)
 const isBuilderMode = !normalizedCommand;

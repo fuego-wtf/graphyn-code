@@ -65,7 +65,7 @@ export async function analyzeRepository(options: AnalyzeOptions = {}) {
         console.log(explanation);
         console.log(colors.info('─'.repeat(50)));
       } catch (error) {
-        console.log(colors.warning(`⚠️  Could not generate AI explanation (working offline): ${error.message}`));
+        console.log(colors.warning(`⚠️  Could not generate AI explanation (working offline): ${(error as any).message}`));
         console.log(colors.info('\nHere\'s what I found in your repository:'));
         console.log(colors.info('─'.repeat(50)));
         console.log(generateBasicExplanation(result, options.query));
@@ -164,7 +164,7 @@ async function generateRepositoryExplanation(analysis: any, query: string): Prom
       await apiClient.ping();
       console.log(chalk.gray(`✓ Connected to backend at ${apiUrl}`));
     } catch (pingError) {
-      throw new Error(`Backend not reachable at ${apiUrl}: ${pingError.message}`);
+      throw new Error(`Backend not reachable at ${apiUrl}: ${(pingError as any).message}`);
     }
     
     // Auth disabled - continue without token
@@ -195,15 +195,15 @@ Please provide a clear, helpful explanation of what's in this repository and ans
       return response.explanation || response.message || 'AI explanation received but empty';
     } catch (apiError) {
       // If the endpoint doesn't exist, suggest creating it
-      if (apiError.message.includes('404')) {
+      if ((apiError as any).message.includes('404')) {
         throw new Error(`Backend connected but /api/code/explain endpoint not found. Please implement this endpoint in your backend.`);
       }
-      throw new Error(`Backend API error: ${apiError.message}`);
+      throw new Error(`Backend API error: ${(apiError as any).message}`);
     }
     
   } catch (error) {
     // Fall back to basic explanation with more detailed error
-    throw new Error(`AI explanation failed: ${error.message}`);
+    throw new Error(`AI explanation failed: ${(error as any).message}`);
   }
 }
 
@@ -221,7 +221,7 @@ function generateBasicExplanation(analysis: any, query: string): string {
   
   if (analysis.type === 'monorepo' && analysis.packages?.length) {
     lines.push(`📦 Contains ${analysis.packages.length} packages:`);
-    analysis.packages.slice(0, 10).forEach(pkg => lines.push(`   • ${pkg}`));
+    analysis.packages.slice(0, 10).forEach((pkg: any) => lines.push(`   • ${pkg}`));
     if (analysis.packages.length > 10) {
       lines.push(`   • ... and ${analysis.packages.length - 10} more`);
     }
@@ -300,8 +300,8 @@ function describeRepository(analysis: any): string {
   // Check for CLI-specific indicators first
   if (analysis.name === 'code' || analysis.path.includes('/code')) {
     // Look for CLI indicators in the structure
-    const hasInkComponents = analysis.structure.directories.some(dir => dir.includes('ink'));
-    const hasCliCommands = analysis.structure.directories.some(dir => dir.includes('commands'));
+    const hasInkComponents = analysis.structure.directories.some((dir: any) => dir.includes('ink'));
+    const hasCliCommands = analysis.structure.directories.some((dir: any) => dir.includes('commands'));
     const hasBinScript = analysis.structure.files['.js'] > 0; // likely has bin scripts
     
     if (hasInkComponents && hasCliCommands) {
@@ -318,7 +318,7 @@ function describeRepository(analysis: any): string {
   // Check package.json content for more specific detection
   if (analysis.language === 'typescript' && analysis.framework === 'react') {
     // If it has React but also CLI-like structure, it's likely a CLI with UI
-    const hasCliStructure = analysis.structure.directories.some(dir => 
+    const hasCliStructure = analysis.structure.directories.some((dir: any) => 
       dir.includes('commands') || dir.includes('cli') || dir.includes('bin')
     );
     

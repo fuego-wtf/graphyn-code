@@ -672,7 +672,7 @@ Coordination: Available to all agents via TodoRead`,
               {
                 uri,
                 mimeType: 'application/json',
-                text: JSON.stringify({ error: error.toString() }),
+                text: JSON.stringify({ error: (error as any).toString() }),
               },
             ],
           };

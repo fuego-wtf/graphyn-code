@@ -124,7 +124,7 @@ You are now in an interactive session. The user will provide queries and you sho
     } catch (error) {
       console.log(colors.warning('⚠️  API unavailable, using local prompts'));
       if (axios.isAxiosError(error)) {
-        console.log(colors.info(`Error: ${error.response?.status} ${error.response?.statusText}`));
+        console.log(colors.info(`Error: ${(error as any).response?.status} ${(error as any).response?.statusText}`));
       }
       
       // Use the same approach as interactive mode

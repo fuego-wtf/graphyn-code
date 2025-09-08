@@ -73,7 +73,7 @@ cat > tsconfig.ink.json << EOF
 }
 EOF
 
-tsc -p tsconfig.ink.json --noEmitOnError false || true
+npx tsc -p tsconfig.ink.json --noEmitOnError false || true
 
 # Clean up temp tsconfig
 rm tsconfig.ink.json

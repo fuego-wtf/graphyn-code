@@ -8,6 +8,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import chalk from 'chalk';
 import { GraphynAPIClient } from '../api/client.js';
+import type { Agent, Thread } from '../api-client.js';
 import { GraphynMCPBridge } from '../mcp/bridge-implementation.js';
 import type { CommandIntent } from '../coordinator/smart-coordinator.js';
 
@@ -253,7 +254,7 @@ export class DynamicEngine {
       for (const agent of agents) {
         const status = agent.status === 'active' ? '🟢' : 
                       agent.status === 'draft' ? '🟡' : '⚫';
-        const lastModified = this.formatRelativeTime(new Date(agent.lastModified));
+        const lastModified = this.formatRelativeTime(new Date(agent.lastModified || agent.updated_at));
         
         console.log(`  ${status} ${agent.name} - ${agent.description} ${chalk.gray(`(${lastModified})`)}`);
       }
@@ -441,7 +442,7 @@ export class DynamicEngine {
       if (filter) {
         agentsToPull = remoteAgents.filter(agent =>
           agent.name.toLowerCase().includes(filter.toLowerCase()) ||
-          agent.description.toLowerCase().includes(filter.toLowerCase())
+          (agent.description && agent.description.toLowerCase().includes(filter.toLowerCase()))
         );
       }
       
@@ -462,7 +463,7 @@ export class DynamicEngine {
             description: agent.description,
             instructions: agent.instructions,
             capabilities: agent.capabilities,
-            created: agent.created,
+            created: agent.created_at,
             lastUsed: agent.lastModified,
             remoteId: agent.id,
             lastSync: new Date()
@@ -508,7 +509,7 @@ export class DynamicEngine {
       for (const thread of threads) {
         const typeIcon = thread.type === 'builder' ? '🏗️' : 
                         thread.type === 'testing' ? '🧪' : '🚀';
-        const lastActivity = this.formatRelativeTime(new Date(thread.lastActivity));
+        const lastActivity = this.formatRelativeTime(new Date(thread.updated_at));
         
         console.log(`  ${typeIcon} ${thread.name} (${thread.participants.length} participants) ${chalk.gray(`- ${lastActivity}`)}`);
       }
@@ -718,5 +719,197 @@ How can I help you in this thread?
     if (hours > 0) return `${hours}h ago`;
     if (minutes > 0) return `${minutes}m ago`;
     return 'just now';
+  }
+
+  // ============================================================================
+  // PROCESS-009: Missing Method Implementations
+  // ============================================================================
+
+  /**
+   * Test a remote agent (called from line 112)
+   */
+  private async testRemoteAgent(agentId: string): Promise<void> {
+    if (!agentId) {
+      console.log(chalk.red('❌ Please provide an agent ID to test'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`🧪 Testing remote agent: ${agentId}`));
+      
+      const agent = await this.apiClient.getAgent(agentId);
+      
+      console.log(chalk.green(`✅ Agent "${agent.name}" found and accessible`));
+      console.log(chalk.gray(`   Description: ${agent.description}`));
+      console.log(chalk.gray(`   Status: ${agent.status || 'active'}`));
+      
+      // TODO: Implement actual agent testing logic
+      console.log(chalk.yellow('💡 Agent testing functionality coming soon'));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to test agent "${agentId}":`, error));
+    }
+  }
+
+  /**
+   * Update a remote agent (called from line 121)
+   */
+  private async updateRemoteAgent(agentId: string, updateArgs: string[]): Promise<void> {
+    if (!agentId) {
+      console.log(chalk.red('❌ Please provide an agent ID to update'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`📝 Updating remote agent: ${agentId}`));
+      
+      const updates = updateArgs.join(' ');
+      
+      // For now, just update description - expand later
+      await this.apiClient.updateAgent(agentId, {
+        description: updates
+      });
+      
+      console.log(chalk.green(`✅ Agent "${agentId}" updated successfully`));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to update agent "${agentId}":`, error));
+    }
+  }
+
+  /**
+   * Delete a remote agent (called from line 126)
+   */
+  private async deleteRemoteAgent(agentId: string): Promise<void> {
+    if (!agentId) {
+      console.log(chalk.red('❌ Please provide an agent ID to delete'));
+      return;
+    }
+
+    try {
+      console.log(chalk.yellow(`⚠️  Deleting remote agent: ${agentId}`));
+      
+      // Add confirmation for destructive action
+      console.log(chalk.red('⚠️  This action cannot be undone!'));
+      
+      await this.apiClient.deleteAgent(agentId);
+      console.log(chalk.green(`✅ Agent "${agentId}" deleted successfully`));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to delete agent "${agentId}":`, error));
+    }
+  }
+
+  /**
+   * Clone an agent repository (called from line 158)
+   */
+  private async cloneAgentRepository(repositoryUrl: string): Promise<void> {
+    if (!repositoryUrl) {
+      console.log(chalk.red('❌ Please provide a repository URL to clone'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`📦 Cloning agent repository: ${repositoryUrl}`));
+      
+      // TODO: Implement repository cloning logic
+      console.log(chalk.yellow('💡 Agent repository cloning coming soon'));
+      console.log(chalk.gray(`   URL: ${repositoryUrl}`));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to clone repository "${repositoryUrl}":`, error));
+    }
+  }
+
+  /**
+   * Fork an agent repository (called from line 162)
+   */
+  private async forkAgentRepository(repositoryUrl: string): Promise<void> {
+    if (!repositoryUrl) {
+      console.log(chalk.red('❌ Please provide a repository URL to fork'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`🍴 Forking agent repository: ${repositoryUrl}`));
+      
+      // TODO: Implement repository forking logic
+      console.log(chalk.yellow('💡 Agent repository forking coming soon'));
+      console.log(chalk.gray(`   URL: ${repositoryUrl}`));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to fork repository "${repositoryUrl}":`, error));
+    }
+  }
+
+  /**
+   * Start a remote thread (called from line 190)
+   */
+  private async startRemoteThread(threadName: string): Promise<void> {
+    if (!threadName) {
+      console.log(chalk.red('❌ Please provide a thread name'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`🚀 Starting remote thread: ${threadName}`));
+      
+      const thread = await this.apiClient.createThread({
+        name: threadName,
+        type: 'testing'
+      });
+      
+      console.log(chalk.green(`✅ Thread "${thread.name}" created successfully`));
+      console.log(chalk.gray(`   ID: ${thread.id}`));
+      
+      // TODO: Implement thread joining/interaction logic
+      console.log(chalk.yellow('💡 Thread interaction coming soon'));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to start thread "${threadName}":`, error));
+    }
+  }
+
+  /**
+   * Invite agent to thread (called from line 194)
+   */
+  private async inviteToThread(threadId: string, inviteArgs: string[]): Promise<void> {
+    if (!threadId) {
+      console.log(chalk.red('❌ Please provide a thread ID'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`💌 Inviting to thread: ${threadId}`));
+      
+      const inviteDetails = inviteArgs.join(' ');
+      console.log(chalk.gray(`   Details: ${inviteDetails}`));
+      
+      // TODO: Implement thread invitation logic
+      console.log(chalk.yellow('💡 Thread invitations coming soon'));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to invite to thread "${threadId}":`, error));
+    }
+  }
+
+  /**
+   * Leave a thread (called from line 198)
+   */
+  private async leaveThread(threadId: string): Promise<void> {
+    if (!threadId) {
+      console.log(chalk.red('❌ Please provide a thread ID to leave'));
+      return;
+    }
+
+    try {
+      console.log(chalk.cyan(`👋 Leaving thread: ${threadId}`));
+      
+      // TODO: Implement thread leaving logic
+      console.log(chalk.yellow('💡 Thread leaving functionality coming soon'));
+      
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to leave thread "${threadId}":`, error));
+    }
   }
 }

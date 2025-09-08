@@ -11,7 +11,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   showHelp = true, 
   customHints = [] 
 }) => {
-  const { mode, isAuthenticated, agentsLoading, agentsError } = useStore();
+  const { mode, agentsLoading, agentsError } = useStore();
 
   const getDefaultHints = () => {
     switch (mode) {
@@ -19,11 +19,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         return ['↑↓ Navigate', '↵ Select', '? Help', 'Ctrl+C Exit'];
       case 'agent':
         return ['ESC Cancel', 'Ctrl+C Exit'];
-      case 'threads':
-        return ['↑↓ Navigate', '↵ Select', 'n New', 'd Delete', 'ESC Back'];
       case 'auth':
         return ['↑↓ Navigate', '↵ Select', 'ESC Back'];
-      case 'init':
+      case 'builder':
+        return ['↑↓ Navigate', '↵ Select', 'ESC Back'];
+      case 'setup':
         return ['Tab Next field', '↵ Submit', 'ESC Cancel'];
       default:
         return ['ESC Back', 'Ctrl+C Exit'];
@@ -43,11 +43,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     >
       {/* Left side - status */}
       <Box>
-        {isAuthenticated ? (
-          <Text color="green">● Authenticated</Text>
-        ) : (
-          <Text color="yellow">○ Not authenticated</Text>
-        )}
+        <Text color="cyan">● Graphyn CLI</Text>
         {agentsLoading && (
           <Text color="cyan"> • Loading agents...</Text>
         )}

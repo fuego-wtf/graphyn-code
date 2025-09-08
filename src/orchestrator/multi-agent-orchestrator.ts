@@ -140,7 +140,8 @@ export class MultiAgentOrchestrator extends EventEmitter {
         const currentStatus = this.getStatus(taskId);
         if (currentStatus && JSON.stringify(currentStatus) !== JSON.stringify(lastStatus)) {
           lastStatus = currentStatus;
-          return currentStatus;
+          // This is an event handler, return value is ignored in async generators
+          // We would need to use a different pattern for real streaming
         }
       }
     };
