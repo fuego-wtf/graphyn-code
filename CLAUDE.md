@@ -324,6 +324,25 @@ const stream = graphyn.threads.stream(threadId);
 - **Voice Integration**: whisper.cpp implementation for voice-to-code workflows (premium)
 - **Cross-Platform State**: Session backup and restoration across CLI and desktop platforms
 
+## Workspace Branching Rules
+
+### IMPORTANT: Workspace vs Submodule Branching
+- **graphyn-workspace**: WORKSPACE BRANCH - work directly on main, no feature branches
+- **@code/ (this submodule)**: Can create feature branches for CLI development when needed
+- **Coordination**: Cross-submodule specs and coordination happen in workspace main branch
+
+### Correct Branching Pattern for @code/
+```bash
+# ✅ CORRECT: Feature branches in this submodule
+git checkout -b feature-branch    # OK for CLI features
+git commit -m "feat: CLI feature"
+git push origin feature-branch
+
+# ❌ WRONG: Don't create branches in workspace root
+cd /Users/resatugurulu/Developer/graphyn-workspace/
+git checkout -b feature-branch   # DON'T DO THIS
+```
+
 ## Git Safety Rules
 
 ### FORBIDDEN Git Commands
