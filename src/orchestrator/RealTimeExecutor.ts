@@ -411,6 +411,13 @@ Do not provide generic advice - tailor your response to this specific repository
   }
 
   /**
+   * Stop execution (alias for cleanup)
+   */
+  async stop(): Promise<void> {
+    await this.cleanup();
+  }
+
+  /**
    * Cleanup resources
    */
   async cleanup(): Promise<void> {

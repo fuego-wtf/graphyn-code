@@ -13,6 +13,7 @@
     "dev": "tsx src/cli-orchestrator.ts",
     "dev:minimal": "tsx src/minimal-app.tsx",
     "dev:enhanced-ux": "tsx src/ink/enhanced-ux-demo.tsx",
+    "demo:enhanced-ux": "tsx src/examples/enhanced-ux-demo.ts",
     "test": "vitest",
     "test:unit": "vitest run",
     "test:watch": "vitest watch",

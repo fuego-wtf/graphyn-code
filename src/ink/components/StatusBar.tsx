@@ -3,13 +3,28 @@ import { Box, Text } from 'ink';
 import { useStore } from '../store.js';
 
 interface StatusBarProps {
+  activePanel?: 'left' | 'right';
+  currentPhase?: 'analysis' | 'planning' | 'execution' | 'review' | 'complete';
+  tasksCompleted?: number;
+  totalTasks?: number;
   showHelp?: boolean;
   customHints?: string[];
+  shortcuts?: Array<{
+    key: string;
+    label?: string;
+    description?: string;
+    color?: string;
+  }>;
 }
 
 export const StatusBar: React.FC<StatusBarProps> = ({ 
+  activePanel,
+  currentPhase,
+  tasksCompleted = 0,
+  totalTasks = 0,
   showHelp = true, 
-  customHints = [] 
+  customHints = [],
+  shortcuts = []
 }) => {
   const { mode, agentsLoading, agentsError } = useStore();
 

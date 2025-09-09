@@ -216,9 +216,10 @@ export const ProgressIndicators: React.FC<ProgressIndicatorsProps> = ({
         marginBottom={1}
       >
         <Box flexDirection="column">
-          <Text color={fuegoColors.text.primary} bold marginBottom={1}>
+          <Text color={fuegoColors.text.primary} bold>
             📋 Phase Execution
           </Text>
+          <Text>{""}</Text>
           
           {phases.map((phase, index) => {
             const isActive = index === currentPhaseIndex;
@@ -287,8 +288,8 @@ export const ProgressIndicators: React.FC<ProgressIndicatorsProps> = ({
                                   isCompletedSubstep ? fuegoColors.text.secondary :
                                   fuegoColors.text.dimmed
                                 }
-                                marginLeft={1}
                               >
+                                {" "}
                                 {substep}
                               </Text>
                             </Box>
@@ -312,9 +313,10 @@ export const ProgressIndicators: React.FC<ProgressIndicatorsProps> = ({
         paddingY={1}
       >
         <Box flexDirection="column">
-          <Text color={fuegoColors.text.primary} bold marginBottom={1}>
+          <Text color={fuegoColors.text.primary} bold>
             🌐 Streaming Status
           </Text>
+          <Text>{""}</Text>
           
           <Box flexDirection="row" justifyContent="space-between">
             <Box flexDirection="column" gap={1}>

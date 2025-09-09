@@ -367,10 +367,8 @@ export const ApprovalWorkflow: React.FC<ApprovalWorkflowProps> = ({
                 >
                   {option.label}
                 </Text>
-                <Text 
-                  color={fuegoColors.text.secondary} 
-                  marginLeft={2}
-                >
+                <Text color={fuegoColors.text.secondary}>
+                  {"  "}
                   {option.description}
                 </Text>
               </Box>

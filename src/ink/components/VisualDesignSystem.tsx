@@ -316,7 +316,7 @@ export const Alert: React.FC<AlertProps> = ({
   const { icon, color, borderColor } = getAlertConfig();
 
   return (
-    <Card borderColor={borderColor} variant={type}>
+    <Card borderColor={borderColor} variant={type === 'info' ? 'accent' : type}>
       <Box flexDirection="column">
         <Box flexDirection="row" alignItems="center" justifyContent="space-between">
           <Box flexDirection="row" alignItems="center" gap={1}>

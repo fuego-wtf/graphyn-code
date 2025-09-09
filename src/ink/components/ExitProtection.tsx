@@ -235,8 +235,8 @@ export const ExitProtection: React.FC<ExitProtectionProps> = ({
             <Text color={colors.warning} bold>
               ⚠️  EXIT PROTECTION ACTIVATED
             </Text>
-            <Text color={fuegoColors.text.secondary} marginTop={1}>
-              You have active work in progress
+            <Text color={fuegoColors.text.secondary}>
+              {"\n"}You have active work in progress
             </Text>
           </Box>
         </Box>
