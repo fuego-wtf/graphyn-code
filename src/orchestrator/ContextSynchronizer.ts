@@ -7,6 +7,7 @@
 
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
+import { spawn, exec } from 'child_process';
 import { AgentType, TaskExecution, ExecutionPlan, AgentExecutionContext } from './types';
 
 /**
@@ -307,7 +308,6 @@ export class ContextSynchronizer {
     let gitCommit: string | undefined;
     
     try {
-      const { spawn } = require('child_process');
       gitBranch = await this.execGitCommand('git rev-parse --abbrev-ref HEAD');
       gitCommit = await this.execGitCommand('git rev-parse HEAD');
     } catch (error) {
@@ -533,7 +533,6 @@ export class ContextSynchronizer {
 
   private async execGitCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const { exec } = require('child_process');
       exec(command, { cwd: this.workingDir }, (error: any, stdout: string, stderr: string) => {
         if (error) {
           reject(error);

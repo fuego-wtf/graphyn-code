@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import * as chokidar from 'chokidar';
 import path from 'path';
 import fs from 'fs';
+import { homedir } from 'os';
 
 export interface FileChange {
   type: 'add' | 'change' | 'unlink';
@@ -137,7 +138,7 @@ export class ClaudeMonitor extends EventEmitter {
   // Log session for future analysis
   private logSession(sessionId: string, workspacePath: string) {
     const sessionDir = path.join(
-      require('os').homedir(),
+      homedir(),
       '.graphyn',
       'sessions',
       sessionId
@@ -175,7 +176,7 @@ export class ClaudeMonitor extends EventEmitter {
   // Save patterns for future use
   private savePatterns() {
     const patternsFile = path.join(
-      require('os').homedir(),
+      homedir(),
       '.graphyn',
       'patterns',
       `patterns-${Date.now()}.json`

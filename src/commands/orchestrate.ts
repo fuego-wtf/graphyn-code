@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { exec, spawn } from 'child_process';
+import { exec, spawn, execSync } from 'child_process';
 import { promisify } from 'util';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
@@ -10,7 +10,7 @@ import { GraphynAPIClient } from '../api/client.js';
 import { createThreadSSEClient } from '../utils/sse-client.js';
 import { RepositoryAnalyzer } from '../services/repository-analyzer.js';
 import open from 'open';
-import readline from 'readline';
+import { createInterface } from 'readline';
 
 const execAsync = promisify(exec);
 
@@ -768,7 +768,6 @@ Context analysis failed: ${error instanceof Error ? (error as any).message : 'Un
 }
 
 async function getRecentlyModifiedFiles(repoPath: string): Promise<string[]> {
-  const { execSync } = require('child_process');
   try {
     const output = execSync('git log --name-only --pretty=format: -10', {
       cwd: repoPath,
@@ -815,64 +814,239 @@ async function createWorktree(taskId: string, repoPath: string): Promise<{ workt
 }
 
 async function executeClaudeWithStreaming(task: Task, worktreePath: string): Promise<void> {
-  return new Promise(async (resolve, reject) => {
+  console.log(chalk.gray(`Executing Claude Code SDK for task: ${task.title}\n`));
+  
+  try {
+    // Import Claude Code SDK client
+    const { ClaudeCodeClient } = await import('../sdk/claude-code-client.js');
+    
     // Build repository context without creating files
     const repoContext = await buildRepositoryContext(worktreePath);
     
     // Enhance prompt with repository context
     const enhancedPrompt = `${repoContext}
 
-TASK: ${task.prompt}`;
+TASK: ${task.prompt}
+
+Please work in this directory: ${worktreePath}
+Focus on implementing the task according to the agent specialization: ${task.agent}`;
+
+    // Create Claude Code client with timeout protection
+    const client = new ClaudeCodeClient();
+    const abortController = new AbortController();
     
-    // Build Claude CLI command arguments with enhanced context
-    const args = ['-p', enhancedPrompt];
-    
-    const allArgs = [...args];
-      
-    console.log(chalk.gray(`Executing: claude ${allArgs.map(arg => arg.includes(' ') ? `"${arg}"` : arg).join(' ')}\n`));
-    
-    // Spawn Claude CLI process
-    const claudeProcess = spawn('claude', allArgs, {
-      cwd: worktreePath,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
+    // Set aggressive timeout: 30 seconds max
+    const timeoutMs = 30000;
+    const timeoutId = setTimeout(() => {
+      console.log(chalk.red(`\n❌ Claude Code SDK timeout after ${timeoutMs/1000}s - providing static guidance`));
+      abortController.abort();
+    }, timeoutMs);
     
     let hasOutput = false;
+    let finalResult = '';
     
-    // Stream stdout in real-time
-    claudeProcess.stdout.on('data', (data) => {
+    // Set up real-time streaming handlers
+    client.on('partial_content', (content: string) => {
       hasOutput = true;
-      const text = data.toString();
-      // Add slight indentation to distinguish from system output
-      const indentedText = text.split('\n').map((line: any) => 
+      // Add indentation to distinguish from system output
+      const indentedText = content.split('\n').map((line: string) => 
         line.trim() ? `  ${line}` : line
       ).join('\n');
       process.stdout.write(indentedText);
     });
-    
-    // Handle stderr
-    claudeProcess.stderr.on('data', (data) => {
-      hasOutput = true;
-      process.stderr.write(chalk.red(`  Error: ${data.toString()}`));
+
+    client.on('thinking_start', () => {
+      process.stdout.write(chalk.gray('  [Thinking...] '));
     });
-    
-    claudeProcess.on('close', (code) => {
+
+    client.on('thinking_end', () => {
+      process.stdout.write(chalk.gray(' [Done]\n'));
+    });
+
+    client.on('debug', (message: string) => {
+      // Only show debug in verbose mode
+      if (process.env.DEBUG) {
+        console.log(chalk.gray(`    Debug: ${message}`));
+      }
+    });
+
+    try {
+      // Execute query with streaming
+      for await (const message of client.executeQueryStream(enhancedPrompt, {
+        abortController,
+        maxTurns: 3, // Limit turns to prevent infinite loops
+        allowedTools: ['Read', 'Write', 'Edit', 'MultiEdit', 'Bash', 'Glob', 'Grep'],
+        appendSystemPrompt: `You are working as a ${task.agent} agent. Focus on the specific task and provide clear, actionable results.`
+      })) {
+        if (message.type === "result") {
+          if ('subtype' in message && message.subtype === "success") {
+            finalResult = (message as any).result || "Task completed";
+            clearTimeout(timeoutId);
+            
+            if (!hasOutput) {
+              console.log(chalk.gray('  Task completed successfully (no intermediate output)'));
+            }
+            console.log(''); // Add spacing after task output
+            return;
+          } else if ('subtype' in message && (message.subtype === "error_max_turns" || message.subtype === "error_during_execution")) {
+            throw new Error((message as any).error || "Claude Code SDK error");
+          }
+        }
+      }
+      
+      clearTimeout(timeoutId);
       if (!hasOutput) {
-        console.log(chalk.gray('  (No output from Claude CLI)'));
+        console.log(chalk.gray('  (No output received from Claude Code SDK)'));
       }
       console.log(''); // Add spacing after task output
+
+    } catch (error) {
+      clearTimeout(timeoutId);
       
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Claude CLI exited with code ${code}`));
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      // Check if it's a timeout/abort error
+      if (errorMsg.includes('timeout') || errorMsg.includes('aborted') || abortController.signal.aborted) {
+        console.log(chalk.yellow('\n  ⚠️  Claude Code SDK timed out - providing static guidance instead\n'));
+        
+        // Provide static guidance based on task and agent type
+        await provideStaticGuidance(task, worktreePath);
+        return;
       }
-    });
+      
+      throw error;
+    }
     
-    claudeProcess.on('error', (error) => {
-      reject(new Error(`Failed to start Claude CLI: ${(error as any).message}`));
-    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(chalk.red(`\n  ❌ Claude Code SDK failed: ${errorMsg}\n`));
+    console.log(chalk.yellow('  🔄 Falling back to static guidance...\n'));
+    
+    // Always fall back to static guidance on any error
+    await provideStaticGuidance(task, worktreePath);
+  }
+}
+
+/**
+ * Provide static guidance when Claude Code SDK fails
+ */
+async function provideStaticGuidance(task: Task, worktreePath: string): Promise<void> {
+  console.log(chalk.cyan('  📋 Static Guidance for Task:\n'));
+  console.log(`    Title: ${task.title}`);
+  console.log(`    Agent: ${task.agent}`);
+  console.log(`    Directory: ${worktreePath}`);
+  console.log('');
+  
+  // Provide guidance based on agent type
+  const guidance = getStaticGuidanceForAgent(task.agent, task.description);
+  console.log(chalk.gray('  ' + guidance.split('\n').join('\n  ')));
+  console.log('');
+  
+  // Suggest next steps
+  console.log(chalk.yellow('  💡 Next Steps:'));
+  const nextSteps = getNextStepsForAgent(task.agent);
+  nextSteps.forEach((step, index) => {
+    console.log(chalk.gray(`    ${index + 1}. ${step}`));
   });
+  console.log('');
+}
+
+/**
+ * Get static guidance based on agent type and task
+ */
+function getStaticGuidanceForAgent(agentType: string, description: string): string {
+  const guidanceMap: Record<string, string> = {
+    'architect': `As a system architect, focus on:
+• Design high-level system components and their interactions  
+• Create architectural diagrams and documentation
+• Define API contracts and data models
+• Plan scalability and performance considerations
+• Review current codebase structure for improvements`,
+
+    'backend-dev': `As a backend developer, focus on:
+• Implement API endpoints and business logic
+• Set up database schemas and migrations  
+• Configure authentication and authorization
+• Write unit tests for backend services
+• Handle error cases and validation`,
+
+    'frontend-dev': `As a frontend developer, focus on:
+• Create user interface components
+• Implement client-side state management
+• Connect UI to backend APIs
+• Ensure responsive design and accessibility
+• Write frontend tests and handle edge cases`,
+
+    'fullstack-dev': `As a full-stack developer, focus on:
+• Implement both frontend and backend features
+• Ensure proper integration between client and server
+• Set up database connections and API endpoints
+• Create comprehensive user workflows
+• Test end-to-end functionality`,
+
+    'devops-engineer': `As a DevOps engineer, focus on:
+• Set up CI/CD pipelines and deployment scripts
+• Configure infrastructure and monitoring
+• Implement security best practices
+• Optimize build and deployment processes
+• Set up logging and alerting systems`
+  };
+
+  return guidanceMap[agentType] || `As a ${agentType} agent:
+• Analyze the task requirements: ${description}
+• Break down the work into specific steps
+• Implement according to your specialization
+• Test your implementation thoroughly
+• Document any important decisions or changes`;
+}
+
+/**
+ * Get next steps based on agent type
+ */
+function getNextStepsForAgent(agentType: string): string[] {
+  const stepsMap: Record<string, string[]> = {
+    'architect': [
+      'Review existing codebase and identify key components',
+      'Create or update architectural documentation',
+      'Define clear interfaces and contracts',
+      'Plan implementation phases and dependencies'
+    ],
+    
+    'backend-dev': [
+      'Set up database models and migrations',
+      'Implement core API endpoints',
+      'Add proper error handling and validation',
+      'Write unit tests for new functionality'
+    ],
+    
+    'frontend-dev': [
+      'Create UI components and layouts',
+      'Implement client-side logic and state management',
+      'Connect to backend APIs',
+      'Test user interactions and edge cases'
+    ],
+    
+    'fullstack-dev': [
+      'Plan both frontend and backend changes',
+      'Implement backend APIs first',
+      'Create frontend components to consume APIs',
+      'Test complete user workflows'
+    ],
+    
+    'devops-engineer': [
+      'Assess current deployment and infrastructure setup',
+      'Implement or improve CI/CD processes',
+      'Configure monitoring and logging',
+      'Document deployment procedures'
+    ]
+  };
+
+  return stepsMap[agentType] || [
+    'Analyze the current codebase',
+    'Plan your implementation approach',
+    'Implement the required functionality',
+    'Test and validate your changes'
+  ];
 }
 
 async function getFeedbackForTask(task: Task, taskNumber: number, totalTasks: number, remainingTasks: Task[]): Promise<{
@@ -1095,63 +1269,10 @@ async function modifyRemainingTasks(tasks: Task[]): Promise<Task[]> {
 }
 
 async function spawnClaudeSession(task: Task, worktreePath: string): Promise<void> {
-  // Spawn terminal based on platform (no file context)
-  if (process.platform === 'darwin') {
-    // macOS: Use osascript with a much simpler approach
-    // Write the command to a temp script file to avoid quote hell
-    const tempScript = `/tmp/graphyn_task_${task.id}.sh`;
-    const scriptContent = `#!/bin/bash
-cd "${worktreePath}"
-echo "Task: ${task.title}"
-echo "Agent: ${task.agent}"
-echo ""
-claude -p "${task.prompt.replace(/"/g, '\\"')}"
-`;
-    
-    await fs.writeFile(tempScript, scriptContent);
-    await execAsync(`chmod +x ${tempScript}`);
-    
-    // Use AppleScript to run the script
-    const script = `tell application "Terminal" to do script "bash ${tempScript}"`;
-    await execAsync(`osascript -e '${script}'`);
-    
-    // Clean up temp script after a delay
-    setTimeout(() => {
-      fs.unlink(tempScript).catch(() => {});
-    }, 5000);
-  } else if (process.platform === 'win32') {
-    // Windows: Use start command with proper escaping
-    const claudeCmd = `claude -p "${task.prompt.replace(/"/g, '\\"')}"`;    
-    const sanitizedTitleWin = task.title.replace(/"/g, '\\"');
-    try {
-      await execAsync(`start "Task: ${sanitizedTitleWin}" cmd /k "cd /d \"${worktreePath}\" && ${claudeCmd}"`);
-    } catch (error) {
-      console.error(`❌ Failed to spawn Windows terminal for task "${task.title}":`, error instanceof Error ? (error as any).message : error);
-      throw new Error(`Windows terminal spawn failed: ${error instanceof Error ? (error as any).message : 'Unknown error'}`);
-    }
-  } else {
-    // Linux: Try common terminal emulators  
-    const claudeCmd = `claude -p '${task.prompt}'`;
-    const terminals = ['gnome-terminal', 'konsole', 'xterm'];
-    let terminalFound = false;
-    
-    for (const terminal of terminals) {
-      try {
-        await execAsync(`which ${terminal}`);
-        const bashCommand = `cd '${worktreePath}' && echo 'Task: ${task.title}' && echo 'Agent: ${task.agent}' && echo '' && ${claudeCmd}; exec bash`;
-        await execAsync(`${terminal} --title="Task: ${task.title}" -- bash -c "${bashCommand.replace(/"/g, '\\"')}"`);
-        terminalFound = true;
-        break;
-      } catch {
-        // Try next terminal
-      }
-    }
-    
-    if (!terminalFound) {
-      console.error(`❌ No supported terminal emulator found for task "${task.title}"`);
-      throw new Error('No supported terminal emulator found (tried: gnome-terminal, konsole, xterm)');
-    }
-  }
+  console.log(chalk.yellow(`⚠️  Terminal spawning deprecated - using inline Claude Code SDK execution instead\n`));
+  
+  // Use the same execution logic as executeClaudeWithStreaming
+  await executeClaudeWithStreaming(task, worktreePath);
 }
 
 /**

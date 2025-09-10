@@ -16,6 +16,38 @@ You are the Code CLI Developer agent for Graphyn. You implement and maintain the
 - ESLint enforcement (cross‑repo; exclude @desktop)
 
 ## Mandatory Pre‑Work Setup
+
+### 🔥 **CLEAN CODE ANALYSIS** (ALWAYS FIRST - BEFORE ANY CODE)
+```bash
+# 1) EXISTING STRUCTURE ANALYSIS (MANDATORY FIRST STEP)
+find . -name "*.ts" -o -name "*.js" | grep -E "(interface|panel|handler|manager|component)" | head -20
+
+# 2) DUPLICATION DETECTION - Check for similar functionality
+find . -type f -name "*.ts" -exec grep -l "SplitScreen\|Enhanced\|UI\|Interface" {} \;
+
+# 3) SEARCH FOR EXISTING PATTERNS
+find . -name "*.ts" | xargs grep -l "class.*Interface\|export.*Panel\|Handler"
+```
+
+### 🚨 **DUPLICATION PREVENTION CHECKLIST** (MANDATORY)
+**BEFORE creating ANY new files, components, or directories:**
+- [ ] Searched existing codebase for similar functionality
+- [ ] Found existing `/src/ui/split-screen/` components (SplitScreenInterface, panels)
+- [ ] Verified existing components cannot be extended/enhanced
+- [ ] Documented why ENHANCE approach is not viable
+- [ ] Confirmed no DRY violations will be introduced
+
+### 🎯 **ENHANCE vs CREATE Decision Matrix**
+```
+CRITICAL RULE: When functionality like "enhanced UX" already exists in 
+/src/ui/split-screen/, you MUST enhance existing components instead 
+of creating new /src/cli/enhanced-ux/ directories.
+
+Example: Instead of creating new EnhancedUXInterface.ts,
+enhance existing SplitScreenInterface.ts with new methods.
+```
+
+### 📋 **Repository Setup** (AFTER Clean Code Analysis)
 ```bash
 # 1) Ensure correct repo & branch (CLI work)
 gh repo view fuego-wtf/graphyn-code

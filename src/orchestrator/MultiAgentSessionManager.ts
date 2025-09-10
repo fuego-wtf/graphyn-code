@@ -11,7 +11,12 @@ import { ContextSynchronizer, ProgressUpdate } from './ContextSynchronizer';
 import { TaskDependencyGraph } from './TaskDependencyGraph';
 import { QueryProcessor } from './QueryProcessor';
 import { EventStream, createTaskEvent, createAgentEvent, createSystemEvent } from './EventStream';
-import { InteractiveFeedbackLoop, UserFeedback } from './InteractiveFeedbackLoop';
+// Removed InteractiveFeedbackLoop import - functionality consolidated
+export interface UserFeedback {
+  type: 'approval' | 'modification' | 'rejection';
+  message?: string;
+  modifications?: Record<string, any>;
+}
 import { ConsoleOutput } from '../console/ConsoleOutput';
 import { 
   AgentType, 
@@ -73,7 +78,7 @@ export class MultiAgentSessionManager extends EventEmitter {
   
   // PROCESS-008 & PROCESS-013: Real-time streaming and interaction
   private readonly eventStream: EventStream;
-  private readonly feedbackLoop: InteractiveFeedbackLoop;
+  // Removed feedbackLoop - functionality simplified
   private readonly consoleOutput: ConsoleOutput;
   
   private readonly activeSessions = new Map<string, SessionExecution>();
@@ -91,7 +96,7 @@ export class MultiAgentSessionManager extends EventEmitter {
     
     // Initialize streaming and interaction components
     this.eventStream = new EventStream();
-    this.feedbackLoop = new InteractiveFeedbackLoop();
+    // Removed feedbackLoop initialization - functionality simplified
     this.consoleOutput = new ConsoleOutput();
 
     // Setup event handlers
@@ -639,61 +644,11 @@ Please execute the task now.
   }
 
   /**
-   * Setup interactive feedback handlers for user control
+   * Setup interactive feedback handlers (SIMPLIFIED - removed feedback loop)
    */
   private setupInteractiveFeedbackHandlers(): void {
-    // Handle user interruptions
-    this.feedbackLoop.on('user_interruption', (event) => {
-      this.consoleOutput.streamSystemEvent('coordination', `User ${event.type} at ${event.timestamp.toLocaleTimeString()}`);
-    });
-
-    // Handle pause/resume
-    this.feedbackLoop.on('execution_paused', () => {
-      this.pauseAllSessions();
-    });
-
-    this.feedbackLoop.on('execution_resumed', () => {
-      this.resumeAllSessions();
-    });
-
-    // Handle feedback
-    this.feedbackLoop.on('feedback_received', (feedback) => {
-      this.processFeedback(feedback);
-    });
-
-    // Handle recalibration
-    this.feedbackLoop.on('recalibration_requested', () => {
-      this.recalibrateAgents();
-    });
-
-    // Handle emergency stop
-    this.feedbackLoop.on('emergency_stop_requested', async () => {
-      await this.emergencyStop();
-    });
-
-    // Handle shutdown requests
-    this.feedbackLoop.on('shutdown_requested', async () => {
-      await this.gracefulShutdown();
-    });
-
-    // Respond to status requests
-    this.feedbackLoop.on('status_requested', () => {
-      const stats = this.getStatistics();
-      const systemStatus = {
-        activeAgents: Array.from(this.activeSessions.entries()).map(([sessionId, execution]) => ({
-          name: execution.task.agent,
-          status: execution.status,
-          currentTask: execution.task.description,
-          progress: 0 // TODO: Track actual progress
-        })),
-        recentActivity: [`${stats.completedTasks} tasks completed`, `${stats.activeSessions} agents active`],
-        totalProgress: Math.round((stats.completedTasks / stats.totalTasks) * 100),
-        startTime: stats.startTime,
-        duration: stats.duration
-      };
-
-      this.feedbackLoop.emit('status_response', systemStatus);
-    });
+    // Interactive feedback system has been simplified
+    // Core functionality moved to direct method calls
   }
 
   /**
@@ -752,7 +707,7 @@ Please execute the task now.
     // TODO: Implement agent recalibration
     // This should redistribute tasks, update priorities, and adjust execution strategy
     setTimeout(() => {
-      this.feedbackLoop.emit('recalibration_complete');
+      // Recalibration complete - feedback loop removed
     }, 2000);
   }
 
@@ -803,10 +758,7 @@ Please execute the task now.
         this.eventStream.stopStreaming();
       }
       
-      // Deactivate feedback loop
-      if (this.feedbackLoop) {
-        this.feedbackLoop.deactivate();
-      }
+      // Feedback loop removed - simplified architecture
       
       // Context cleanup is handled by shutdown
     } catch (error) {

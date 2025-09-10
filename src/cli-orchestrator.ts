@@ -8,15 +8,15 @@
  */
 
 import { RealTimeExecutor } from './orchestrator/RealTimeExecutor.js';
+import { AgentOrchestrator } from './orchestrator/AgentOrchestrator.js';
 import { ConsoleOutput } from './console/ConsoleOutput.js';
 import { StreamingConsoleOutput } from './console/StreamingConsoleOutput.js';
 import { InteractiveInput } from './console/InteractiveInput.js';
-import { InteractiveOrchestrator } from './orchestrator/InteractiveOrchestrator.js';
 import { FigmaExtractor } from './figma/FigmaExtractor.js';
 import { FigmaAuthManager } from './figma/FigmaAuthManager.js';
-import { OrchestratorBridge } from './orchestrator/OrchestratorBridge.js';
-import { SplitScreenOrchestrator } from './cli/enhanced-ux/split-screen-orchestrator.js';
-import type { EnhancedUXConfig } from './cli/enhanced-ux/types.js';
+// NOTE: Enhanced UX components now integrated into existing ui/split-screen structure
+// import { SplitScreenOrchestrator } from './cli/enhanced-ux/split-screen-orchestrator.js';
+// import type { EnhancedUXConfig } from './cli/enhanced-ux/types.js';
 
 /**
  * Main CLI entry point
@@ -34,13 +34,13 @@ export async function main(): Promise<void> {
     const interactiveInput = new InteractiveInput();
     const figmaAuth = new FigmaAuthManager();
     
-    // Create bridge for potential Ink UI integration (preserves UI investment)
-    const orchestratorBridge = new OrchestratorBridge();
+    // Create agent orchestrator for multi-agent coordination
+    const agentOrchestrator = new AgentOrchestrator();
     
-    // Initialize the executor before using it (critical fix)
+    // Initialize components before using them (critical fix)
     try {
       await realTimeExecutor.initialize();
-      await orchestratorBridge.initialize();
+      await agentOrchestrator.initialize();
     } catch (error) {
       console.error('❌ Failed to initialize orchestrator:', error instanceof Error ? error.message : error);
       console.error('💡 Make sure .claude/agents/ directory exists with agent configuration files');
@@ -50,7 +50,7 @@ export async function main(): Promise<void> {
     // Handle different command patterns
     if (!command) {
       // Interactive orchestrator mode: graphyn (split-screen experience)
-      await handleOrchestratorMode();
+      await startInteractiveOrchestrator();
     } else if (command === '--simple' || command === '-s') {
       // Simple interactive mode: graphyn --simple (original style)
       await handleInteractiveMode(interactiveInput, realTimeExecutor, streamingOutput);
@@ -214,54 +214,120 @@ export async function handleDirectQuery(
 /**
  * Handle split-screen query execution (Enhanced UX Phase 2)
  * 
- * This replaces the frozen StreamingConsoleOutput with flowing split-screen interface.
- * Fixes the 97-second freeze issue by providing real-time character streaming.
+ * FIXED: Now uses streaming executeQueryStream instead of blocking executeQuery.
+ * Provides real-time character streaming eliminating 10+ second freezes.
  */
 async function handleSplitScreenQuery(
   query: string,
   realTimeExecutor: RealTimeExecutor
 ): Promise<void> {
   try {
-    // Enhanced UX Configuration optimized for performance
-    const config: EnhancedUXConfig = {
-      performance: {
-        maxRenderTime: 16,        // <16ms render target
-        maxAnalysisTime: 3000,    // <3s analysis target  
-        maxInputResponseTime: 50, // <50ms input target
-        maxMemoryUsage: 150 * 1024 * 1024 // 150MB memory limit
-      },
-      layout: {
-        streamingRatio: 0.75,     // 75% for Claude streaming output
-        approvalRatio: 0.15,      // 15% for task approval (if needed)
-        inputRatio: 0.10          // 10% for persistent input
-      },
-      features: {
-        enableExitProtection: true,
-        enableContextCaching: true,
-        enablePerformanceMonitoring: true
-      }
-    };
-
-    console.log('🚀 Starting Enhanced UX Split-Screen Interface...');
+    console.log('🚀 Processing query with real-time streaming...');
     console.log('─'.repeat(60));
+    console.log(`💡 Query: "${query}"\n`);
     
-    // Initialize split-screen orchestrator
-    const splitScreenOrchestrator = new SplitScreenOrchestrator(config);
-    
-    // Setup graceful shutdown
-    const shutdown = async () => {
-      console.log('\n🛑 Shutting down split-screen interface...');
-      await splitScreenOrchestrator.stop();
-    };
-    
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    // Initialize streaming output for real-time feedback
+    const streamingOutput = new StreamingConsoleOutput();
+    let finalResult: any = null;
+    let completedTasks = 0;
+    let currentAgent = '';
 
-    // Setup RealTimeExecutor integration
-    splitScreenOrchestrator.setRealTimeExecutor(realTimeExecutor);
-    
-    // Start with immediate query execution
-    await splitScreenOrchestrator.start(query);
+    // FIXED: Use streaming version instead of blocking executeQuery
+    for await (const event of realTimeExecutor.executeQueryStream(query, {
+      workingDirectory: process.cwd()
+    })) {
+      
+      // Handle different streaming events with real-time feedback
+      switch (event.type) {
+        case 'start':
+          streamingOutput.showAnalysis('🔍 Starting query analysis...', 'routing');
+          break;
+          
+        case 'context':
+          streamingOutput.showAnalysis(event.data.message || '📋 Building repository context...');
+          break;
+          
+        case 'analysis':
+          if (event.data.agent && event.data.confidence) {
+            streamingOutput.showRouting(event.data.agent, event.data.confidence, event.data.reasoning);
+          } else {
+            streamingOutput.showAnalysis(event.data.message, event.data.stage);
+          }
+          break;
+          
+        case 'agent_start':
+          currentAgent = event.data.agent;
+          streamingOutput.startAgentStream(currentAgent);
+          streamingOutput.showStatus(currentAgent, 'thinking', 'analyzing query');
+          break;
+          
+        case 'message':
+          if (event.data.message) {
+            const message = event.data.message;
+            
+            // Stream different message types with real-time updates
+            if (message.type === 'assistant') {
+              streamingOutput.showStatus(currentAgent, 'writing', 'generating response');
+              streamingOutput.streamMessage({
+                type: 'assistant',
+                agent: currentAgent,
+                content: message.message?.content,
+                timestamp: Date.now()
+              });
+            } else if (message.type === 'tool_use') {
+              streamingOutput.showStatus(currentAgent, 'reading', message.tool?.name || 'using tool');
+              streamingOutput.streamMessage({
+                type: 'tool_use',
+                agent: currentAgent,
+                tool: message.tool?.name,
+                timestamp: Date.now()
+              });
+            } else if (message.type === 'result') {
+              streamingOutput.showStatus(currentAgent, 'complete');
+              streamingOutput.streamMessage({
+                type: 'result',
+                agent: currentAgent,
+                timestamp: Date.now()
+              });
+              
+              // Extract final result
+              if ('subtype' in message && message.subtype === 'success') {
+                finalResult = (message as any).result || '';
+              }
+            }
+          }
+          break;
+          
+        case 'result':
+          completedTasks++;
+          // Extract the actual response content from orchestrator result
+          if (event.data && event.data.primaryResponse) {
+            finalResult = event.data.primaryResponse;
+          } else if (event.data && typeof event.data === 'string') {
+            finalResult = event.data;
+          }
+          streamingOutput.finishAgentStream();
+          break;
+          
+        case 'error':
+          console.error(`\n❌ Error: ${event.data.error}`);
+          break;
+      }
+    }
+
+    // Show final result if available
+    if (finalResult && typeof finalResult === 'string' && finalResult.trim()) {
+      console.log('\n' + '─'.repeat(60));
+      console.log('📋 Agent Response:');
+      console.log('─'.repeat(60));
+      console.log(finalResult.trim());
+    } else if (completedTasks === 0) {
+      console.log('\n⚠️  No response was generated. This may indicate an issue with the agent execution.');
+    }
+
+    // Show completion summary
+    console.log('\n' + '─'.repeat(60));
+    console.log(`🎉 Query completed! (${completedTasks} agent${completedTasks !== 1 ? 's' : ''} used)`);
     
   } catch (error) {
     console.error('❌ Split-screen query failed:', error instanceof Error ? error.message : String(error));
@@ -272,11 +338,11 @@ async function handleSplitScreenQuery(
 /**
  * Handle split-screen orchestrator mode (default)
  */
-async function handleOrchestratorMode(): Promise<void> {
+export async function startInteractiveOrchestrator(): Promise<void> {
   try {
     console.log('🚀 Starting Interactive Orchestrator...');
     
-    const orchestrator = new InteractiveOrchestrator();
+    const orchestrator = new AgentOrchestrator();
     await orchestrator.initialize();
     
     // Handle graceful shutdown

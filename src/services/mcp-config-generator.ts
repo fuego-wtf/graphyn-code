@@ -484,8 +484,15 @@ export class MCPConfigGenerator {
         ...newSettings.mcpServers
       },
       projectContext: {
-        ...existing.projectContext,
-        ...newSettings.projectContext
+        name: existing.projectContext?.name || newSettings.projectContext?.name || '',
+        type: existing.projectContext?.type || newSettings.projectContext?.type || '',
+        mainBranch: existing.projectContext?.mainBranch || newSettings.projectContext?.mainBranch || 'main',
+        workingDirectory: existing.projectContext?.workingDirectory || newSettings.projectContext?.workingDirectory || process.cwd(),
+        frameworks: [...(existing.projectContext?.frameworks || []), ...(newSettings.projectContext?.frameworks || [])],
+        databases: [...(existing.projectContext?.databases || []), ...(newSettings.projectContext?.databases || [])],
+        hasDocker: newSettings.projectContext?.hasDocker ?? existing.projectContext?.hasDocker ?? false,
+        hasKubernetes: newSettings.projectContext?.hasKubernetes ?? existing.projectContext?.hasKubernetes ?? false,
+        hasTerraform: newSettings.projectContext?.hasTerraform ?? existing.projectContext?.hasTerraform ?? false
       }
     };
   }

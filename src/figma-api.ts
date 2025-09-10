@@ -31,7 +31,7 @@ interface FigmaNode {
   isInstance?: boolean;
 }
 
-interface FigmaPrototypeFlow {
+export interface FigmaPrototypeFlow {
   fileKey: string;
   fileName: string;
   screens: PrototypeScreen[];
@@ -90,7 +90,7 @@ interface ComponentInfo {
   i18nKeys?: string[];
 }
 
-interface ComponentMap {
+export interface ComponentMap {
   designTokens: {
     colors: Record<string, string>;
     typography: Record<string, any>;

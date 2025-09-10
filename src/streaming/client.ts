@@ -1,4 +1,5 @@
 import EventSource from 'eventsource';
+import { createInterface } from 'readline';
 
 import { config } from '../config.js';
 
@@ -129,8 +130,7 @@ export class StreamingClient {
       });
 
       // Get user input
-      const readline = await import('readline');
-      const rl = readline.createInterface({
+      const rl = createInterface({
         input: process.stdin,
         output: process.stdout
       });
@@ -144,8 +144,7 @@ export class StreamingClient {
         });
       });
     } else if (feedback.type === 'confirm') {
-      const readline = await import('readline');
-      const rl = readline.createInterface({
+      const rl = createInterface({
         input: process.stdin,
         output: process.stdout
       });
@@ -158,8 +157,7 @@ export class StreamingClient {
       });
     } else {
       // Text input
-      const readline = await import('readline');
-      const rl = readline.createInterface({
+      const rl = createInterface({
         input: process.stdin,
         output: process.stdout
       });

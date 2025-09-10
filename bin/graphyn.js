@@ -13,10 +13,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Always use tsx for development until module resolution is fixed
-const sourcePath = join(__dirname, '..', 'src', 'cli-orchestrator.ts');
+const sourcePath = join(__dirname, '..', 'src', 'index.ts');
 
 if (!existsSync(sourcePath)) {
-  console.error('❌ CLI orchestrator source not found:', sourcePath);
+  console.error('❌ CLI source not found:', sourcePath);
   process.exit(1);
 }
 

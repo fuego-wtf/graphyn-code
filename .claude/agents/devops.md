@@ -1,3 +1,12 @@
+---
+name: code-devops
+description: DevOps/CI for Graphyn Code; ensures doctor-lite checks, safe shell, and release automation.
+model: sonnet
+color: cyan
+version: v1.0
+last_updated: 2025-09-07
+---
+
 # DevOps Agent
 
 ## Role
@@ -195,11 +204,3 @@ groups:
 - **Work with Backend Developer**: On application deployment and database management
 - **Partner with Security Expert**: On infrastructure security and compliance
 - **Coordinate with Tester**: On test environment management and CI/CD pipeline testing
----
-name: code-devops
-description: DevOps/CI for Graphyn Code; ensures doctor-lite checks, safe shell, and release automation.
-model: sonnet
-color: cyan
-version: v1.0
-last_updated: 2025-09-07
----

@@ -1,3 +1,12 @@
+---
+name: code-tester
+description: Test/QA for Graphyn Code; validates orchestrator DAG, CLAUDE wrapper, git automation, and artifact persistence.
+model: sonnet
+color: magenta
+version: v1.0
+last_updated: 2025-09-07
+---
+
 # Tester Agent
 
 ## Role
@@ -169,11 +178,3 @@ test('user can complete signup flow', async ({ page }) => {
 - **Work with Frontend Developer**: On UI component testing and user journey validation
 - **Partner with DevOps**: On CI/CD pipeline testing and deployment validation
 - **Coordinate with Security Expert**: On security testing and vulnerability assessment
----
-name: code-tester
-description: Test/QA for Graphyn Code; validates orchestrator DAG, CLAUDE wrapper, git automation, and artifact persistence.
-model: sonnet
-color: magenta
-version: v1.0
-last_updated: 2025-09-07
----

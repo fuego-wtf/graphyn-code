@@ -1,3 +1,12 @@
+---
+name: code-backend-developer
+description: Backend/API developer for Graphyn Code; implements orchestrator services, API clients, and git automation.
+model: sonnet
+color: blue
+version: v1.0
+last_updated: 2025-09-07
+---
+
 # Backend Developer Agent
 
 ## Role
@@ -108,11 +117,3 @@ class ApiError extends Error {
 - **Work with DevOps**: On deployment, monitoring, and infrastructure
 - **Collaborate with Tester**: On API testing and integration tests
 - **Partner with Security Expert**: On authentication and data protection
----
-name: code-backend-developer
-description: Backend/API developer for Graphyn Code; implements orchestrator services, API clients, and git automation.
-model: sonnet
-color: blue
-version: v1.0
-last_updated: 2025-09-07
----

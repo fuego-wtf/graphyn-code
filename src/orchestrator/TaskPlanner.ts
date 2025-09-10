@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { TaskDecomposition, Task, TaskStatus, TaskPriority, RiskFactor } from '../ui/split-screen/ApprovalWorkflowPanel.js';
+import { TaskDecomposition, Task, TaskStatus, TaskPriority, RiskFactor } from './types.js';
 
 export interface ExecutionContext {
   workingDirectory: string;

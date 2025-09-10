@@ -11,6 +11,7 @@
 export interface GraphynSDKOptions {
   apiBaseUrl?: string;
   accessToken?: string;
+  oauthManager?: any; // OAuth manager instance
 }
 
 /**
@@ -18,6 +19,7 @@ export interface GraphynSDKOptions {
  */
 export class GraphynSDK {
   // private api: DefaultApi;
+  private oauthManager?: any;
 
   constructor(options: GraphynSDKOptions = {}) {
     // const apiBaseUrl = options.apiBaseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
