@@ -22,6 +22,9 @@ import type {
   PerformanceMetrics
 } from './types.js';
 
+// Import RealTimeExecutor for streaming integration
+import type { RealTimeExecutor } from '../../orchestrator/RealTimeExecutor.js';
+
 export class SplitScreenOrchestrator extends EventEmitter {
   private splitScreen: SplitScreenInterface;
   private contextManager: RepositoryContextManager;
@@ -36,6 +39,7 @@ export class SplitScreenOrchestrator extends EventEmitter {
     history: [],
     historyIndex: -1
   };
+  private realTimeExecutor: RealTimeExecutor | null = null;
 
   constructor(config?: Partial<EnhancedUXConfig>) {
     super();
@@ -67,6 +71,13 @@ export class SplitScreenOrchestrator extends EventEmitter {
     this.workflowHandler = new ApprovalWorkflowHandler(this.config);
 
     this.setupEventHandlers();
+  }
+
+  /**
+   * Set the RealTimeExecutor for streaming integration
+   */
+  setRealTimeExecutor(executor: RealTimeExecutor): void {
+    this.realTimeExecutor = executor;
   }
 
   /**
@@ -155,7 +166,10 @@ export class SplitScreenOrchestrator extends EventEmitter {
   }
 
   /**
-   * Process user query with enhanced UX workflow
+   * Process user query with enhanced UX workflow (Enhanced UX Phase 2)
+   * 
+   * This replaces mock task decomposition with real Claude streaming responses.
+   * Eliminates the 97-second freeze by providing real-time character streaming.
    */
   async processQuery(query: string): Promise<void> {
     try {
@@ -163,37 +177,163 @@ export class SplitScreenOrchestrator extends EventEmitter {
       this.inputState.text = query;
       this.inputState.history.unshift(query);
       
-      // Add query to streaming output
-      const streamingContent = [
-        `🤖 Processing query: "${query}"`,
-        '📊 Decomposing into tasks...'
+      // Clear input field and show in streaming region
+      this.inputState.text = '';
+      this.inputState.cursorPosition = 0;
+      
+      // Initialize streaming content
+      const streamingContent: string[] = [
+        `🚀 Processing: "${query}"`,
+        '─'.repeat(60),
+        '📊 Analyzing repository context...'
       ];
 
       await this.splitScreen.updateStreamingRegion(streamingContent);
-
-      // Decompose query into tasks
-      const decomposition = await this.workflowHandler.decomposeQuery(query);
-      
-      streamingContent.push(
-        `✅ Found ${decomposition.tasks.length} tasks`,
-        `⏱️ Estimated time: ${Math.round(decomposition.totalEstimatedTime / 60)} minutes`,
-        `🔀 Parallelizable: ${decomposition.parallelizable ? 'Yes' : 'No'}`,
-        `🎯 Complexity: ${decomposition.complexity}`,
-        '',
-        '📋 Review tasks in approval panel below:'
-      );
-
-      // Initialize approval workflow
-      this.currentApprovalState = await this.workflowHandler.initializeApproval(decomposition.tasks);
-
-      // Update display
       await this.render();
 
-      this.emit('query_processed', { query, decomposition });
+      if (!this.realTimeExecutor) {
+        throw new Error('RealTimeExecutor not configured. Call setRealTimeExecutor() first.');
+      }
+
+      // Real-time streaming execution
+      let currentAgent = '';
+      let finalResult = '';
+
+      for await (const event of this.realTimeExecutor.executeQueryStream(query, {
+        workingDirectory: this.currentDirectory
+      })) {
+        
+        switch (event.type) {
+          case 'start':
+            streamingContent.push('🔄 Starting query execution...');
+            await this.splitScreen.updateStreamingRegion(streamingContent);
+            await this.render();
+            break;
+            
+          case 'context':
+            streamingContent.push(`📂 ${event.data.message || 'Building context...'}`);
+            await this.splitScreen.updateStreamingRegion(streamingContent);
+            await this.render();
+            break;
+            
+          case 'analysis':
+            if (event.data.agent && event.data.confidence) {
+              currentAgent = event.data.agent;
+              streamingContent.push(
+                '',
+                `🤖 Agent: ${currentAgent} (${Math.round(event.data.confidence * 100)}% confidence)`,
+                `💭 ${event.data.reasoning || 'Analyzing query...'}`,
+                '─'.repeat(40)
+              );
+            } else {
+              streamingContent.push(`🔍 ${event.data.message}`);
+            }
+            await this.splitScreen.updateStreamingRegion(streamingContent);
+            await this.render();
+            break;
+            
+          case 'agent_start':
+            currentAgent = event.data.agent;
+            streamingContent.push(
+              '',
+              `▶️  Agent ${currentAgent} starting...`,
+              '🤔 Thinking...'
+            );
+            await this.splitScreen.updateStreamingRegion(streamingContent);
+            await this.render();
+            break;
+            
+          case 'message':
+            if (event.data.message) {
+              const message = event.data.message;
+              
+              if (message.type === 'assistant') {
+                // Real-time character streaming for assistant responses
+                if (message.message?.content) {
+                  const content = message.message.content;
+                  
+                  // Add response incrementally for smooth streaming effect
+                  if (streamingContent[streamingContent.length - 1] === '🤔 Thinking...') {
+                    streamingContent[streamingContent.length - 1] = '💬 Response:';
+                    streamingContent.push('');
+                  }
+                  
+                  // Split into lines and add incrementally
+                  const lines = content.split('\n');
+                  for (const line of lines) {
+                    streamingContent.push(line);
+                    await this.splitScreen.updateStreamingRegion(streamingContent);
+                    await this.render();
+                    
+                    // Small delay for smooth character streaming effect
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                  }
+                }
+              } else if (message.type === 'tool_use') {
+                streamingContent.push(`🔧 Using tool: ${message.tool?.name || 'unknown'}`);
+                await this.splitScreen.updateStreamingRegion(streamingContent);
+                await this.render();
+              } else if (message.type === 'result') {
+                streamingContent.push(`✅ ${currentAgent} completed`);
+                await this.splitScreen.updateStreamingRegion(streamingContent);
+                await this.render();
+                
+                if ('subtype' in message && message.subtype === 'success') {
+                  finalResult = (message as any).result || '';
+                }
+              }
+            }
+            break;
+            
+          case 'result':
+            // Extract final response from orchestrator
+            if (event.data && event.data.primaryResponse) {
+              finalResult = event.data.primaryResponse;
+              
+              streamingContent.push(
+                '',
+                '─'.repeat(60),
+                '🎉 Task Completed!',
+                '─'.repeat(60)
+              );
+              
+              // Add final result with real-time streaming
+              const resultLines = finalResult.split('\n');
+              for (const line of resultLines) {
+                streamingContent.push(line);
+                await this.splitScreen.updateStreamingRegion(streamingContent);
+                await this.render();
+                await new Promise(resolve => setTimeout(resolve, 5)); // Faster for final result
+              }
+            }
+            break;
+            
+          case 'error':
+            streamingContent.push(
+              '',
+              `❌ Error: ${event.data.error}`,
+              '🔄 You can try rephrasing your query or start a new one.'
+            );
+            await this.splitScreen.updateStreamingRegion(streamingContent);
+            await this.render();
+            break;
+        }
+      }
+
+      // Show completion message and ready for next query
+      streamingContent.push(
+        '',
+        '💡 Ready for your next query! Type below to continue...'
+      );
+      await this.splitScreen.updateStreamingRegion(streamingContent);
+      await this.render();
+
+      this.emit('query_processed', { query, result: finalResult });
 
     } catch (error) {
       const errorMessage = `❌ Error processing query: ${error instanceof Error ? error.message : String(error)}`;
       await this.splitScreen.updateStreamingRegion([errorMessage]);
+      await this.render();
       throw error;
     }
   }

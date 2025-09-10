@@ -15,6 +15,8 @@ import { InteractiveOrchestrator } from './orchestrator/InteractiveOrchestrator.
 import { FigmaExtractor } from './figma/FigmaExtractor.js';
 import { FigmaAuthManager } from './figma/FigmaAuthManager.js';
 import { OrchestratorBridge } from './orchestrator/OrchestratorBridge.js';
+import { SplitScreenOrchestrator } from './cli/enhanced-ux/split-screen-orchestrator.js';
+import type { EnhancedUXConfig } from './cli/enhanced-ux/types.js';
 
 /**
  * Main CLI entry point
@@ -59,9 +61,9 @@ export async function main(): Promise<void> {
       // Figma authentication: graphyn design auth
       await handleFigmaAuth(figmaAuth, consoleOutput);
     } else if (queryParts.length > 0 || isNaturalLanguageQuery(command)) {
-      // Direct query: graphyn "build API" (Claude Code style - immediate execution)
+      // Direct query: graphyn "build API" -> Use split-screen interface (Enhanced UX)
       const fullQuery = queryParts.length > 0 ? `${command} ${queryParts.join(' ')}` : command;
-      await handleDirectQuery(fullQuery, realTimeExecutor, interactiveInput, streamingOutput);
+      await handleSplitScreenQuery(fullQuery, realTimeExecutor);
     } else {
       // Show help for unknown commands
       showHelp();
@@ -205,6 +207,64 @@ export async function handleDirectQuery(
 
   } catch (error) {
     console.error('\n❌ Execution failed:', error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+/**
+ * Handle split-screen query execution (Enhanced UX Phase 2)
+ * 
+ * This replaces the frozen StreamingConsoleOutput with flowing split-screen interface.
+ * Fixes the 97-second freeze issue by providing real-time character streaming.
+ */
+async function handleSplitScreenQuery(
+  query: string,
+  realTimeExecutor: RealTimeExecutor
+): Promise<void> {
+  try {
+    // Enhanced UX Configuration optimized for performance
+    const config: EnhancedUXConfig = {
+      performance: {
+        maxRenderTime: 16,        // <16ms render target
+        maxAnalysisTime: 3000,    // <3s analysis target  
+        maxInputResponseTime: 50, // <50ms input target
+        maxMemoryUsage: 150 * 1024 * 1024 // 150MB memory limit
+      },
+      layout: {
+        streamingRatio: 0.75,     // 75% for Claude streaming output
+        approvalRatio: 0.15,      // 15% for task approval (if needed)
+        inputRatio: 0.10          // 10% for persistent input
+      },
+      features: {
+        enableExitProtection: true,
+        enableContextCaching: true,
+        enablePerformanceMonitoring: true
+      }
+    };
+
+    console.log('🚀 Starting Enhanced UX Split-Screen Interface...');
+    console.log('─'.repeat(60));
+    
+    // Initialize split-screen orchestrator
+    const splitScreenOrchestrator = new SplitScreenOrchestrator(config);
+    
+    // Setup graceful shutdown
+    const shutdown = async () => {
+      console.log('\n🛑 Shutting down split-screen interface...');
+      await splitScreenOrchestrator.stop();
+    };
+    
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    // Setup RealTimeExecutor integration
+    splitScreenOrchestrator.setRealTimeExecutor(realTimeExecutor);
+    
+    // Start with immediate query execution
+    await splitScreenOrchestrator.start(query);
+    
+  } catch (error) {
+    console.error('❌ Split-screen query failed:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
