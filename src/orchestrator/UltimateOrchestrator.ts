@@ -30,6 +30,7 @@ import {
 import { UniversalTaskDecomposer } from './UniversalTaskDecomposer.js';
 import { AgentSessionManager } from './AgentSessionManager.js';
 import { PerformanceMonitor } from '../performance/PerformanceMonitor.js';
+import { createInterface } from 'readline';
 import {
   MAX_PARALLEL_AGENTS,
   DEFAULT_TIMEOUT_MS,
@@ -124,6 +125,13 @@ export class UltimateOrchestrator extends EventEmitter {
 
       console.log(`✅ Generated ${executionGraph.nodes.length} tasks in ${executionGraph.totalEstimatedTimeMinutes}min`);
       console.log(`📊 Parallelizable: ${executionGraph.parallelizable}, Max Concurrency: ${executionGraph.maxConcurrency}`);
+      
+      // HUMAN-IN-THE-LOOP APPROVAL CHECKPOINT
+      const approved = await this.requestHumanApproval(executionGraph.nodes as TaskNode[], query);
+      if (!approved) {
+        console.log('❌ Execution cancelled by user');
+        throw new Error('Execution cancelled by user');
+      }
 
       // Phase 2: Agent Assignment & Session Creation (< 2s)
       console.log('🤖 Phase 2: Assigning agents and creating sessions...');
@@ -562,6 +570,74 @@ Execute this task efficiently and report your progress.`;
       memoryUsageMb: this.performanceMonitor.getCurrentMemoryMb(),
       uptime: this.performanceMonitor.getUptimeMs()
     };
+  }
+
+  /**
+   * Request human approval before execution - HUMAN-IN-THE-LOOP CONTROL
+   */
+  private async requestHumanApproval(tasks: TaskNode[], originalQuery: string): Promise<boolean> {
+    // Display task summary
+    console.log('\n📋 TASK PLAN SUMMARY:');
+    console.log(`┌${'─'.repeat(50)}┐`);
+    tasks.forEach((task, i) => {
+      const taskLine = `│ ${i + 1}. ${task.title}`.padEnd(37);
+      const agentInfo = `(@${task.assignedAgent})`;
+      const timeInfo = `${task.estimatedDuration}min`;
+      console.log(`${taskLine}${agentInfo} ${timeInfo.padStart(7)}│`);
+    });
+    console.log(`└${'─'.repeat(50)}┘`);
+    
+    // Check for suspicious patterns and warn user
+    const warnings = this.detectSuspiciousDecomposition(tasks, originalQuery);
+    if (warnings.length > 0) {
+      console.log('\n⚠️  POTENTIAL ISSUES DETECTED:');
+      warnings.forEach(warning => console.log(`   • ${warning}`));
+    }
+
+    // Simple approval prompt
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    try {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question('\n🤔 Proceed with this plan? [Y/n]: ', resolve);
+      });
+      
+      const response = answer.trim().toLowerCase();
+      return response === '' || response === 'y' || response === 'yes';
+    } finally {
+      rl.close();
+    }
+  }
+
+  /**
+   * Detect suspicious task decompositions that may be over-engineered
+   */
+  private detectSuspiciousDecomposition(tasks: TaskNode[], originalQuery: string): string[] {
+    const warnings: string[] = [];
+
+    // Check for over-engineering signals
+    if (originalQuery.toLowerCase().includes('hello world') && tasks.length > 1) {
+      warnings.push('Hello world typically requires only one task');
+    }
+
+    if (originalQuery.toLowerCase().includes('simple') && tasks.length > 2) {
+      warnings.push('Simple tasks usually need 1-2 steps');
+    }
+
+    if (originalQuery.length < 30 && tasks.length > 3) {
+      warnings.push('Short queries rarely need complex decomposition');
+    }
+
+    // Check time estimates
+    const totalTime = tasks.reduce((sum, task) => sum + (task.estimatedDuration || 0), 0);
+    if (totalTime > 30 && originalQuery.toLowerCase().includes('quick')) {
+      warnings.push('Time estimate seems high for a "quick" task');
+    }
+
+    return warnings;
   }
 
   /**

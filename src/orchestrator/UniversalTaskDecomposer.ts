@@ -34,6 +34,7 @@ import {
   DEFAULT_TASK_PRIORITY,
   MAX_TASK_DEPENDENCIES
 } from './constants.js';
+import { QueryClassifier, QueryClassification } from './QueryClassifier.js';
 
 /**
  * Configuration for task decomposer
@@ -73,6 +74,7 @@ export interface RiskFactor {
  */
 export class UniversalTaskDecomposer extends EventEmitter {
   private readonly config: Required<UniversalTaskDecomposerConfig>;
+  private readonly queryClassifier: QueryClassifier;
   private taskCounter = 0;
 
   constructor(config: UniversalTaskDecomposerConfig = {}) {
@@ -85,6 +87,8 @@ export class UniversalTaskDecomposer extends EventEmitter {
       maxTasksPerQuery: config.maxTasksPerQuery || 12,
       enableRiskAnalysis: config.enableRiskAnalysis ?? true
     };
+    
+    this.queryClassifier = new QueryClassifier();
   }
 
   /**
@@ -200,45 +204,103 @@ export class UniversalTaskDecomposer extends EventEmitter {
   }
 
   /**
-   * Generate tasks for build/create operations
+   * Generate tasks for build/create operations - INTELLIGENT VERSION
+   * Uses QueryClassifier to prevent over-engineering simple tasks
    */
   private async generateBuildTasks(parsedQuery: ParsedQuery): Promise<TaskDefinition[]> {
-    const tasks: TaskDefinition[] = [];
     const { originalQuery, entities, complexity } = parsedQuery;
-
-    // Common build workflow - let Claude SDK handle all queries including greetings
+    
+    // Use intelligent classification to determine appropriate task decomposition
+    const classification = this.queryClassifier.classifyQuery(originalQuery);
+    
+    // For SIMPLE queries (like hello world), generate minimal tasks
+    if (classification.complexity === QueryComplexity.SIMPLE) {
+      return [{
+        id: this.generateTaskId('create'),
+        title: this.generateSimpleTaskTitle(originalQuery),
+        description: `Create: ${originalQuery}`,
+        agentType: 'assistant', // Single agent for simple tasks
+        complexity: 'low',
+        estimatedDuration: classification.estimatedMinutes,
+        dependencies: [],
+        tools: this.getSimpleTaskTools(originalQuery)
+      }];
+    }
+    
+    // For MODERATE complexity, generate focused tasks
+    if (classification.complexity === QueryComplexity.MODERATE) {
+      const tasks: TaskDefinition[] = [];
+      
+      // Core implementation task
+      tasks.push({
+        id: this.generateTaskId('implement'),
+        title: 'Implementation',
+        description: `Implement: ${originalQuery}`,
+        agentType: this.selectBestAgent(entities),
+        complexity: 'medium',
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.7),
+        dependencies: [],
+        tools: this.getImplementationTools(entities)
+      });
+      
+      // Testing task
+      tasks.push({
+        id: this.generateTaskId('test'),
+        title: 'Testing',
+        description: 'Create tests for the implementation',
+        agentType: 'tester',
+        complexity: 'medium',
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.3),
+        dependencies: [tasks[0].id],
+        tools: ['testing', 'validation']
+      });
+      
+      return tasks;
+    }
+    
+    // For COMPLEX/ENTERPRISE, use full workflow but with intelligent sizing
+    const tasks: TaskDefinition[] = [];
+    
+    // Requirements analysis (reduced for non-enterprise)
     tasks.push({
       id: this.generateTaskId('analyze'),
       title: 'Analyze Requirements',
       description: `Analyze requirements for: ${originalQuery}`,
-      agentType: 'architect',
+      agentType: 'researcher',
       complexity: this.mapComplexity(complexity),
-      estimatedDuration: 5,
+      estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.15),
       dependencies: [],
       tools: ['analysis', 'documentation']
     });
 
-    tasks.push({
-      id: this.generateTaskId('design'),
-      title: 'System Design',
-      description: 'Create technical design and architecture plan',
-      agentType: 'architect',
-      complexity: this.mapComplexity(complexity),
-      estimatedDuration: 10,
-      dependencies: [tasks[0].id],
-      tools: ['design', 'architecture', 'documentation']
-    });
+    // System design (only for complex systems)
+    if (classification.complexity === QueryComplexity.ENTERPRISE) {
+      tasks.push({
+        id: this.generateTaskId('design'),
+        title: 'System Design',
+        description: 'Create technical design and architecture plan',
+        agentType: 'architect',
+        complexity: this.mapComplexity(complexity),
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.2),
+        dependencies: [tasks[0].id],
+        tools: ['design', 'architecture', 'documentation']
+      });
+    }
 
+    // Implementation tasks based on entities
+    const implementationDeps = classification.complexity === QueryComplexity.ENTERPRISE ? 
+      [tasks[1].id] : [tasks[0].id];
+      
     // Frontend tasks if UI-related
     if (this.hasUIComponents(entities)) {
       tasks.push({
         id: this.generateTaskId('frontend'),
         title: 'Frontend Implementation',
-        description: 'Build user interface components and interactions',
+        description: 'Build user interface components',
         agentType: 'frontend',
         complexity: this.mapComplexity(complexity),
-        estimatedDuration: 15,
-        dependencies: [tasks[1].id],
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.4),
+        dependencies: implementationDeps,
         tools: ['react', 'typescript', 'styling']
       });
     }
@@ -248,26 +310,43 @@ export class UniversalTaskDecomposer extends EventEmitter {
       tasks.push({
         id: this.generateTaskId('backend'),
         title: 'Backend Implementation',
-        description: 'Build API endpoints and business logic',
+        description: 'Build API and business logic',
         agentType: 'backend',
         complexity: this.mapComplexity(complexity),
-        estimatedDuration: 20,
-        dependencies: [tasks[1].id],
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.4),
+        dependencies: implementationDeps,
         tools: ['api', 'database', 'server']
       });
     }
 
-    // Testing tasks
-    tasks.push({
-      id: this.generateTaskId('test'),
-      title: 'Testing Implementation',
-      description: 'Create comprehensive test suite',
-      agentType: 'tester',
-      complexity: 'medium',
-      estimatedDuration: 12,
-      dependencies: tasks.slice(2).map(t => t.id), // Depends on implementation tasks
-      tools: ['testing', 'automation', 'quality_assurance']
-    });
+    // General implementation if no specific components detected
+    if (!this.hasUIComponents(entities) && !this.hasBackendComponents(entities)) {
+      tasks.push({
+        id: this.generateTaskId('implement'),
+        title: 'Implementation',
+        description: `Implement: ${originalQuery}`,
+        agentType: this.selectBestAgent(entities),
+        complexity: this.mapComplexity(complexity),
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.6),
+        dependencies: implementationDeps,
+        tools: this.getImplementationTools(entities)
+      });
+    }
+
+    // Testing tasks (proportional to complexity)
+    const implementationTaskIds = tasks.slice(classification.complexity === QueryComplexity.ENTERPRISE ? 2 : 1).map(t => t.id);
+    if (implementationTaskIds.length > 0) {
+      tasks.push({
+        id: this.generateTaskId('test'),
+        title: 'Testing',
+        description: 'Create tests for implementation',
+        agentType: 'tester',
+        complexity: 'medium',
+        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.25),
+        dependencies: implementationTaskIds,
+        tools: ['testing', 'validation', 'quality_assurance']
+      });
+    }
 
     return tasks;
   }
@@ -745,5 +824,78 @@ export class UniversalTaskDecomposer extends EventEmitter {
 
   private generateTaskId(prefix: string): string {
     return `${prefix}_${Date.now()}_${++this.taskCounter}`;
+  }
+
+  // Helper methods for intelligent task generation
+
+  /**
+   * Generate simple task title based on query content
+   */
+  private generateSimpleTaskTitle(query: string): string {
+    if (query.toLowerCase().includes('hello world')) {
+      return 'Create Python hello world script';
+    }
+    if (query.toLowerCase().includes('script')) {
+      return `Create ${query.includes('Python') ? 'Python' : 'script'}`;
+    }
+    return `Create: ${query}`;
+  }
+
+  /**
+   * Get appropriate tools for simple tasks
+   */
+  private getSimpleTaskTools(query: string): string[] {
+    const tools = ['Write'];
+    
+    if (query.toLowerCase().includes('python')) {
+      tools.push('python');
+    }
+    if (query.toLowerCase().includes('javascript') || query.toLowerCase().includes('js')) {
+      tools.push('javascript');
+    }
+    if (query.toLowerCase().includes('test')) {
+      tools.push('testing');
+    }
+    
+    return tools;
+  }
+
+  /**
+   * Select best agent based on extracted entities
+   */
+  private selectBestAgent(entities: ExtractedEntity[]): string {
+    // Check for technology-specific agents
+    for (const entity of entities) {
+      if (entity.type === 'technology') {
+        const tech = entity.value.toLowerCase();
+        if (['react', 'vue', 'angular', 'frontend'].includes(tech)) {
+          return 'frontend';
+        }
+        if (['node.js', 'nodejs', 'api', 'server'].includes(tech)) {
+          return 'backend';
+        }
+        if (['python'].includes(tech)) {
+          return 'backend'; // Python is often backend
+        }
+      }
+    }
+    
+    // Default to assistant for general tasks
+    return 'assistant';
+  }
+
+  /**
+   * Get implementation tools based on entities
+   */
+  private getImplementationTools(entities: ExtractedEntity[]): string[] {
+    const tools = ['implementation', 'coding'];
+    
+    for (const entity of entities) {
+      if (entity.type === 'technology') {
+        tools.push(entity.value.toLowerCase());
+      }
+    }
+    
+    return [...new Set(tools)]; // Remove duplicates
   }
 }
