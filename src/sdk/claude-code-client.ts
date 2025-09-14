@@ -104,13 +104,13 @@ export class ClaudeCodeClient extends EventEmitter {
         }
       });
       
-      // CRITICAL: Add first message timeout - if no message in 5 seconds, something is wrong
+      // REASONABLE: Allow up to 30 seconds for first message (authentication can take time)
       const firstMessageTimeout = setTimeout(() => {
         if (!hasReceivedFirstMessage && !isTimedOut) {
-          console.error(`🚨 CRITICAL: No first message from Claude Code SDK after 5s - likely hang`);
+          console.error(`🚨 TIMEOUT: No first message from Claude Code SDK after 30s - connection may have failed`);
           this.abortController?.abort();
         }
-      }, 5000);
+      }, 30000);
       
       for await (const message of queryPromise) {
         messageCount++;
@@ -211,15 +211,11 @@ export class ClaudeCodeClient extends EventEmitter {
         this.emit('error', error);
         throw error;
       } else {
-        // For timeout/abort errors, yield a fallback result instead of crashing
-        this.emit('debug', 'Yielding timeout fallback result');
-        yield {
-          type: "result",
-          subtype: "error",
-          error: errorMsg,
-          result: "Query timed out - Claude Code SDK connection failed",
-          duration_ms: Date.now() - startTime
-        } as any;
+        // For timeout/abort errors, provide diagnostic information
+        console.error(`🔧 Claude Code SDK connection timeout after ${Date.now() - startTime}ms`);
+        console.error(`💡 Diagnostic: Check 'claude whoami' and network connectivity`);
+
+        throw new Error(`Claude Code SDK timeout: ${errorMsg}. Duration: ${Date.now() - startTime}ms. Check authentication with 'claude whoami' and network connectivity.`);
       }
     }
   }
