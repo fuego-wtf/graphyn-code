@@ -223,22 +223,9 @@ export class AgentOrchestrator extends EventEmitter {
           }
         }
       } catch (error) {
-        // Emergency fallback when Claude Code SDK fails
-        console.log(`🔄 Claude Code SDK failed, providing emergency guidance...`);
-        finalResult = this.getEmergencyResponse(analysis.primaryAgent, query, repositoryContext);
-        
-        // Yield the emergency response as if it came from the agent
-        yield { 
-          type: 'message', 
-          data: { 
-            agent: analysis.primaryAgent, 
-            message: {
-              type: 'result',
-              subtype: 'success',
-              result: finalResult
-            }
-          }
-        };
+        // Log error and rethrow - NO EMERGENCY FALLBACK
+        console.error(`❌ Claude Code SDK error:`, error);
+        throw error;
       }
 
       // Return final orchestration result
@@ -288,22 +275,12 @@ export class AgentOrchestrator extends EventEmitter {
         'progress'
       );
 
-      // Execute with primary agent (with emergency fallback)
-      let primaryResponse;
-      try {
-        primaryResponse = await this.executeWithAgent(
-          analysis.primaryAgent,
-          query,
-          repositoryContext
-        );
-      } catch (error) {
-        // Emergency fallback for blocking executeQuery method
-        console.log(`🔄 Claude Code SDK timeout, providing emergency response...`);
-        primaryResponse = {
-          result: this.getEmergencyResponse(analysis.primaryAgent, query, repositoryContext),
-          metrics: { duration: 0, cost: 0 }
-        };
-      }
+      // Execute with primary agent - NO EMERGENCY FALLBACK
+      const primaryResponse = await this.executeWithAgent(
+        analysis.primaryAgent,
+        query,
+        repositoryContext
+      );
 
       const result: OrchestrationResult = {
         success: true,

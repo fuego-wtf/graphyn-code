@@ -9,8 +9,8 @@ import { AgentPersona, AgentPerformanceMetrics } from './types.js';
 
 // Performance Targets - Core system limits
 export const MAX_PARALLEL_AGENTS = 8;
-export const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
-export const TASK_COMPLETION_TARGET_MS = 30000; // 30 seconds for complex features
+export const DEFAULT_TIMEOUT_MS = 120000; // 120 seconds (2 minutes) - generous for Claude SDK (30-45s per call + buffer)
+export const TASK_COMPLETION_TARGET_MS = 120000; // 120 seconds for complex features
 export const MEMORY_LIMIT_MB = 150; // 150MB memory limit during peak execution
 export const UI_RENDER_TARGET_MS = 16; // 60fps requirement (<16ms render time)
 export const RELIABILITY_TARGET = 0.99; // 99% success rate
@@ -57,7 +57,7 @@ export const PERSISTENT_INPUT_PERCENTAGE = 10; // Legacy alias
 // Claude Code Integration
 export const CLAUDE_COMMAND = 'claude';
 export const CLAUDE_MAX_OUTPUT_LENGTH = 10000; // Characters
-export const CLAUDE_PROCESS_TIMEOUT_MS = 45000; // 45 seconds (buffer over task timeout)
+export const CLAUDE_PROCESS_TIMEOUT_MS = 90000; // 90 seconds (matches Claude SDK reality with buffer)
 
 // Professional Agent Personas - Complete 8-agent team
 export const AGENT_PERSONAS: AgentPersona[] = [

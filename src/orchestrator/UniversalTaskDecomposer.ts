@@ -206,7 +206,7 @@ export class UniversalTaskDecomposer extends EventEmitter {
     const tasks: TaskDefinition[] = [];
     const { originalQuery, entities, complexity } = parsedQuery;
 
-    // Common build workflow
+    // Common build workflow - let Claude SDK handle all queries including greetings
     tasks.push({
       id: this.generateTaskId('analyze'),
       title: 'Analyze Requirements',

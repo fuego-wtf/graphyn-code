@@ -5,12 +5,9 @@
  * All enums use PascalCase with UPPER_CASE members
  * All variables/functions use camelCase
  * All constants use UPPER_CASE
+ *
+ * NOTE: All timeout constants are defined in constants.ts to avoid conflicts
  */
-
-// Constants for configuration
-const MAX_PARALLEL_AGENTS = 8;
-const DEFAULT_TIMEOUT_MS = 30000;
-const TASK_COMPLETION_TARGET_MS = 30000;
 
 // Re-export AgentType from constants with proper naming
 export { AgentType } from '../constants/agents.js';

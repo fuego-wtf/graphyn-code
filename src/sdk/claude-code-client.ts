@@ -109,28 +109,49 @@ export class ClaudeCodeClient extends EventEmitter {
         
         // SDK handles its own progress tracking - no timeout interference needed
         
-        this.emit('debug', `[${Date.now() - startTime}ms] Message #${messageCount}: ${message.type} - Keys: ${Object.keys(message).join(',')}`);
+        // Log message type for debugging
+        this.emit('debug', `[${Date.now() - startTime}ms] Message #${messageCount}: ${message.type}`);
         
-        // Handle streaming events for partial content
-        if ('type' in message && (message as any).type === "stream_event") {
-          const event = (message as any).event;
-          this.emit('debug', `Stream event: ${event.type}`);
+        // Extract and emit content from assistant messages for streaming effect
+        if (message.type === 'assistant' && 'message' in message) {
+          const assistantMsg = (message as any).message;
           
-          // Emit partial text as it streams
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            this.emit('partial_content', event.delta.text);
-            this.emit('debug', `Emitting partial content: ${event.delta.text.slice(0, 50)}...`);
+          // Look for text content in assistant message
+          if (assistantMsg.content && Array.isArray(assistantMsg.content)) {
+            for (const content of assistantMsg.content) {
+              if (content.type === 'text' && content.text) {
+                // Emit text content as streaming chunks
+                this.emit('partial_content', content.text);
+                this.emit('debug', `✅ Emitting assistant content as stream: "${content.text.slice(0, 50)}${content.text.length > 50 ? '...' : ''}"`); 
+              }
+            }
           }
           
-          // Track thinking progress
-          if (event.type === "content_block_start" && event.content_block.type === "thinking") {
-            this.emit('thinking_start');
-            this.emit('debug', 'Thinking started');
+          // ALSO check for tool_use content to show Claude's thinking process
+          if (assistantMsg.content && Array.isArray(assistantMsg.content)) {
+            for (const content of assistantMsg.content) {
+              if (content.type === 'tool_use' && content.name && content.input) {
+                // Show what tool Claude is using
+                const toolDescription = `[Using tool: ${content.name}]`;
+                this.emit('partial_content', toolDescription);
+                this.emit('debug', `✅ Emitting tool usage: "${toolDescription}"`);
+              }
+            }
           }
-          
-          if (event.type === "content_block_stop" && event.content_block?.type === "thinking") {
-            this.emit('thinking_end');
-            this.emit('debug', 'Thinking ended');
+        }
+        
+        // ALSO emit user messages that contain tool results to show progress
+        if (message.type === 'user' && 'message' in message) {
+          const userMsg = (message as any).message;
+          if (userMsg.content && Array.isArray(userMsg.content)) {
+            for (const content of userMsg.content) {
+              if (content.type === 'tool_result' && content.content) {
+                // Show brief tool result
+                const resultPreview = `[Tool completed: ${content.content.slice(0, 100)}...]`;
+                this.emit('partial_content', resultPreview);
+                this.emit('debug', `✅ Emitting tool result preview: "${resultPreview.slice(0, 50)}..."`);
+              }
+            }
           }
         }
         

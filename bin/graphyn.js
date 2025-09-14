@@ -45,11 +45,11 @@ async function main() {
     console.log('═'.repeat(80));
     console.log('');
 
-    // Create and execute with Ultimate Orchestrator
+    // Create and execute with Ultimate Orchestrator - FIXED: Use default timeout
     const orchestrator = new UltimateOrchestrator({
       workingDirectory: process.cwd(),
       maxParallelAgents: 8,
-      taskTimeoutMs: 30000,
+      // taskTimeoutMs: removed - let it use DEFAULT_TIMEOUT_MS (120s)
       enablePerformanceMonitoring: true
     });
 

@@ -12,6 +12,7 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
+import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
 import { join, resolve } from 'path';
 import {
   AgentSession,
@@ -443,31 +444,23 @@ export class AgentSessionManager extends EventEmitter {
   // Private methods
 
   /**
-   * Execute Claude Code with session context
+   * Execute Claude Code with session context using SDK
+   * (Simplified for sequential execution to avoid resource conflicts)
    */
   private async executeClaude(
     session: AgentSession,
     contextPrompt: string,
     task: TaskExecution
   ): Promise<any> {
-    return new Promise((resolve, reject) => {
-      let output = '';
-      let error = '';
+    // Create fresh client for each task to avoid conflicts
+    const client = new ClaudeCodeClient();
+    let output = '';
 
-      const workingDir = session.worktreePath || this.config.workingDirectory;
+    console.log(`🤖 [@${session.agentPersona.id}] Starting task: ${task.id}`);
 
-      // Spawn Claude Code process
-      const claudeProcess = spawn('claude', ['-p', contextPrompt], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        cwd: workingDir,
-        timeout: this.config.sessionTimeoutMs
-      });
-
-      // Update session with process ID
-      session.processId = claudeProcess.pid || null;
-
-      claudeProcess.stdout?.on('data', (data: Buffer) => {
-        const chunk = data.toString();
+    try {
+      // Set up event handlers for streaming output
+      client.on('partial_content', (chunk: string) => {
         output += chunk;
         this.updateHeartbeat(session.id);
 
@@ -478,43 +471,70 @@ export class AgentSessionManager extends EventEmitter {
         });
       });
 
-      claudeProcess.stderr?.on('data', (data: Buffer) => {
-        error += data.toString();
+      // Listen to thinking events
+      client.on('thinking_start', () => {
+        console.log(`🤔 [@${session.agentPersona.id}] Claude thinking started...`);
+      });
+
+      client.on('thinking_end', () => {
+        console.log(`✨ [@${session.agentPersona.id}] Claude thinking ended`);
+      });
+
+      client.on('error', (error: Error) => {
+        console.error(`❌ [@${session.agentPersona.id}] Claude error:`, error.message);
         this.emit('sessionError', {
           sessionId: session.id,
           taskId: task.id,
-          error: data.toString()
+          error: error.message
         });
       });
 
-      claudeProcess.on('exit', (code) => {
-        session.processId = null;
+      // Remove excessive debug logs for cleaner user experience
+      // client.on('debug', (message: string) => {
+      //   console.log(`🔍 [@${session.agentPersona.id}] ${message}`);
+      //   this.emit('sessionDebug', {
+      //     sessionId: session.id,
+      //     taskId: task.id,
+      //     message
+      //   });
+      // });
 
-        if (code === 0) {
-          resolve({
-            output,
-            result: this.parseClaudeOutput(output),
-            artifacts: this.extractArtifacts(output),
-            filesModified: this.extractFilesModified(output)
-          });
-        } else {
-          reject(new Error(`Claude process exited with code ${code}: ${error}`));
-        }
+      // FIXED: Let Claude SDK handle its own timing - no artificial timeouts
+      // Increased maxTurns to allow Claude to complete complex conversations with tools
+      const result = await client.executeQuery(contextPrompt, {
+        maxTurns: 15, // Increased to allow tool-heavy conversations to complete
+        allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep'] // Restored tools
+      }) as any;
+
+      console.log(`✅ [@${session.agentPersona.id}] Task completed successfully`);
+
+      // Update session state
+      session.processId = null;
+      this.updateHeartbeat(session.id);
+
+      return {
+        output: result?.result || '',
+        result: this.parseClaudeOutput(result?.result || ''),
+        artifacts: this.extractArtifacts(result?.result || ''),
+        filesModified: this.extractFilesModified(result?.result || ''),
+        metrics: result?.metrics || {},
+        sessionId: result?.sessionId || ''
+      };
+
+    } catch (error) {
+      session.processId = null;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      console.error(`❌ [@${session.agentPersona.id}] Task failed:`, errorMessage);
+
+      this.emit('sessionError', {
+        sessionId: session.id,
+        taskId: task.id,
+        error: errorMessage
       });
 
-      claudeProcess.on('error', (err) => {
-        session.processId = null;
-        reject(new Error(`Claude process error: ${err.message}`));
-      });
-
-      // Set timeout
-      setTimeout(() => {
-        if (!claudeProcess.killed) {
-          claudeProcess.kill('SIGTERM');
-          reject(new Error('Claude execution timeout'));
-        }
-      }, this.config.sessionTimeoutMs);
-    });
+      throw new Error(`Claude SDK execution failed: ${errorMessage}`);
+    }
   }
 
   /**
@@ -573,7 +593,7 @@ export class AgentSessionManager extends EventEmitter {
     } catch (error) {
       // Cleanup on failure
       try {
-        await fs.rmdir(worktreePath, { recursive: true });
+        await fs.rm(worktreePath, { recursive: true, force: true });
       } catch {
         // Ignore cleanup errors
       }

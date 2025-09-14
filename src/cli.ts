@@ -82,7 +82,7 @@ async function initializeUltimateOrchestration(): Promise<void> {
   try {
     // Initialize performance monitoring
     const performanceMonitor = new PerformanceMonitor({
-      taskTargetMs: 30_000, // 30 seconds
+      taskTargetMs: 120_000, // 120 seconds (2 minutes for Claude SDK calls)
       memoryLimitMb: 150, // 150 MB
       enabled: true
     });
@@ -277,7 +277,7 @@ function displayPerformanceStatus(): void {
 function isNaturalLanguageQuery(input: string): boolean {
   // Enhanced natural language detection
   const naturalLanguagePatterns = [
-    /^(add|create|build|implement|setup|configure|install|update|fix|debug|test|deploy)/i,
+    /^(hello|hi|hey|add|create|build|implement|setup|configure|install|update|fix|debug|test|deploy)/i,
     /^(how|what|when|where|why|which)/i,
     /^(help|show|explain|describe|list|find)/i,
     /(authentication|auth|login|user|database|api|frontend|backend|component)/i,
