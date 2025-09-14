@@ -143,36 +143,42 @@ async function checkSDKInstallation(results: SDKDiagnosticResult[]): Promise<voi
  */
 async function checkAPIConfiguration(results: SDKDiagnosticResult[]): Promise<void> {
   try {
-    // Check for Anthropic API key
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    
-    if (anthropicKey) {
-      if (anthropicKey.startsWith('sk-ant-')) {
+    // Check for Claude CLI session authentication (preferred method)
+    // API key is NOT required when Claude CLI is authenticated
+    try {
+      const { stdout: claudeAuth } = await execAsync('claude whoami', { timeout: 5000 });
+      if (claudeAuth.trim() && !claudeAuth.includes('error') && !claudeAuth.includes('not authenticated')) {
         results.push({
           category: 'API',
-          test: 'API Key Format',
+          test: 'Claude Authentication',
           status: 'pass',
-          message: 'Anthropic API key is properly formatted',
-          details: `Key starts with 'sk-ant-' (${anthropicKey.substring(0, 15)}...)`
+          message: 'Claude CLI authenticated (session-based auth - no API key required)',
+          details: `Authenticated user: ${claudeAuth.trim()}`
+        });
+      } else {
+        throw new Error('Claude CLI not authenticated');
+      }
+    } catch (error) {
+      // Fallback: Check if API key is provided (optional)
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      if (anthropicKey && anthropicKey.startsWith('sk-ant-')) {
+        results.push({
+          category: 'API',
+          test: 'API Key Fallback',
+          status: 'pass',
+          message: 'API key configured as fallback authentication',
+          details: `Key format: sk-ant-***${anthropicKey.slice(-8)}`
         });
       } else {
         results.push({
           category: 'API',
-          test: 'API Key Format',
+          test: 'Authentication',
           status: 'warn',
-          message: 'API key format may be incorrect',
-          details: 'Expected format: sk-ant-...',
-          fix: 'Verify your Anthropic API key format'
+          message: 'Claude CLI not authenticated and no API key found',
+          details: 'Claude Code SDK works best with Claude CLI authentication',
+          fix: 'Run "claude login" to authenticate (preferred) or set ANTHROPIC_API_KEY'
         });
       }
-    } else {
-      results.push({
-        category: 'API',
-        test: 'API Key Configuration',
-        status: 'fail',
-        message: 'ANTHROPIC_API_KEY environment variable not set',
-        fix: 'Set ANTHROPIC_API_KEY environment variable with your API key'
-      });
     }
     
     // Check Claude Desktop configuration directory
@@ -424,7 +430,8 @@ async function checkEnvironmentVariables(results: SDKDiagnosticResult[]): Promis
     if (process.env[varName]) {
       foundVars.push(`${varName}=${varName.includes('KEY') ? '[REDACTED]' : process.env[varName]}`);
     } else if (varName === 'ANTHROPIC_API_KEY') {
-      missingVars.push(varName);
+      // ANTHROPIC_API_KEY is optional - Claude CLI session auth is preferred
+      // Don't treat this as a missing requirement
     }
   }
   
