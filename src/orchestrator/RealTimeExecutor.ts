@@ -18,6 +18,7 @@ import {
 } from './types.js';
 import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
 import { AgentOrchestrator } from './AgentOrchestrator.js';
+import { specializationEngine } from '../engines/SpecializationEngine.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -28,6 +29,8 @@ export interface ExecutionContext {
     readme?: string;
     structure?: string[];
   };
+  projectContext?: any; // From specialization engine
+  specializedAgents?: any[]; // Dynamic agents from specialization
 }
 
 /**
@@ -123,32 +126,71 @@ export class RealTimeExecutor extends EventEmitter {
       // Start streaming
       yield { type: 'start', data: { query, timestamp: startTime } };
 
-      // IMMEDIATE FEEDBACK: Building repository context with progress
-      yield { type: 'context', data: { message: '🔍 Scanning repository structure...' } };
-      const repositoryContextPromise = this.buildRepositoryContext(context.workingDirectory);
+      // PHASE 1: Project Analysis with SpecializationEngine
+      yield { type: 'context', data: { message: '🔍 Deep project analysis with dynamic agents...' } };
       
-      // Provide progress updates while building context
-      const contextTimeout = setTimeout(() => {
-        // This won't affect the actual build, just provides feedback if it's taking too long
-      }, 100);
+      let projectAnalysis = null;
+      let specializedAgents: any[] = [];
       
-      const repositoryContext = await repositoryContextPromise;
-      clearTimeout(contextTimeout);
+      // Use specialization engine if provided in context, otherwise use existing context
+      if (context.projectContext && context.specializedAgents) {
+        // Already analyzed by UnifiedGraphynCLI
+        projectAnalysis = context.projectContext;
+        specializedAgents = context.specializedAgents;
+        
+        yield {
+          type: 'analysis',
+          data: {
+            message: `🤖 Using ${specializedAgents.length} specialized agents`,
+            stage: 'agent-selection'
+          }
+        };
+      } else {
+        // Fallback to repository context building
+        const repositoryContextPromise = this.buildRepositoryContext(context.workingDirectory);
+        const repositoryContext = await repositoryContextPromise;
+        
+        // Try to use specialization engine for dynamic analysis
+        try {
+          yield { type: 'context', data: { message: '🧬 Creating specialized agents for your project...' } };
+          
+          projectAnalysis = await specializationEngine.analyzeProject(context.workingDirectory);
+          specializedAgents = await specializationEngine.createSpecializedAgents(projectAnalysis, query);
+          
+          if (specializedAgents.length > 0) {
+            yield {
+              type: 'analysis',
+              data: {
+                message: `🚀 Created ${specializedAgents.length} specialized agents`,
+                stage: 'specialization-complete'
+              }
+            };
+          } else {
+            // Fallback to regular orchestration
+            yield { type: 'context', data: { message: '🔄 Using standard agent orchestration...' } };
+          }
+        } catch (error) {
+          // Fallback to existing repository context
+          console.warn('Specialization engine failed, using standard orchestration:', error);
+          yield { type: 'context', data: { message: '🔄 Using standard orchestration (specialization unavailable)...' } };
+        }
+      }
       
-      // Show what we discovered
-      const projectName = repositoryContext.packageJson?.name || 'Unknown';
-      const fileCount = repositoryContext.fileCount || 0;
-      const techStack = repositoryContext.hasTypeScript ? 'TypeScript' : 'JavaScript';
+      // Show project info
+      const projectName = projectAnalysis?.repository?.name || context.repositoryContext?.packageJson?.name || 'Unknown';
+      const techStack = projectAnalysis?.technologies?.map((t: any) => t.name).join(', ') || (context.repositoryContext?.hasTypeScript ? 'TypeScript' : 'JavaScript');
       
       yield { 
         type: 'context', 
         data: { 
-          message: `📋 Found ${projectName} project (${techStack}, ${fileCount} files) - routing query...` 
+          message: `📋 Project: ${projectName} (${techStack}) - executing with specialized agents...` 
         } 
       };
       
-      // Stream through orchestrator
-      for await (const event of this.agentOrchestrator.executeQueryStream(query, repositoryContext, options)) {
+      // Stream through orchestrator with appropriate context
+      const orchestrationContext = projectAnalysis || await this.buildRepositoryContext(context.workingDirectory);
+      
+      for await (const event of this.agentOrchestrator.executeQueryStream(query, orchestrationContext, options)) {
         yield event;
       }
       

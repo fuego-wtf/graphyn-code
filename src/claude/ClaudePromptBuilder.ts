@@ -107,9 +107,9 @@ export class ClaudePromptBuilder {
     if ('status' in task) {
       promptTask = {
         id: task.id,
-        description: task.description,
+        description: task.description || 'No description provided',
         priority: task.priority || 1,
-        dependencies: Array.from(task.dependencies) || [],
+        dependencies: task.dependencies ? Array.from(task.dependencies) : [],
         expectedOutput: 'Complete the task successfully',
         context: task.tags ? Array.from(task.tags) : [],
         estimatedDuration: task.estimatedDuration

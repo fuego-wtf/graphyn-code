@@ -7,6 +7,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import ora from 'ora';
 import open from 'open';
+import { FigmaAPIClient, MultiAgentResult } from '../figma-api.js';
+import { ClaudeMultiAgentManager, AgentExecutionEvent } from '../claude-multi-agent-manager.js';
 
 const execAsync = promisify(exec);
 
@@ -303,4 +305,319 @@ export async function setupFigmaMCP(): Promise<FigmaMCPResult> {
     message: completed ? 'Figma MCP setup completed' : 'Figma MCP setup incomplete',
     isRunning: completed && isWorking
   };
+}
+
+// ===============================================
+// MULTI-AGENT FIGMA WORKFLOW FUNCTIONS
+// ===============================================
+
+/**
+ * Initialize multi-agent Figma-to-code workflow
+ */
+export async function initializeFigmaMultiAgentWorkflow(
+  figmaToken: string,
+  figmaUrl: string,
+  options: {
+    framework?: 'react' | 'vue' | 'angular';
+    backend?: 'node' | 'python' | 'go';
+    database?: 'postgres' | 'mongodb' | 'sqlite';
+    styling?: 'tailwind' | 'styled-components' | 'css-modules';
+    outputDir?: string;
+    maxAgents?: number;
+    enableTesting?: boolean;
+    enableDeployment?: boolean;
+  } = {}
+): Promise<MultiAgentResult> {
+  console.log(colors.bold('\n🎭 Initializing Multi-Agent Figma Workflow\n'));
+  
+  // Initialize Figma API client with multi-agent support
+  const figmaClient = new FigmaAPIClient(figmaToken, true);
+  
+  // Initialize multi-agent manager
+  const agentManager = new ClaudeMultiAgentManager({
+    maxConcurrentAgents: options.maxAgents || 6,
+    enableGitWorktrees: true,
+    enableTmuxIsolation: true,
+    workspaceRoot: process.cwd()
+  });
+
+  try {
+    // Initialize both systems
+    await agentManager.initialize();
+    await figmaClient.initializeMultiAgentIntegration(agentManager);
+
+    console.log(colors.success('✅ Multi-agent systems initialized'));
+
+    // Set up progress tracking
+    const progressCallback = (message: string, agentId?: string) => {
+      const prefix = agentId ? colors.highlight(`[${agentId}]`) : colors.info('[COORDINATOR]');
+      console.log(`${prefix} ${message}`);
+    };
+
+    // Start the multi-agent Figma-to-code generation
+    console.log(colors.bold('\n🚀 Starting Multi-Agent Code Generation...\n'));
+    
+    const result = await figmaClient.generateFullStackFromPrototype(
+      figmaUrl,
+      {
+        framework: options.framework || 'react',
+        backend: options.backend,
+        database: options.database,
+        styling: options.styling || 'tailwind',
+        outputDir: options.outputDir || './generated',
+        agentConfig: {
+          maxConcurrentAgents: options.maxAgents || 6,
+          enableTesting: options.enableTesting ?? true,
+          enableDeployment: options.enableDeployment ?? false
+        }
+      },
+      progressCallback
+    );
+
+    // Display results
+    await displayMultiAgentResults(result);
+
+    return result;
+
+  } catch (error: any) {
+    console.error(colors.error('❌ Multi-agent workflow failed:'), error.message);
+    throw error;
+  } finally {
+    // Cleanup
+    await agentManager.shutdown();
+  }
+}
+
+/**
+ * Display multi-agent workflow results
+ */
+async function displayMultiAgentResults(result: MultiAgentResult): Promise<void> {
+  console.log(colors.bold('\n🎉 Multi-Agent Workflow Results\n'));
+  
+  if (result.success) {
+    console.log(colors.success(`✅ Success! Completed in ${result.totalTimeSeconds.toFixed(1)}s`));
+    
+    if (result.prototypeAnalysis) {
+      console.log(colors.info(`📱 Analyzed ${result.prototypeAnalysis.totalScreens} screens with ${result.prototypeAnalysis.totalComponents} components`));
+    }
+    
+    if (result.taskPlan) {
+      console.log(colors.info(`⚙️  Executed ${result.taskPlan.totalTasks} tasks across multiple agents`));
+    }
+    
+    if (result.generatedFiles.length > 0) {
+      console.log(colors.info(`📄 Generated ${result.generatedFiles.length} files:`));
+      result.generatedFiles.slice(0, 10).forEach(file => {
+        console.log(colors.info(`   • ${file}`));
+      });
+      
+      if (result.generatedFiles.length > 10) {
+        console.log(colors.info(`   ... and ${result.generatedFiles.length - 10} more files`));
+      }
+    }
+    
+    if (result.testResults) {
+      console.log(colors.info(`🧪 Tests: ${result.testResults.passed} passed, ${result.testResults.failed} failed, ${result.testResults.coverage}% coverage`));
+    }
+    
+    if (result.deploymentInfo) {
+      console.log(colors.success(`🚀 Deployed to: ${result.deploymentInfo.url}`));
+    }
+    
+  } else {
+    console.log(colors.error(`❌ Failed: ${result.error}`));
+    
+    if (result.agentResults.length > 0) {
+      const failedTasks = result.agentResults.filter(r => !r.success);
+      if (failedTasks.length > 0) {
+        console.log(colors.error('\nFailed tasks:'));
+        failedTasks.forEach(task => {
+          console.log(colors.error(`  • ${task.taskId}: ${task.error}`));
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Interactive setup for multi-agent Figma workflow
+ */
+export async function interactiveFigmaWorkflowSetup(): Promise<MultiAgentResult | null> {
+  console.log(colors.bold('\n🎨 Interactive Multi-Agent Figma Workflow Setup\n'));
+  
+  // Check if Figma token exists
+  let figmaToken = process.env.FIGMA_PERSONAL_ACCESS_TOKEN;
+  
+  if (!figmaToken) {
+    console.log(colors.warning('⚠️  Figma token not found. Please set up your token first.'));
+    const tokenSetup = await setupFigmaToken();
+    if (!tokenSetup) {
+      console.log(colors.error('❌ Cannot proceed without Figma token'));
+      return null;
+    }
+    figmaToken = process.env.FIGMA_PERSONAL_ACCESS_TOKEN!;
+  }
+  
+  // Get user inputs
+  const answers = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'figmaUrl',
+      message: 'Enter Figma prototype URL:',
+      validate: (input) => {
+        if (!input) return 'URL is required';
+        if (!input.includes('figma.com')) return 'Please enter a valid Figma URL';
+        return true;
+      }
+    },
+    {
+      type: 'list',
+      name: 'framework',
+      message: 'Choose frontend framework:',
+      choices: [
+        { name: 'React (recommended)', value: 'react' },
+        { name: 'Vue.js', value: 'vue' },
+        { name: 'Angular', value: 'angular' }
+      ],
+      default: 'react'
+    },
+    {
+      type: 'list',
+      name: 'styling',
+      message: 'Choose styling solution:',
+      choices: [
+        { name: 'Tailwind CSS (recommended)', value: 'tailwind' },
+        { name: 'Styled Components', value: 'styled-components' },
+        { name: 'CSS Modules', value: 'css-modules' }
+      ],
+      default: 'tailwind'
+    },
+    {
+      type: 'confirm',
+      name: 'includeBackend',
+      message: 'Include backend API generation?',
+      default: false
+    },
+    {
+      type: 'list',
+      name: 'backend',
+      message: 'Choose backend technology:',
+      choices: [
+        { name: 'Node.js + Express', value: 'node' },
+        { name: 'Python + FastAPI', value: 'python' },
+        { name: 'Go + Gin', value: 'go' }
+      ],
+      when: (answers) => answers.includeBackend,
+      default: 'node'
+    },
+    {
+      type: 'list',
+      name: 'database',
+      message: 'Choose database:',
+      choices: [
+        { name: 'PostgreSQL', value: 'postgres' },
+        { name: 'MongoDB', value: 'mongodb' },
+        { name: 'SQLite', value: 'sqlite' }
+      ],
+      when: (answers) => answers.includeBackend,
+      default: 'postgres'
+    },
+    {
+      type: 'number',
+      name: 'maxAgents',
+      message: 'Maximum concurrent agents (3-8):',
+      default: 6,
+      validate: (input) => {
+        const num = parseInt(input);
+        if (num < 3 || num > 8) return 'Please enter a number between 3 and 8';
+        return true;
+      }
+    },
+    {
+      type: 'confirm',
+      name: 'enableTesting',
+      message: 'Generate comprehensive test suites?',
+      default: true
+    },
+    {
+      type: 'confirm',
+      name: 'enableDeployment',
+      message: 'Set up deployment configuration?',
+      default: false
+    },
+    {
+      type: 'input',
+      name: 'outputDir',
+      message: 'Output directory for generated code:',
+      default: './figma-generated-app'
+    }
+  ]);
+  
+  // Confirm before starting
+  console.log(colors.bold('\n📋 Configuration Summary:\n'));
+  console.log(colors.info(`• Framework: ${answers.framework}`));
+  console.log(colors.info(`• Styling: ${answers.styling}`));
+  if (answers.includeBackend) {
+    console.log(colors.info(`• Backend: ${answers.backend} + ${answers.database}`));
+  }
+  console.log(colors.info(`• Max Agents: ${answers.maxAgents}`));
+  console.log(colors.info(`• Testing: ${answers.enableTesting ? 'Enabled' : 'Disabled'}`));
+  console.log(colors.info(`• Deployment: ${answers.enableDeployment ? 'Enabled' : 'Disabled'}`));
+  console.log(colors.info(`• Output: ${answers.outputDir}`));
+  
+  const { proceed } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: 'Proceed with multi-agent code generation?',
+      default: true
+    }
+  ]);
+  
+  if (!proceed) {
+    console.log(colors.info('✋ Operation cancelled'));
+    return null;
+  }
+  
+  // Start the workflow
+  return await initializeFigmaMultiAgentWorkflow(
+    figmaToken,
+    answers.figmaUrl,
+    {
+      framework: answers.framework,
+      backend: answers.includeBackend ? answers.backend : undefined,
+      database: answers.includeBackend ? answers.database : undefined,
+      styling: answers.styling,
+      maxAgents: answers.maxAgents,
+      enableTesting: answers.enableTesting,
+      enableDeployment: answers.enableDeployment,
+      outputDir: answers.outputDir
+    }
+  );
+}
+
+/**
+ * Quick start Figma workflow with sensible defaults
+ */
+export async function quickStartFigmaWorkflow(figmaUrl: string): Promise<MultiAgentResult> {
+  const figmaToken = process.env.FIGMA_PERSONAL_ACCESS_TOKEN;
+  
+  if (!figmaToken) {
+    throw new Error('FIGMA_PERSONAL_ACCESS_TOKEN environment variable is required');
+  }
+  
+  console.log(colors.bold('\n⚡ Quick Start: Multi-Agent Figma-to-React\n'));
+  
+  return await initializeFigmaMultiAgentWorkflow(
+    figmaToken,
+    figmaUrl,
+    {
+      framework: 'react',
+      styling: 'tailwind',
+      maxAgents: 5,
+      enableTesting: true,
+      enableDeployment: false,
+      outputDir: './quick-generated'
+    }
+  );
 }

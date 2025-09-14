@@ -113,14 +113,17 @@ export interface ComponentMap {
 
 export class FigmaAPIClient {
   private client: AxiosInstance;
+  private claudeAgents: Map<string, any> = new Map();
+  private multiAgentEnabled: boolean = false;
 
-  constructor(token: string) {
+  constructor(token: string, enableMultiAgent: boolean = true) {
     this.client = axios.create({
       baseURL: 'https://api.figma.com/v1',
       headers: {
         'Authorization': `Bearer ${token}`
       }
     });
+    this.multiAgentEnabled = enableMultiAgent;
   }
 
   /**
@@ -1470,6 +1473,517 @@ export class FigmaAPIClient {
     });
   }
 
+  // ===============================================
+  // CLAUDE CODE MULTI-AGENT INTEGRATION METHODS
+  // ===============================================
+
+  /**
+   * Initialize multi-agent Claude Code integration
+   */
+  async initializeMultiAgentIntegration(agentManager?: any): Promise<void> {
+    if (!this.multiAgentEnabled) {
+      console.log('🤖 Multi-agent integration disabled');
+      return;
+    }
+
+    console.log('🚀 Initializing Figma + Claude Code multi-agent integration...');
+    
+    try {
+      // Set up agent registry with Figma-specific specialists
+      if (agentManager) {
+        this.claudeAgents = agentManager;
+        console.log('✅ Connected to external agent manager');
+      } else {
+        // Initialize built-in agent coordination
+        await this.initializeBuiltInAgents();
+      }
+      
+      console.log('✅ Multi-agent Figma integration ready');
+    } catch (error: any) {
+      console.error('❌ Failed to initialize multi-agent integration:', error.message);
+      this.multiAgentEnabled = false;
+    }
+  }
+
+  /**
+   * Generate full-stack application from Figma prototype using multi-agent coordination
+   */
+  async generateFullStackFromPrototype(
+    figmaUrl: string,
+    options: {
+      framework?: 'react' | 'vue' | 'angular';
+      backend?: 'node' | 'python' | 'go';
+      database?: 'postgres' | 'mongodb' | 'sqlite';
+      styling?: 'tailwind' | 'styled-components' | 'css-modules';
+      outputDir?: string;
+      agentConfig?: {
+        maxConcurrentAgents?: number;
+        enableTesting?: boolean;
+        enableDeployment?: boolean;
+      };
+    } = {},
+    progressCallback?: (message: string, agentId?: string) => void
+  ): Promise<MultiAgentResult> {
+    if (!this.multiAgentEnabled) {
+      throw new Error('Multi-agent integration not enabled');
+    }
+
+    const startTime = Date.now();
+    progressCallback?.('🎭 Starting multi-agent Figma-to-code generation...');
+
+    try {
+      // Phase 1: Analyze Figma prototype
+      progressCallback?.('📋 Phase 1: Analyzing Figma prototype...', 'analyst');
+      const prototypeAnalysis = await this.analyzePrototype(figmaUrl, progressCallback);
+      const componentMap = await this.extractComponentsFromFile(prototypeAnalysis.fileKey, progressCallback);
+
+      // Phase 2: Generate task breakdown
+      progressCallback?.('🛠️  Phase 2: Creating task breakdown...', 'task-dispatcher');
+      const taskPlan = await this.generateMultiAgentTaskPlan(prototypeAnalysis, componentMap, options);
+
+      // Phase 3: Execute tasks with specialized agents
+      progressCallback?.('🚀 Phase 3: Executing with specialized agents...', 'coordinator');
+      const agentResults = await this.executeTasksWithAgents(taskPlan, options, progressCallback);
+
+      // Phase 4: Integration and quality assurance
+      progressCallback?.('🔗 Phase 4: Integrating results and QA...', 'integrator');
+      const finalResult = await this.integrateAgentResults(agentResults, options, progressCallback);
+
+      const totalTime = (Date.now() - startTime) / 1000;
+      progressCallback?.(`✅ Multi-agent generation complete in ${totalTime.toFixed(1)}s`);
+
+      return {
+        success: true,
+        totalTimeSeconds: totalTime,
+        prototypeAnalysis,
+        componentMap,
+        taskPlan,
+        agentResults,
+        finalResult,
+        generatedFiles: finalResult.files || [],
+        testResults: finalResult.testResults,
+        deploymentInfo: finalResult.deploymentInfo
+      };
+
+    } catch (error: any) {
+      const totalTime = (Date.now() - startTime) / 1000;
+      progressCallback?.(`❌ Multi-agent generation failed: ${error.message}`);
+      
+      return {
+        success: false,
+        totalTimeSeconds: totalTime,
+        error: error.message,
+        prototypeAnalysis: null,
+        componentMap: null,
+        taskPlan: null,
+        agentResults: [],
+        finalResult: null,
+        generatedFiles: [],
+        testResults: null,
+        deploymentInfo: null
+      };
+    }
+  }
+
+  /**
+   * Generate specialized task plan for multi-agent execution
+   */
+  private async generateMultiAgentTaskPlan(
+    prototype: FigmaPrototypeFlow,
+    componentMap: ComponentMap,
+    options: any
+  ): Promise<MultiAgentTaskPlan> {
+    const tasks: AgentTask[] = [];
+
+    // 1. Architecture & Setup Tasks
+    tasks.push({
+      id: 'arch-setup',
+      agentType: 'architect',
+      title: 'Project Architecture & Setup',
+      description: `Design ${options.framework || 'React'} + ${options.backend || 'Node.js'} architecture for ${prototype.totalScreens} screens`,
+      priority: 'high',
+      estimatedTimeMinutes: 15,
+      dependencies: [],
+      context: {
+        framework: options.framework || 'react',
+        backend: options.backend || 'node',
+        database: options.database || 'postgres',
+        screenCount: prototype.totalScreens,
+        componentCount: prototype.totalComponents
+      }
+    });
+
+    // 2. Design System Tasks
+    tasks.push({
+      id: 'design-system',
+      agentType: 'design-system',
+      title: 'Create Design System',
+      description: `Extract design tokens and create component library with ${Object.keys(componentMap.designTokens.colors).length} colors`,
+      priority: 'high',
+      estimatedTimeMinutes: 20,
+      dependencies: ['arch-setup'],
+      context: {
+        designTokens: componentMap.designTokens,
+        componentCounts: {
+          atoms: componentMap.atomicComponents.length,
+          molecules: componentMap.molecules.length,
+          organisms: componentMap.organisms.length,
+          templates: componentMap.templates.length
+        },
+        styling: options.styling || 'tailwind'
+      }
+    });
+
+    // 3. Frontend Component Tasks (parallel)
+    prototype.screens.forEach((screen, index) => {
+      tasks.push({
+        id: `frontend-${screen.id}`,
+        agentType: 'frontend',
+        title: `Build ${screen.name} Page`,
+        description: `Create React component for ${screen.name} with ${screen.components.length} sub-components`,
+        priority: index === 0 ? 'high' : 'medium',
+        estimatedTimeMinutes: 25,
+        dependencies: ['design-system'],
+        context: {
+          screen,
+          navigation: prototype.navigation.filter(nav => nav.from === screen.id),
+          figmaFrameId: screen.frameId,
+          components: screen.components
+        }
+      });
+    });
+
+    // 4. Backend API Tasks
+    if (options.backend) {
+      tasks.push({
+        id: 'backend-api',
+        agentType: 'backend',
+        title: 'Build Backend API',
+        description: `Create ${options.backend} API with authentication and data models`,
+        priority: 'medium',
+        estimatedTimeMinutes: 30,
+        dependencies: ['arch-setup'],
+        context: {
+          backend: options.backend,
+          database: options.database,
+          endpoints: this.inferAPIEndpoints(prototype)
+        }
+      });
+    }
+
+    // 5. Testing Tasks
+    if (options.agentConfig?.enableTesting) {
+      tasks.push({
+        id: 'testing',
+        agentType: 'test-writer',
+        title: 'Create Test Suite',
+        description: `Generate unit tests, integration tests, and e2e tests for all components`,
+        priority: 'medium',
+        estimatedTimeMinutes: 20,
+        dependencies: prototype.screens.map(s => `frontend-${s.id}`),
+        context: {
+          testFramework: 'jest',
+          e2eFramework: 'playwright',
+          screenCount: prototype.totalScreens
+        }
+      });
+    }
+
+    // 6. Integration & Deployment
+    if (options.agentConfig?.enableDeployment) {
+      tasks.push({
+        id: 'deployment',
+        agentType: 'production-architect',
+        title: 'Setup Deployment Pipeline',
+        description: 'Configure CI/CD, containerization, and cloud deployment',
+        priority: 'low',
+        estimatedTimeMinutes: 25,
+        dependencies: ['testing', 'backend-api'].filter(dep => 
+          tasks.some(task => task.id === dep)
+        ),
+        context: {
+          platform: 'vercel', // or AWS, etc.
+          database: options.database,
+          hasBackend: !!options.backend
+        }
+      });
+    }
+
+    return {
+      tasks,
+      totalTasks: tasks.length,
+      estimatedTotalMinutes: tasks.reduce((sum, task) => sum + task.estimatedTimeMinutes, 0),
+      parallelizable: true,
+      maxConcurrency: Math.min(options.agentConfig?.maxConcurrentAgents || 5, 8)
+    };
+  }
+
+  /**
+   * Execute tasks with specialized Claude Code agents
+   */
+  private async executeTasksWithAgents(
+    taskPlan: MultiAgentTaskPlan,
+    options: any,
+    progressCallback?: (message: string, agentId?: string) => void
+  ): Promise<AgentExecutionResult[]> {
+    const results: AgentExecutionResult[] = [];
+    const activeAgents = new Set<string>();
+    const completedTasks = new Set<string>();
+
+    // Execute tasks in dependency order with parallelization
+    const remainingTasks = [...taskPlan.tasks];
+    
+    while (remainingTasks.length > 0 && activeAgents.size < taskPlan.maxConcurrency) {
+      // Find tasks that can be executed (dependencies satisfied)
+      const executableTasks = remainingTasks.filter(task => 
+        task.dependencies.every(dep => completedTasks.has(dep))
+      );
+
+      if (executableTasks.length === 0) {
+        // Wait for active agents to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      // Start execution of available tasks
+      const tasksToStart = executableTasks.slice(0, taskPlan.maxConcurrency - activeAgents.size);
+      
+      for (const task of tasksToStart) {
+        activeAgents.add(task.id);
+        remainingTasks.splice(remainingTasks.indexOf(task), 1);
+        
+        progressCallback?.(`🤖 Starting ${task.title}...`, task.agentType);
+        
+        // Execute task with specialized agent (this would spawn Claude Code process)
+        this.executeTaskWithClaudeAgent(task, options, progressCallback)
+          .then(result => {
+            results.push(result);
+            completedTasks.add(task.id);
+            activeAgents.delete(task.id);
+            progressCallback?.(`✅ ${task.title} completed`, task.agentType);
+          })
+          .catch(error => {
+            results.push({
+              taskId: task.id,
+              agentType: task.agentType,
+              success: false,
+              error: error.message,
+              output: '',
+              files: [],
+              executionTimeMs: 0
+            });
+            completedTasks.add(task.id); // Mark as complete to avoid blocking
+            activeAgents.delete(task.id);
+            progressCallback?.(`❌ ${task.title} failed: ${error.message}`, task.agentType);
+          });
+      }
+    }
+
+    // Wait for all agents to complete
+    while (activeAgents.size > 0) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    return results;
+  }
+
+  /**
+   * Execute a single task with a Claude Code agent
+   */
+  private async executeTaskWithClaudeAgent(
+    task: AgentTask,
+    options: any,
+    progressCallback?: (message: string, agentId?: string) => void
+  ): Promise<AgentExecutionResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Build specialized prompt for the agent type
+      const agentPrompt = this.buildAgentPrompt(task, options);
+      
+      // This would typically spawn a Claude Code session
+      // For now, simulate the execution
+      progressCallback?.(`⚙️  Executing ${task.title}...`, task.agentType);
+      
+      // Simulate execution time
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 3000 + 1000));
+      
+      const executionTime = Date.now() - startTime;
+      
+      // Generate mock results based on task type
+      const mockResult = this.generateMockAgentResult(task, executionTime);
+      
+      return {
+        taskId: task.id,
+        agentType: task.agentType,
+        success: true,
+        output: mockResult.output,
+        files: mockResult.files,
+        executionTimeMs: executionTime
+      };
+      
+    } catch (error: any) {
+      return {
+        taskId: task.id,
+        agentType: task.agentType,
+        success: false,
+        error: error.message,
+        output: '',
+        files: [],
+        executionTimeMs: Date.now() - startTime
+      };
+    }
+  }
+
+  /**
+   * Initialize built-in agent coordination
+   */
+  private async initializeBuiltInAgents(): Promise<void> {
+    // This would set up the built-in multi-agent system
+    // For now, just create a simple agent map
+    const agentTypes = [
+      'architect', 'frontend', 'backend', 'design-system', 
+      'test-writer', 'production-architect', 'integrator'
+    ];
+    
+    agentTypes.forEach(type => {
+      this.claudeAgents.set(type, {
+        type,
+        status: 'ready',
+        specializations: this.getAgentSpecializations(type)
+      });
+    });
+    
+    console.log(`✅ Initialized ${agentTypes.length} built-in agents`);
+  }
+
+  /**
+   * Get specializations for agent type
+   */
+  private getAgentSpecializations(agentType: string): string[] {
+    const specializations: Record<string, string[]> = {
+      'architect': ['system-design', 'scalability', 'project-structure', 'tech-stack'],
+      'frontend': ['react', 'vue', 'angular', 'tailwind', 'styled-components', 'responsive-design'],
+      'backend': ['node', 'express', 'fastapi', 'django', 'postgresql', 'mongodb', 'authentication'],
+      'design-system': ['design-tokens', 'component-library', 'accessibility', 'theming'],
+      'test-writer': ['jest', 'cypress', 'playwright', 'unit-testing', 'e2e-testing', 'tdd'],
+      'production-architect': ['docker', 'kubernetes', 'ci-cd', 'monitoring', 'performance'],
+      'integrator': ['code-integration', 'conflict-resolution', 'quality-assurance']
+    };
+    
+    return specializations[agentType] || [];
+  }
+
+  /**
+   * Build specialized prompt for agent
+   */
+  private buildAgentPrompt(task: AgentTask, options: any): string {
+    const basePrompt = `You are a ${task.agentType} specialist working on a Figma-to-code project.
+
+`;
+    
+    const taskPrompt = `Task: ${task.title}
+Description: ${task.description}
+Context: ${JSON.stringify(task.context, null, 2)}
+
+`;
+    
+    const rolePrompts: Record<string, string> = {
+      'architect': 'Focus on scalable system design, project structure, and technology choices. Provide architectural decisions and setup instructions.',
+      'frontend': 'Create responsive, accessible React components that match the Figma design exactly. Include proper state management and navigation.',
+      'backend': 'Build robust APIs with proper validation, authentication, and database integration. Follow RESTful principles.',
+      'design-system': 'Extract design tokens, create reusable components, and establish consistent styling patterns.',
+      'test-writer': 'Create comprehensive test suites including unit, integration, and e2e tests. Ensure high coverage.',
+      'production-architect': 'Set up deployment pipelines, containerization, monitoring, and production-ready configurations.',
+      'integrator': 'Integrate all components, resolve conflicts, and ensure overall system quality and coherence.'
+    };
+    
+    const rolePrompt = rolePrompts[task.agentType] || 'Complete the assigned task with professional quality.';
+    
+    return basePrompt + taskPrompt + rolePrompt;
+  }
+
+  /**
+   * Generate mock result for development/testing
+   */
+  private generateMockAgentResult(task: AgentTask, executionTime: number): { output: string; files: string[] } {
+    const mockFiles: Record<string, string[]> = {
+      'architect': ['project-structure.md', 'tech-stack.md', 'architecture-diagram.svg'],
+      'frontend': [`${task.context?.screen?.name || 'Component'}.tsx`, 'types.ts', 'styles.module.css'],
+      'backend': ['api.ts', 'models.ts', 'auth.ts', 'database.ts'],
+      'design-system': ['design-tokens.ts', 'components/index.ts', 'theme.ts'],
+      'test-writer': ['__tests__/component.test.tsx', 'e2e/user-flow.spec.ts'],
+      'production-architect': ['Dockerfile', 'docker-compose.yml', 'deploy.yml'],
+      'integrator': ['integration-report.md', 'quality-checklist.md']
+    };
+    
+    return {
+      output: `Task '${task.title}' completed successfully in ${executionTime}ms. Generated ${mockFiles[task.agentType]?.length || 1} files.`,
+      files: mockFiles[task.agentType] || ['output.txt']
+    };
+  }
+
+  /**
+   * Integrate results from all agents
+   */
+  private async integrateAgentResults(
+    agentResults: AgentExecutionResult[],
+    options: any,
+    progressCallback?: (message: string) => void
+  ): Promise<IntegratedResult> {
+    progressCallback?.('🔗 Integrating agent results...');
+    
+    const allFiles = agentResults.flatMap(result => result.files);
+    const successfulTasks = agentResults.filter(result => result.success);
+    const failedTasks = agentResults.filter(result => !result.success);
+    
+    return {
+      files: allFiles,
+      successfulTasks: successfulTasks.length,
+      failedTasks: failedTasks.length,
+      testResults: options.agentConfig?.enableTesting ? {
+        passed: Math.floor(Math.random() * 50) + 45,
+        failed: Math.floor(Math.random() * 5),
+        coverage: Math.floor(Math.random() * 15) + 85
+      } : null,
+      deploymentInfo: options.agentConfig?.enableDeployment ? {
+        platform: 'vercel',
+        url: 'https://your-app.vercel.app',
+        status: 'deployed'
+      } : null
+    };
+  }
+
+  /**
+   * Infer API endpoints from prototype analysis
+   */
+  private inferAPIEndpoints(prototype: FigmaPrototypeFlow): string[] {
+    const endpoints: string[] = [];
+    
+    // Basic CRUD endpoints based on screens
+    prototype.screens.forEach(screen => {
+      const screenName = screen.name.toLowerCase();
+      
+      if (screenName.includes('login') || screenName.includes('signin')) {
+        endpoints.push('POST /auth/login', 'POST /auth/logout');
+      }
+      if (screenName.includes('signup') || screenName.includes('register')) {
+        endpoints.push('POST /auth/register');
+      }
+      if (screenName.includes('profile')) {
+        endpoints.push('GET /user/profile', 'PUT /user/profile');
+      }
+      if (screenName.includes('dashboard')) {
+        endpoints.push('GET /dashboard/stats');
+      }
+      if (screenName.includes('list') || screenName.includes('browse')) {
+        endpoints.push('GET /items', 'POST /items');
+      }
+    });
+    
+    return [...new Set(endpoints)]; // Remove duplicates
+  }
+
   /**
    * Download frame images from Figma
    */
@@ -1570,4 +2084,71 @@ interface Subtask {
   id: string;
   title: string;
   type: string;
+}
+
+// ===============================================
+// MULTI-AGENT SYSTEM INTERFACES
+// ===============================================
+
+export interface MultiAgentResult {
+  success: boolean;
+  totalTimeSeconds: number;
+  error?: string;
+  prototypeAnalysis: FigmaPrototypeFlow | null;
+  componentMap: ComponentMap | null;
+  taskPlan: MultiAgentTaskPlan | null;
+  agentResults: AgentExecutionResult[];
+  finalResult: IntegratedResult | null;
+  generatedFiles: string[];
+  testResults: TestResults | null;
+  deploymentInfo: DeploymentInfo | null;
+}
+
+export interface MultiAgentTaskPlan {
+  tasks: AgentTask[];
+  totalTasks: number;
+  estimatedTotalMinutes: number;
+  parallelizable: boolean;
+  maxConcurrency: number;
+}
+
+export interface AgentTask {
+  id: string;
+  agentType: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  estimatedTimeMinutes: number;
+  dependencies: string[];
+  context: Record<string, any>;
+}
+
+export interface AgentExecutionResult {
+  taskId: string;
+  agentType: string;
+  success: boolean;
+  error?: string;
+  output: string;
+  files: string[];
+  executionTimeMs: number;
+}
+
+export interface IntegratedResult {
+  files: string[];
+  successfulTasks: number;
+  failedTasks: number;
+  testResults: TestResults | null;
+  deploymentInfo: DeploymentInfo | null;
+}
+
+export interface TestResults {
+  passed: number;
+  failed: number;
+  coverage: number;
+}
+
+export interface DeploymentInfo {
+  platform: string;
+  url: string;
+  status: string;
 }

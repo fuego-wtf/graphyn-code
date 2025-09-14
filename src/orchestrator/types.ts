@@ -64,11 +64,24 @@ export interface TaskExecution {
   id: string;
   taskId: string;
   agentType: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'in_progress' | 'blocked';
   startTime?: Date;
   endTime?: Date;
   result?: any;
   error?: string;
+  agent?: string;
+  priority?: number;
+  dependencies?: string[];
+  description?: string;
+  estimatedDuration?: number;
+  tags?: string[];
+  progress?: number;
+  logs: any[];
+  retryCount: number;
+  maxRetries: number;
+  title?: string;
+  complexity?: 'low' | 'medium' | 'high';
+  tools?: string[];
 }
 
 export interface ExecutionResults {
@@ -77,6 +90,10 @@ export interface ExecutionResults {
   errors: string[];
   totalDuration: number;
   primaryResponse?: string;
+  executionId?: string;
+  completedTasks?: TaskResult[];
+  failedTasks?: TaskResult[];
+  statistics?: any;
 }
 
 export interface TaskResult {
@@ -94,6 +111,10 @@ export interface ExecutionPlan {
   dependencies: TaskDependency[];
   estimatedDuration: number;
   parallelizable: boolean;
+  query?: string;
+  mode?: ExecutionMode;
+  confidence?: number;
+  requiredAgents?: string[];
 }
 
 export interface TaskDefinition {
@@ -105,12 +126,17 @@ export interface TaskDefinition {
   estimatedDuration: number;
   dependencies: string[];
   tools: string[];
+  agent?: string;
+  priority?: number;
+  estimatedMinutes?: number;
 }
 
 export interface TaskDependency {
   fromTask: string;
   toTask: string;
-  type: 'blocking' | 'preferred' | 'data';
+  type: 'blocking' | 'preferred' | 'data' | 'hard' | 'soft';
+  sourceTaskId?: string;
+  targetTaskId?: string;
 }
 
 export interface AgentExecutionContext {
@@ -119,6 +145,11 @@ export interface AgentExecutionContext {
   workingDirectory: string;
   currentTask?: string;
   isActive: boolean;
+  executionId?: string;
+  repositoryContext?: any;
+  otherAgents?: string[];
+  tasks?: TaskExecution[];
+  assignedTasks?: TaskExecution[];
 }
 
 export interface QueryProcessingResult {
@@ -135,6 +166,10 @@ export interface ParsedQuery {
   entities: ExtractedEntity[];
   complexity: QueryComplexity;
   agentHints: string[];
+  requiredAgents?: string[];
+  confidence?: number;
+  suggestedMode?: ExecutionMode;
+  parsed?: any;
 }
 
 export enum QueryIntent {
@@ -144,7 +179,13 @@ export enum QueryIntent {
   OPTIMIZE = 'optimize',
   DOCUMENT = 'document',
   TEST = 'test',
-  DEPLOY = 'deploy'
+  DEPLOY = 'deploy',
+  EXTRACT_FIGMA = 'extract_figma',
+  BUILD_FEATURE = 'build_feature',
+  FIX_BUG = 'fix_bug',
+  ADD_TESTS = 'add_tests',
+  REFACTOR_CODE = 'refactor_code',
+  DEPLOY_APP = 'deploy_app'
 }
 
 export enum QueryComplexity {
@@ -157,13 +198,15 @@ export enum QueryComplexity {
 export enum ExecutionMode {
   SEQUENTIAL = 'sequential',
   PARALLEL = 'parallel',
-  HYBRID = 'hybrid'
+  HYBRID = 'hybrid',
+  ADAPTIVE = 'adaptive'
 }
 
 export interface ExtractedEntity {
   type: string;
   value: string;
   confidence: number;
+  span?: number[];
 }
 
 export interface ExecutionError {
@@ -172,4 +215,34 @@ export interface ExecutionError {
   taskId?: string;
   agentType?: string;
   stack?: string;
+}
+
+// Additional types for UniversalTaskDecomposer
+export interface ExecutionGraph {
+  nodes: TaskDefinition[];
+  edges: TaskDependency[];
+  batches: TaskDefinition[][];
+}
+
+export interface TaskTemplate {
+  id: string;
+  pattern: RegExp;
+  generator: (query: string, context: any) => TaskDefinition[];
+}
+
+// Type for task status used in ConsoleOutput
+export type TaskStatus2 = 'pending' | 'running' | 'completed' | 'failed' | 'in_progress' | 'blocked';
+
+// Additional execution options
+export interface ExecutionOptions {
+  mode: ExecutionMode;
+  maxConcurrency?: number;
+  timeout?: number;
+}
+
+// Query processor configuration
+export interface QueryProcessorConfig {
+  maxComplexity: QueryComplexity;
+  defaultMode: ExecutionMode;
+  enableSpecialization?: boolean;
 }
