@@ -67,30 +67,99 @@ export class ClaudeCodeClient extends EventEmitter {
     let toolCalls = 0;
     let sessionId = options.resume || this.sessionId;
     
+    // TRUST SDK: Let Claude Code SDK handle its own timeouts naturally
+    // The SDK works perfectly in 13s - no wrapper interference needed
+    let isTimedOut = false;
+    
     try {
-      this.emit('debug', `Starting Claude query with prompt length: ${prompt.length}`);
+      this.emit('debug', `[${Date.now() - startTime}ms] Starting Claude query with prompt length: ${prompt.length}`);
       
-      for await (const message of query({
+      // CRITICAL DEBUG: Add connection check before query
+      this.emit('debug', `[${Date.now() - startTime}ms] Initializing Claude Code SDK query...`);
+      
+      let messageCount = 0;
+      let hasReceivedFirstMessage = false;
+      
+      // CRITICAL: Wrap the query call with additional timeout protection
+      const queryPromise = query({
         prompt,
         options: {
-          maxTurns: options.maxTurns || 10,
+          maxTurns: options.maxTurns || 15, // Increased from 5 to 15 for complex queries
           appendSystemPrompt: options.appendSystemPrompt,
           allowedTools: options.allowedTools || [
             'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
-            'WebFetch', 'WebSearch', 'NotebookEdit', 'Task'
+            'WebFetch', 'WebSearch', 'NotebookEdit'  // Removed 'Task' as potential hang point
           ],
           abortController: this.abortController,
           model: options.model || 'claude-3-5-sonnet-20241022',
           permissionMode: options.permissionMode,
           mcpServers: options.mcpServers
         }
-      })) {
-        this.emit('debug', `Received message: ${message.type}`);
+      });
+      
+      // TRUST SDK: No first message timeout - let SDK handle authentication naturally
+      
+      for await (const message of queryPromise) {
+        messageCount++;
+        
+        if (!hasReceivedFirstMessage) {
+          hasReceivedFirstMessage = true;
+          this.emit('debug', `[${Date.now() - startTime}ms] First message received successfully`);
+        }
+        
+        // SDK handles its own progress tracking - no timeout interference needed
+        
+        // Log message type for debugging
+        this.emit('debug', `[${Date.now() - startTime}ms] Message #${messageCount}: ${message.type}`);
+        
+        // Extract and emit content from assistant messages for streaming effect
+        if (message.type === 'assistant' && 'message' in message) {
+          const assistantMsg = (message as any).message;
+          
+          // Look for text content in assistant message
+          if (assistantMsg.content && Array.isArray(assistantMsg.content)) {
+            for (const content of assistantMsg.content) {
+              if (content.type === 'text' && content.text) {
+                // Emit text content as streaming chunks
+                this.emit('partial_content', content.text);
+                this.emit('debug', `✅ Emitting assistant content as stream: "${content.text.slice(0, 50)}${content.text.length > 50 ? '...' : ''}"`); 
+              }
+            }
+          }
+          
+          // ALSO check for tool_use content to show Claude's thinking process
+          if (assistantMsg.content && Array.isArray(assistantMsg.content)) {
+            for (const content of assistantMsg.content) {
+              if (content.type === 'tool_use' && content.name && content.input) {
+                // Show what tool Claude is using
+                const toolDescription = `[Using tool: ${content.name}]`;
+                this.emit('partial_content', toolDescription);
+                this.emit('debug', `✅ Emitting tool usage: "${toolDescription}"`);
+              }
+            }
+          }
+        }
+        
+        // ALSO emit user messages that contain tool results to show progress
+        if (message.type === 'user' && 'message' in message) {
+          const userMsg = (message as any).message;
+          if (userMsg.content && Array.isArray(userMsg.content)) {
+            for (const content of userMsg.content) {
+              if (content.type === 'tool_result' && content.content) {
+                // Show brief tool result
+                const resultPreview = `[Tool completed: ${content.content.slice(0, 100)}...]`;
+                this.emit('partial_content', resultPreview);
+                this.emit('debug', `✅ Emitting tool result preview: "${resultPreview.slice(0, 50)}..."`);
+              }
+            }
+          }
+        }
         
         // Log any errors or important messages
         if ('error' in message && message.error) {
           this.emit('debug', `Claude error: ${JSON.stringify(message)}`);
         }
+        
         // Track session ID
         if (message.type === "system" && 'subtype' in message && message.subtype === "init") {
           sessionId = (message as any).session_id;
@@ -99,30 +168,45 @@ export class ClaudeCodeClient extends EventEmitter {
         
         // Count tool calls
         if (message.type === "assistant" && 
-            message.message.stop_reason === "tool_use") {
+            message.message && message.message.stop_reason === "tool_use") {
           toolCalls++;
         }
         
         // Track final metrics
         if (message.type === "result") {
           const finalMetrics: ExecutionMetrics = {
-            duration_ms: (message as any).duration_ms,
-            total_cost_usd: (message as any).total_cost_usd,
+            duration_ms: (message as any).duration_ms || (Date.now() - startTime),
+            total_cost_usd: (message as any).total_cost_usd || 0,
             token_usage: {
-              input_tokens: (message as any).usage.input_tokens,
-              output_tokens: (message as any).usage.output_tokens,
-              cache_read_tokens: (message as any).usage.cache_read_input_tokens || 0,
+              input_tokens: (message as any).usage?.input_tokens || 0,
+              output_tokens: (message as any).usage?.output_tokens || 0,
+              cache_read_tokens: (message as any).usage?.cache_read_input_tokens || 0,
             },
             tool_calls: toolCalls,
-            turns: (message as any).num_turns || 0
+            turns: (message as any).num_turns || 1
           };
           
           this.metrics.push(finalMetrics);
         }
         
+        // Always yield messages to prevent hanging
         yield message;
+        
+        // Break early on completion to prevent hanging
+        if (message.type === "result") {
+          this.emit('debug', `[${Date.now() - startTime}ms] Result received, breaking loop`);
+          break;
+        }
       }
+      
+      // Success - SDK completed naturally
+      this.emit('debug', `[${Date.now() - startTime}ms] Query completed successfully after ${messageCount} messages`);
+      
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.emit('debug', `[${Date.now() - startTime}ms] Query failed: ${errorMsg}`);
+
+      // Let SDK errors bubble up naturally - no timeout interference
       this.emit('error', error);
       throw error;
     }

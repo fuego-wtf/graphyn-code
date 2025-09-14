@@ -18,6 +18,7 @@ import {
 } from './types.js';
 import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
 import { AgentOrchestrator } from './AgentOrchestrator.js';
+import { specializationEngine } from '../engines/SpecializationEngine.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -28,6 +29,8 @@ export interface ExecutionContext {
     readme?: string;
     structure?: string[];
   };
+  projectContext?: any; // From specialization engine
+  specializedAgents?: any[]; // Dynamic agents from specialization
 }
 
 /**
@@ -39,6 +42,20 @@ export class RealTimeExecutor extends EventEmitter {
   private activeProcesses = new Map<string, ChildProcess>();
   private taskResults = new Map<string, TaskResult>();
   private agentOrchestrator: AgentOrchestrator;
+  
+  // NEW: Performance optimization caches
+  private repositoryContextCache = new Map<string, { context: any; timestamp: number; ttl: number }>();
+  private directoryStructureCache = new Map<string, { structure: { files: string[]; count: number }; timestamp: number; ttl: number }>();
+  private readonly CONTEXT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly STRUCTURE_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+  
+  // NEW: Performance metrics
+  private performanceMetrics = {
+    contextBuildTime: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    lastOptimization: 0
+  };
 
   constructor(agentsPath?: string) {
     super();
@@ -62,6 +79,25 @@ export class RealTimeExecutor extends EventEmitter {
           `Agent retry (attempt ${attempt + 1}): ${error.message}`, 
           'progress'
         );
+      });
+    }
+
+    // Handle streaming content events
+    if (this.agentOrchestrator.listenerCount('streaming_content') === 0) {
+      this.agentOrchestrator.on('streaming_content', (text) => {
+        this.emit('streaming_content', text);
+      });
+    }
+
+    if (this.agentOrchestrator.listenerCount('thinking_start') === 0) {
+      this.agentOrchestrator.on('thinking_start', () => {
+        this.emit('thinking_start');
+      });
+    }
+
+    if (this.agentOrchestrator.listenerCount('thinking_end') === 0) {
+      this.agentOrchestrator.on('thinking_end', () => {
+        this.emit('thinking_end');
       });
     }
   }
@@ -90,12 +126,93 @@ export class RealTimeExecutor extends EventEmitter {
       // Start streaming
       yield { type: 'start', data: { query, timestamp: startTime } };
 
-      // Build repository context
-      yield { type: 'context', data: { message: 'Building repository context...' } };
-      const repositoryContext = await this.buildRepositoryContext(context.workingDirectory);
+      // PHASE 1: Project Analysis with SpecializationEngine
+      yield { type: 'context', data: { message: '🔍 Deep project analysis with dynamic agents...' } };
       
-      // Stream through orchestrator
-      for await (const event of this.agentOrchestrator.executeQueryStream(query, repositoryContext, options)) {
+      let projectAnalysis = null;
+      let specializedAgents: any[] = [];
+      
+      // Use specialization engine if provided in context, otherwise use existing context
+      if (context.projectContext && context.specializedAgents) {
+        // Already analyzed by UnifiedGraphynCLI
+        projectAnalysis = context.projectContext;
+        specializedAgents = context.specializedAgents;
+        
+        yield {
+          type: 'analysis',
+          data: {
+            message: `🤖 Using ${specializedAgents.length} specialized agents`,
+            stage: 'agent-selection'
+          }
+        };
+      } else {
+        // Fallback to repository context building
+        const repositoryContextPromise = this.buildRepositoryContext(context.workingDirectory);
+        const repositoryContext = await repositoryContextPromise;
+        
+        // Try to use specialization engine for dynamic analysis
+        try {
+          yield { type: 'context', data: { message: '🧬 Creating specialized agents for your project...' } };
+          
+          projectAnalysis = await specializationEngine.analyzeProject(context.workingDirectory);
+          specializedAgents = await specializationEngine.createSpecializedAgents(projectAnalysis, query);
+          
+          if (specializedAgents.length > 0) {
+            yield {
+              type: 'analysis',
+              data: {
+                message: `🚀 Created ${specializedAgents.length} specialized agents`,
+                stage: 'specialization-complete'
+              }
+            };
+          } else {
+            // Fallback to regular orchestration
+            yield { type: 'context', data: { message: '🔄 Using standard agent orchestration...' } };
+          }
+        } catch (error) {
+          // Fallback to existing repository context
+          console.warn('Specialization engine failed, using standard orchestration:', error);
+          yield { type: 'context', data: { message: '🔄 Using standard orchestration (specialization unavailable)...' } };
+        }
+      }
+      
+      // Show project info
+      const projectName = projectAnalysis?.repository?.name || context.repositoryContext?.packageJson?.name || 'Unknown';
+      const techStack = projectAnalysis?.technologies?.map((t: any) => t.name).join(', ') || 'JavaScript';
+      
+      yield { 
+        type: 'context', 
+        data: { 
+          message: `📋 Project: ${projectName} (${techStack}) - executing with specialized agents...` 
+        } 
+      };
+      
+      // Stream through orchestrator with appropriate context
+      const orchestrationContext = projectAnalysis || await this.buildRepositoryContext(context.workingDirectory);
+      
+      // Extract MCP servers from specialized agents if available
+      let mcpServers: Record<string, any> | undefined;
+      if (context.specializedAgents && context.specializedAgents.length > 0) {
+        // Use MCP servers from the first specialized agent (they should be similar across agents)
+        mcpServers = context.specializedAgents[0].mcp_servers;
+        
+        if (mcpServers && Object.keys(mcpServers).length > 0) {
+          yield {
+            type: 'context',
+            data: {
+              message: `🔌 Using ${Object.keys(mcpServers).length} MCP servers: ${Object.keys(mcpServers).join(', ')}`
+            }
+          };
+        }
+      }
+      
+      // Pass MCP servers to orchestrator context
+      const enhancedContext = {
+        ...orchestrationContext,
+        mcpServers
+      };
+      
+      for await (const event of this.agentOrchestrator.executeQueryStream(query, enhancedContext, options)) {
         yield event;
       }
       
@@ -146,16 +263,18 @@ export class RealTimeExecutor extends EventEmitter {
       if (orchestrationResult.success) {
         return {
           success: true,
+          results: [],
+          errors: [],
+          totalDuration,
           executionId: `exec-${Date.now()}`,
           completedTasks: [{
             taskId: 'orchestrated-response',
             agentType: 'assistant', // Map to compatible type
+            success: true,
             result: this.formatOrchestrationResponse(orchestrationResult),
-            duration: totalDuration,
-            timestamp: new Date()
+            duration: totalDuration
           }],
           failedTasks: [],
-          totalDuration,
           statistics: {
             totalTasks: orchestrationResult.agentsUsed.length,
             completedTasks: orchestrationResult.agentsUsed.length,
@@ -170,16 +289,18 @@ export class RealTimeExecutor extends EventEmitter {
       } else {
         return {
           success: false,
+          results: [],
+          errors: [orchestrationResult.error || 'Unknown orchestration error'],
+          totalDuration,
           executionId: `exec-${Date.now()}`,
           completedTasks: [],
           failedTasks: [{
             taskId: 'orchestrated-response',
             agentType: 'assistant',
+            success: false,
             error: orchestrationResult.error || 'Unknown orchestration error',
-            duration: totalDuration,
-            timestamp: new Date()
+            duration: totalDuration
           }],
-          totalDuration,
           statistics: {
             totalTasks: 1,
             completedTasks: 0,
@@ -223,7 +344,7 @@ export class RealTimeExecutor extends EventEmitter {
   }
 
   /**
-   * Build repository context for Claude
+   * Build repository context for Claude (OPTIMIZED: Minimal context for speed)
    */
   private async buildRepositoryContext(workingDirectory: string): Promise<{
     packageJson?: any;
@@ -233,6 +354,20 @@ export class RealTimeExecutor extends EventEmitter {
     hasTypeScript: boolean;
     hasTests: boolean;
   }> {
+    const contextStartTime = Date.now();
+    const cacheKey = workingDirectory;
+    
+    // NEW: Check cache first
+    const cachedContext = this.repositoryContextCache.get(cacheKey);
+    if (cachedContext && (Date.now() - cachedContext.timestamp < cachedContext.ttl)) {
+      this.performanceMetrics.cacheHits++;
+      this.performanceMetrics.contextBuildTime = Date.now() - contextStartTime;
+      return cachedContext.context;
+    }
+
+    this.performanceMetrics.cacheMisses++;
+
+    // OPTIMIZATION: Start with minimal context that won't slow down queries
     const context: any = {
       structure: [],
       fileCount: 0,
@@ -241,65 +376,135 @@ export class RealTimeExecutor extends EventEmitter {
     };
 
     try {
-      // Read package.json if it exists
-      try {
-        const packageJsonPath = path.join(workingDirectory, 'package.json');
-        const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-        context.packageJson = JSON.parse(packageJsonContent);
-      } catch (error) {
-        // No package.json or invalid JSON
+      // OPTIMIZATION: Only get essential info - packageJson and basic structure
+      // Skip README for speed (it's often large and not essential for most queries)
+      const [packageJsonResult, structureResult] = await Promise.allSettled([
+        this.readPackageJson(workingDirectory),
+        this.buildDirectoryStructure(workingDirectory, 1) // Reduced depth from 2 to 1
+      ]);
+
+      // Process packageJson result
+      if (packageJsonResult.status === 'fulfilled' && packageJsonResult.value) {
+        // OPTIMIZATION: Only keep essential package.json fields
+        const pkg = packageJsonResult.value;
+        context.packageJson = {
+          name: pkg.name,
+          description: pkg.description,
+          version: pkg.version,
+          main: pkg.main,
+          type: pkg.type,
+          // Only keep first 5 scripts and dependencies for brevity
+          scripts: pkg.scripts ? Object.fromEntries(
+            Object.entries(pkg.scripts).slice(0, 5)
+          ) : undefined,
+          dependencies: pkg.dependencies ? Object.fromEntries(
+            Object.entries(pkg.dependencies).slice(0, 10)
+          ) : undefined
+        };
       }
 
-      // Read README if it exists
-      try {
-        const readmePath = path.join(workingDirectory, 'README.md');
-        context.readme = await fs.readFile(readmePath, 'utf-8');
-      } catch (error) {
-        // No README
-      }
-
-      // Build directory structure (limited depth to avoid overwhelming Claude)
-      try {
-        const structure = await this.buildDirectoryStructure(workingDirectory, 2);
-        context.structure = structure.files;
+      // Process structure result - keep it very minimal
+      if (structureResult.status === 'fulfilled') {
+        const structure = structureResult.value;
+        // OPTIMIZATION: Only show top-level structure + key files
+        context.structure = structure.files.slice(0, 15); // Reduced from 50 to 15
         context.fileCount = structure.count;
         context.hasTypeScript = structure.files.some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
         context.hasTests = structure.files.some(f => f.includes('test') || f.includes('spec'));
-      } catch (error) {
+      } else {
         // Fallback to basic info
         context.structure = ['Unable to scan directory structure'];
       }
 
     } catch (error) {
-      // Fallback context
+      // Fallback context - keep it minimal
       context.structure = ['Error reading repository context'];
     }
 
+    // NEW: Cache the result
+    this.repositoryContextCache.set(cacheKey, {
+      context: { ...context },
+      timestamp: Date.now(),
+      ttl: this.CONTEXT_CACHE_TTL
+    });
+
+    // NEW: Clean expired cache entries periodically
+    this.cleanExpiredCacheEntries();
+
+    this.performanceMetrics.contextBuildTime = Date.now() - contextStartTime;
     return context;
   }
 
   /**
-   * Build directory structure for Claude context
+   * NEW: Optimized package.json reading
+   */
+  private async readPackageJson(workingDirectory: string): Promise<any | null> {
+    try {
+      const packageJsonPath = path.join(workingDirectory, 'package.json');
+      const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+      return JSON.parse(packageJsonContent);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * NEW: Optimized README reading  
+   */
+  private async readReadme(workingDirectory: string): Promise<string | null> {
+    try {
+      const readmePath = path.join(workingDirectory, 'README.md');
+      return await fs.readFile(readmePath, 'utf-8');
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Build directory structure for Claude context (NEW: with caching and optimization)
    */
   private async buildDirectoryStructure(dirPath: string, maxDepth: number): Promise<{
     files: string[];
     count: number;
   }> {
+    const cacheKey = `${dirPath}:${maxDepth}`;
+    
+    // NEW: Check cache first
+    const cachedStructure = this.directoryStructureCache.get(cacheKey);
+    if (cachedStructure && (Date.now() - cachedStructure.timestamp < cachedStructure.ttl)) {
+      return cachedStructure.structure;
+    }
+
     const files: string[] = [];
     let count = 0;
+    
+    // NEW: Optimized skip patterns for better performance
+    const skipPatterns = new Set([
+      'node_modules', '.git', 'dist', 'build', 'coverage', '.next', 
+      '.nuxt', '.svelte-kit', 'target', 'out', 'tmp', 'temp', '.cache',
+      'logs', '.DS_Store', 'Thumbs.db'
+    ]);
 
-    async function scanDir(currentPath: string, currentDepth: number, relativePath = ''): Promise<void> {
-      if (currentDepth > maxDepth) return;
+    // NEW: Use iterative approach with queue instead of recursion for better memory usage
+    const queue: Array<{ path: string; depth: number; relativePath: string }> = [
+      { path: dirPath, depth: 0, relativePath: '' }
+    ];
+
+    while (queue.length > 0 && files.length < 100) { // Increased limit but with hard stop
+      const { path: currentPath, depth: currentDepth, relativePath } = queue.shift()!;
+      
+      if (currentDepth > maxDepth) continue;
 
       try {
         const entries = await fs.readdir(currentPath, { withFileTypes: true });
         
+        // NEW: Process directories and files separately for better performance
+        const directories: Array<{ name: string; fullPath: string; relativeFilePath: string }> = [];
+        const regularFiles: Array<{ name: string; relativeFilePath: string }> = [];
+
         for (const entry of entries) {
-          // Skip common directories that aren't useful for Claude
-          if (entry.name.startsWith('.') || 
-              entry.name === 'node_modules' || 
-              entry.name === 'dist' || 
-              entry.name === 'build') {
+          // NEW: Early skip for better performance
+          if (entry.name.startsWith('.') || skipPatterns.has(entry.name)) {
             continue;
           }
 
@@ -307,20 +512,103 @@ export class RealTimeExecutor extends EventEmitter {
           const relativeFilePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
 
           if (entry.isDirectory()) {
-            files.push(`${relativeFilePath}/`);
-            await scanDir(fullPath, currentDepth + 1, relativeFilePath);
+            directories.push({ name: entry.name, fullPath, relativeFilePath });
           } else {
-            files.push(relativeFilePath);
-            count++;
+            regularFiles.push({ name: entry.name, relativeFilePath });
           }
         }
+
+        // Add regular files first
+        for (const file of regularFiles) {
+          files.push(file.relativeFilePath);
+          count++;
+        }
+
+        // Add directories and queue them for scanning
+        for (const dir of directories) {
+          files.push(`${dir.relativeFilePath}/`);
+          if (currentDepth < maxDepth) {
+            queue.push({
+              path: dir.fullPath,
+              depth: currentDepth + 1,
+              relativePath: dir.relativeFilePath
+            });
+          }
+        }
+
       } catch (error) {
         // Skip directories we can't read
       }
     }
 
-    await scanDir(dirPath, 0);
-    return { files: files.slice(0, 50), count }; // Limit to 50 entries
+    const result = { files: files.slice(0, 50), count }; // Keep reasonable limit
+    
+    // NEW: Cache the result
+    this.directoryStructureCache.set(cacheKey, {
+      structure: result,
+      timestamp: Date.now(),
+      ttl: this.STRUCTURE_CACHE_TTL
+    });
+
+    return result;
+  }
+
+  /**
+   * NEW: Clean expired cache entries for memory management
+   */
+  private cleanExpiredCacheEntries(): void {
+    const now = Date.now();
+    
+    // Clean repository context cache
+    for (const [key, cached] of this.repositoryContextCache.entries()) {
+      if (now - cached.timestamp >= cached.ttl) {
+        this.repositoryContextCache.delete(key);
+      }
+    }
+
+    // Clean directory structure cache  
+    for (const [key, cached] of this.directoryStructureCache.entries()) {
+      if (now - cached.timestamp >= cached.ttl) {
+        this.directoryStructureCache.delete(key);
+      }
+    }
+
+    this.performanceMetrics.lastOptimization = now;
+  }
+
+  /**
+   * NEW: Get performance metrics for monitoring
+   */
+  getPerformanceMetrics(): {
+    contextBuildTime: number;
+    cacheHits: number;
+    cacheMisses: number;
+    cacheHitRatio: number;
+    repositoryCacheSize: number;
+    structureCacheSize: number;
+    lastOptimization: number;
+  } {
+    const totalRequests = this.performanceMetrics.cacheHits + this.performanceMetrics.cacheMisses;
+    return {
+      ...this.performanceMetrics,
+      cacheHitRatio: totalRequests > 0 ? this.performanceMetrics.cacheHits / totalRequests : 0,
+      repositoryCacheSize: this.repositoryContextCache.size,
+      structureCacheSize: this.directoryStructureCache.size
+    };
+  }
+
+  /**
+   * NEW: Clear all caches manually if needed
+   */
+  clearPerformanceCache(): void {
+    this.repositoryContextCache.clear();
+    this.directoryStructureCache.clear();
+    this.performanceMetrics = {
+      contextBuildTime: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      lastOptimization: Date.now()
+    };
   }
 
   /**
@@ -432,6 +720,9 @@ Do not provide generic advice - tailor your response to this specific repository
     
     // Cleanup agent orchestrator
     await this.agentOrchestrator.cleanup();
+    
+    // NEW: Clear performance caches
+    this.clearPerformanceCache();
     
     this.activeProcesses.clear();
     this.taskResults.clear();

@@ -1,0 +1,39 @@
+{
+  "id": "frontend-1757805036470",
+  "name": "Frontend Developer",
+  "type": "frontend",
+  "description": "Creates user interfaces and client-side functionality",
+  "basePrompt": "You are a frontend developer specializing in user interfaces, user experience, and client-side development. You excel at creating responsive, accessible, and performant web interfaces. You understand modern frontend frameworks, state management, and browser optimization.",
+  "specializations": [],
+  "defaultCapabilities": [
+    {
+      "name": "Component Development",
+      "description": "Create reusable UI components",
+      "proficiency": "expert"
+    },
+    {
+      "name": "State Management",
+      "description": "Implement application state management",
+      "proficiency": "intermediate"
+    },
+    {
+      "name": "Performance Optimization",
+      "description": "Optimize frontend performance",
+      "proficiency": "intermediate"
+    }
+  ],
+  "config": {
+    "maxConcurrency": 1,
+    "timeout": 300000,
+    "retryAttempts": 3,
+    "priority": 1
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "dynamic",
+    "tags": [
+      "frontend"
+    ],
+    "lastUpdated": "2025-09-13T23:10:36.470Z"
+  }
+}

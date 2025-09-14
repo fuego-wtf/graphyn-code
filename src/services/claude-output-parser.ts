@@ -40,7 +40,7 @@ export class ClaudeOutputParser {
       console.error(chalk.gray('Raw output:'), claudeOutput.substring(0, 500) + '...');
       
       // Throw error instead of using fallback
-      throw new Error(`Failed to parse task output from Claude: ${error.message}`);
+      throw new Error(`Failed to parse task output from Claude: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -50,7 +50,7 @@ export class ClaudeOutputParser {
     try {
       rawTasks = JSON.parse(jsonString);
     } catch (error) {
-      throw new Error(`Invalid JSON: ${error.message}`);
+      throw new Error(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
     
     if (!Array.isArray(rawTasks)) {

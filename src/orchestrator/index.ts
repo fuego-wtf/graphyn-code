@@ -1,285 +1,179 @@
 /**
- * Multi-Agent Orchestrator - Main Exports
- * 
- * A sophisticated system for coordinating multiple Claude Code sessions
- * to work together on complex development tasks.
+ * Ultimate Orchestration Platform - Main Exports
+ * All exports follow proper TypeScript naming conventions
+ * - Classes: PascalCase
+ * - Interfaces: PascalCase (no I prefix)
+ * - Functions: camelCase
+ * - Constants: UPPER_CASE
+ * - Enums: PascalCase with UPPER_CASE members
  */
 
-// Main orchestrator
-export {
-  MultiAgentOrchestrator,
-  type Task,
-  type OrchestrationRequest,
-  type OrchestrationResult
-} from './multi-agent-orchestrator.js';
+// Main orchestrator class - now with proper naming
+export { UltimateOrchestrator } from './UltimateOrchestrator.js';
 
-// Graph-Neural Coordination System
-export {
-  GraphNeuralSystem,
-  GraphFlowEngine,
-  GraphBuilder,
-  InputEnricher,
-  OutputPropagator,
-  createGraphNeuralExample,
-  type GraphNeuralRequest,
-  type GraphNeuralResult,
-  type GraphNeuralProgress,
-  type ExecutionGraph,
-  type GraphNode,
-  type GraphBuilderRequest,
-  type EnrichmentContext,
-  type EnrichedPrompt,
-  type ParsedOutput,
-  type PropagationResult
-} from './graph-neural-system.js';
+// Core supporting classes - PascalCase
+export { TaskDecomposer } from './TaskDecomposer.js';
+export { AgentSessionManager } from './AgentSessionManager.js';
+export { GitWorktreeManager } from './GitWorktreeManager.js';
 
-// Import for local use
-import { MultiAgentOrchestrator } from './multi-agent-orchestrator.js';
-import { GraphNeuralSystem } from './graph-neural-system.js';
+// Import for factory functions
+import { UltimateOrchestrator } from './UltimateOrchestrator.js';
+import { TaskDecomposer } from './TaskDecomposer.js';
+import { AgentSessionManager } from './AgentSessionManager.js';
+import { GitWorktreeManager } from './GitWorktreeManager.js';
+import { TaskComplexity, AgentState, TaskStatus } from './types.js';
+import {
+  MAX_PARALLEL_AGENTS,
+  DEFAULT_TIMEOUT_MS,
+  REPOSITORY_ANALYSIS_TARGET_MS,
+  MEMORY_LIMIT_MB,
+  UI_RESPONSE_TARGET_MS
+} from './constants.js';
 
-// Component systems
-export {
-  AgentSpawnManager,
-  type AgentSession,
-  type WorkspaceContext
-} from './agent-spawn-manager.js';
-
-export {
-  TaskDistributor,
-  type TaskDependency
-} from './task-distributor.js';
-
-export {
-  InterAgentCommunicationBus,
-  type AgentMessage,
-  type MessageHandler,
-  type AgentContext
-} from './communication-bus.js';
-
-export {
-  ExecutionCoordinator,
-  type ExecutionSession,
-  type TaskExecution,
-  type DependencyGraph
-} from './execution-coordinator.js';
-
-export {
-  ProgressTracker,
-  type ProgressState,
-  type AgentProgress,
-  type TaskProgress
-} from './progress-tracker.js';
-
-// Convenience re-exports for common usage patterns
+// Type exports - PascalCase interfaces, no I prefix
 export type {
-  // Request types
-  OrchestrationRequest as Request,
-  OrchestrationResult as Result,
-  
-  // Task types  
-  Task as AgentTask
-} from './multi-agent-orchestrator.js';
+  TaskNode,
+  AgentPersona,
+  AgentSession,
+  AgentPerformanceMetrics,
+  ExecutionGraph,
+  OrchestrationResult,
+  OrchestrationPerformanceMetrics,
+  GitWorktreeInfo,
+  UiState,
+  PendingApproval,
+  AgentAssignment,
+  StreamingMessage,
+  MessageMetadata,
+  TaskResult,
+  TaskError,
+  TaskMetadata,
+  DeepReadonly,
+  RequiredFields,
+  OptionalFields
+} from './types.js';
 
-export type {
-  TaskDependency as Dependency
-} from './task-distributor.js';
+// Enum exports - PascalCase with UPPER_CASE members
+export {
+  TaskStatus,
+  TaskPriority,
+  AgentState,
+  TaskComplexity,
+  InteractionMode,
+  MessageType
+} from './types.js';
 
+// Type aliases - PascalCase, no T prefix
 export type {
-  TaskExecution as Execution
-} from './execution-coordinator.js';
+  AgentCapabilityScore,
+  TaskDependencyGraph,
+  AgentWorkloadMap,
+  ExecutionPlan,
+  AgentSessionMap
+} from './types.js';
 
-export type {
-  AgentMessage as Message,
-  AgentContext as Context
-} from './communication-bus.js';
+// Constants - UPPER_CASE
+export {
+  DEFAULT_TIMEOUT_MS,
+  MAX_CLAUDE_SESSIONS,
+  TASK_COMPLETION_TARGET_MS,
+  REPOSITORY_ANALYSIS_TARGET_MS,
+  UI_RESPONSE_TARGET_MS,
+  MEMORY_LIMIT_MB,
+  AGENT_ROLES,
+  MAX_PARALLEL_AGENTS,
+  DEFAULT_AGENT_CONCURRENCY,
+  WORKTREE_PREFIX,
+  BRANCH_PREFIX,
+  STREAMING_OUTPUT_PERCENTAGE,
+  APPROVAL_WORKFLOW_PERCENTAGE,
+  PERSISTENT_INPUT_PERCENTAGE,
+  GRAPHYN_CONFIG_DIR,
+  PLAN_FILENAME,
+  CONTEXT_FILENAME,
+  PROGRESS_FILENAME,
+  EVENTS_FILENAME,
+  COMMIT_MESSAGE_PREFIX,
+  PR_TITLE_PREFIX,
+  MAIN_BRANCH,
+  ERROR_MESSAGES
+} from './constants.js';
 
-export type {
-  ProgressState as Progress,
-  AgentProgress as AgentStatus
-} from './progress-tracker.js';
+// Additional exports from supporting classes
+export type { SessionMetrics } from './AgentSessionManager.js';
+export type { WorktreeStatus } from './GitWorktreeManager.js';
 
 /**
- * Create a new multi-agent orchestrator instance
- * 
- * @example
- * ```typescript
- * import { createOrchestrator } from '@graphyn/code/orchestrator';
- * 
- * const orchestrator = createOrchestrator();
- * 
- * const taskId = await orchestrator.orchestrate({
- *   query: "Build a user authentication system",
- *   context: { repository: "/path/to/project" },
- *   agents: ["architect", "backend", "frontend"],
- *   mode: "adaptive"
- * });
- * ```
+ * Factory functions for external consumption - camelCase
+ * Provides clean API while keeping class names internal
  */
-export function createOrchestrator() {
-  return new MultiAgentOrchestrator();
+export function createUltimateOrchestrator(): UltimateOrchestrator {
+  return new UltimateOrchestrator();
+}
+
+export function createTaskDecomposer(): TaskDecomposer {
+  return new TaskDecomposer();
+}
+
+export function createAgentSessionManager(): AgentSessionManager {
+  return new AgentSessionManager();
+}
+
+export function createGitWorktreeManager(repositoryRoot?: string): GitWorktreeManager {
+  return new GitWorktreeManager(repositoryRoot);
 }
 
 /**
- * Create a new graph-neural coordination system
- * 
- * @example
- * ```typescript
- * import { createGraphNeuralSystem } from '@graphyn/code/orchestrator';
- * 
- * const system = createGraphNeuralSystem();
- * 
- * const result = await system.execute({
- *   query: "Build e-commerce checkout flow",
- *   context: { repository: "/path/to/project", framework: "Next.js" },
- *   options: { mode: "neural", parallelismLevel: "high" }
- * });
- * ```
+ * Utility functions - camelCase
  */
-export function createGraphNeuralSystem(basePath?: string) {
-  return new GraphNeuralSystem(basePath);
+export function validateTaskComplexity(complexity: string): complexity is TaskComplexity {
+  return Object.values(TaskComplexity).includes(complexity as TaskComplexity);
+}
+
+export function validateAgentState(state: string): state is AgentState {
+  return Object.values(AgentState).includes(state as AgentState);
+}
+
+export function validateTaskStatus(status: string): status is TaskStatus {
+  return Object.values(TaskStatus).includes(status as TaskStatus);
 }
 
 /**
- * Available agent types for orchestration
+ * Available agent types - PascalCase enum with camelCase values
  */
 export const AVAILABLE_AGENTS = [
   'architect',
-  'backend', 
+  'backend',
   'frontend',
-  'test-writer',
-  'design',
-  'cli',
-  'pr-merger',
-  'task-dispatcher',
-  'production-architect'
+  'tester',
+  'devops',
+  'security',
+  'researcher',
+  'assistant'
 ] as const;
 
 export type AgentType = typeof AVAILABLE_AGENTS[number];
 
 /**
- * Available execution modes
+ * Version information - UPPER_CASE constants
  */
-export const EXECUTION_MODES = [
-  'sequential',
-  'parallel', 
-  'adaptive'
-] as const;
-
-export type ExecutionMode = typeof EXECUTION_MODES[number];
+export const ORCHESTRATOR_VERSION = '1.0.0';
+export const SUPPORTED_CLAUDE_VERSION = '^1.0.108';
 
 /**
- * Task status types
+ * Default configuration - UPPER_CASE constant with camelCase properties
  */
-export const TASK_STATUSES = [
-  'pending',
-  'in_progress',
-  'completed',
-  'failed',
-  'blocked'
-] as const;
-
-export type TaskStatus = typeof TASK_STATUSES[number];
-
-/**
- * Helper function to create a basic orchestration request
- * 
- * @param query - Natural language description of what to build
- * @param repository - Path to the project repository  
- * @param agents - Which agents to involve (optional, will be auto-detected)
- * @param mode - Execution mode (default: 'adaptive')
- * @returns OrchestrationRequest ready to be executed
- * 
- * @example
- * ```typescript
- * const request = createRequest(
- *   "Build a REST API for user management",
- *   "/path/to/project",
- *   ["architect", "backend", "test-writer"]
- * );
- * 
- * const taskId = await orchestrator.orchestrate(request);
- * ```
- */
-export function createRequest(
-  query: string,
-  repository: string,
-  agents?: AgentType[],
-  mode: ExecutionMode = 'adaptive'
-) {
-  return {
-    query,
-    context: {
-      repository,
-      // Auto-detect framework and language based on repository
-      // This would be enhanced with actual detection logic
-    },
-    agents: agents || ['task-dispatcher'], // Let task dispatcher decide if no agents specified
-    mode
-  };
-}
+export const DEFAULT_ORCHESTRATOR_CONFIG = {
+  maxParallelAgents: MAX_PARALLEL_AGENTS,
+  taskTimeoutMs: DEFAULT_TIMEOUT_MS,
+  repositoryAnalysisTargetMs: REPOSITORY_ANALYSIS_TARGET_MS,
+  memoryLimitMb: MEMORY_LIMIT_MB,
+  enableAutoCommit: true,
+  enableAutoMerge: false,
+  uiResponseTargetMs: UI_RESPONSE_TARGET_MS
+} as const;
 
 /**
- * Helper function to create a full-stack request
+ * Default export - PascalCase class
  */
-export function createFullStackRequest(
-  query: string,
-  repository: string,
-  framework?: string,
-  mode: ExecutionMode = 'adaptive'
-) {
-  return {
-    query,
-    context: {
-      repository,
-      framework,
-      language: 'TypeScript' // Default assumption
-    },
-    agents: ['architect', 'backend', 'frontend', 'test-writer', 'production-architect'],
-    mode
-  };
-}
-
-/**
- * Helper function to create a backend-only request
- */
-export function createBackendRequest(
-  query: string,
-  repository: string,
-  mode: ExecutionMode = 'sequential'
-) {
-  return {
-    query,
-    context: {
-      repository,
-      language: 'TypeScript'
-    },
-    agents: ['architect', 'backend', 'test-writer'],
-    mode
-  };
-}
-
-/**
- * Helper function to create a frontend-only request
- */
-export function createFrontendRequest(
-  query: string,
-  repository: string,
-  framework?: string,
-  mode: ExecutionMode = 'sequential'
-) {
-  return {
-    query,
-    context: {
-      repository,
-      framework,
-      language: 'TypeScript'
-    },
-    agents: ['design', 'frontend', 'test-writer'],
-    mode
-  };
-}
-
-/**
- * Default export for convenience
- */
-export { MultiAgentOrchestrator as default };
+export { UltimateOrchestrator as default };

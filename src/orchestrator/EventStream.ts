@@ -383,7 +383,7 @@ export function createTaskEvent(
     type,
     source,
     taskId: task.id,
-    agent: task.agent,
+    agent: (task.agent || task.agentType || 'task-dispatcher') as AgentType,
     data,
   };
 }

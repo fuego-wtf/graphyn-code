@@ -46,81 +46,81 @@ const DEFAULT_PATTERNS: readonly QueryPattern[] = [
   // Figma integration patterns (preserved functionality)
   {
     pattern: /figma|design|extract|component|ui/i,
-    intent: 'extract_figma',
+    intent: QueryIntent.EXTRACT_FIGMA,
     agents: ['figma-extractor', 'design', 'frontend'],
-    complexity: 'moderate',
+    complexity: QueryComplexity.MODERATE,
     confidence: 0.9
   },
   
   // Full-stack application patterns
   {
     pattern: /build.*(app|application|system)|full.?stack|end.?to.?end/i,
-    intent: 'build_feature',
+    intent: QueryIntent.BUILD_FEATURE,
     agents: ['architect', 'backend', 'frontend', 'test-writer', 'production-architect'],
-    complexity: 'enterprise',
+    complexity: QueryComplexity.ENTERPRISE,
     confidence: 0.95
   },
   
   // Backend development patterns
   {
     pattern: /api|backend|server|database|microservice/i,
-    intent: 'build_feature',
+    intent: QueryIntent.BUILD_FEATURE,
     agents: ['architect', 'backend', 'test-writer'],
-    complexity: 'moderate',
+    complexity: QueryComplexity.MODERATE,
     confidence: 0.85
   },
   
   // Frontend development patterns
   {
     pattern: /frontend|ui|interface|component|react|vue|angular/i,
-    intent: 'build_feature',
+    intent: QueryIntent.BUILD_FEATURE,
     agents: ['design', 'frontend', 'test-writer'],
-    complexity: 'moderate',
+    complexity: QueryComplexity.MODERATE,
     confidence: 0.8
   },
   
   // Bug fixing patterns
   {
     pattern: /fix|bug|error|issue|problem|debug/i,
-    intent: 'fix_bug',
+    intent: QueryIntent.FIX_BUG,
     agents: ['task-dispatcher'], // Let dispatcher analyze the bug
-    complexity: 'simple',
+    complexity: QueryComplexity.SIMPLE,
     confidence: 0.7
   },
   
   // Testing patterns
   {
     pattern: /test|spec|unit|integration|e2e|coverage/i,
-    intent: 'add_tests',
+    intent: QueryIntent.ADD_TESTS,
     agents: ['test-writer', 'backend', 'frontend'],
-    complexity: 'moderate',
+    complexity: QueryComplexity.MODERATE,
     confidence: 0.9
   },
   
   // Refactoring patterns
   {
     pattern: /refactor|optimize|improve|clean|reorganize/i,
-    intent: 'refactor_code',
+    intent: QueryIntent.REFACTOR_CODE,
     agents: ['architect', 'backend', 'frontend'],
-    complexity: 'complex',
+    complexity: QueryComplexity.COMPLEX,
     confidence: 0.8
   },
   
   // Deployment patterns
   {
     pattern: /deploy|deployment|production|release|ci\/cd|docker|kubernetes/i,
-    intent: 'deploy_app',
+    intent: QueryIntent.DEPLOY_APP,
     agents: ['production-architect', 'backend'],
-    complexity: 'complex',
+    complexity: QueryComplexity.COMPLEX,
     confidence: 0.9
   },
   
   // CLI tooling patterns
   {
     pattern: /cli|command.?line|tool|script|automation/i,
-    intent: 'build_feature',
+    intent: QueryIntent.BUILD_FEATURE,
     agents: ['cli', 'test-writer'],
-    complexity: 'moderate',
+    complexity: QueryComplexity.MODERATE,
     confidence: 0.85
   }
 ];
@@ -168,8 +168,8 @@ export class QueryProcessor {
 
   constructor(config?: Partial<QueryProcessorConfig>) {
     this.config = {
-      maxComplexity: 'enterprise',
-      defaultMode: 'adaptive',
+      maxComplexity: QueryComplexity.ENTERPRISE,
+      defaultMode: ExecutionMode.ADAPTIVE,
       enableFigmaDetection: true,
       ...config
     };
@@ -188,11 +188,11 @@ export class QueryProcessor {
     const executionPlan = await this.generateExecutionPlan(parsed, workspaceContext);
     
     return {
-      parsed,
+      query: parsed.originalQuery,
+      intent: parsed.intent,
+      complexity: parsed.complexity,
       executionPlan,
-      recommendations: this.generateRecommendations(parsed, executionPlan),
-      warnings: this.generateWarnings(parsed, executionPlan),
-      estimatedCost: this.estimateCost(executionPlan)
+      confidence: parsed.confidence || 0.8
     };
   }
 
@@ -215,10 +215,11 @@ export class QueryProcessor {
       originalQuery: query,
       intent,
       entities,
-      requiredAgents: agents,
-      suggestedMode,
       complexity,
-      confidence
+      agentHints: agents,
+      requiredAgents: agents,
+      confidence,
+      suggestedMode
     };
   }
 
@@ -254,10 +255,10 @@ export class QueryProcessor {
     }
     
     // Map score to complexity level
-    if (complexityScore >= 6) return 'enterprise';
-    if (complexityScore >= 4) return 'complex';
-    if (complexityScore >= 2) return 'moderate';
-    return 'simple';
+    if (complexityScore >= 6) return QueryComplexity.ENTERPRISE;
+    if (complexityScore >= 4) return QueryComplexity.COMPLEX;
+    if (complexityScore >= 2) return QueryComplexity.MODERATE;
+    return QueryComplexity.SIMPLE;
   }
 
   /**
@@ -268,13 +269,13 @@ export class QueryProcessor {
     
     // Intent-based agent assignment
     switch (intent) {
-      case 'extract_figma':
+      case QueryIntent.EXTRACT_FIGMA:
         agents.add('figma-extractor');
         agents.add('design');
         agents.add('frontend');
         break;
         
-      case 'build_feature':
+      case QueryIntent.BUILD_FEATURE:
         // Start with architect for planning
         agents.add('architect');
         
@@ -294,21 +295,21 @@ export class QueryProcessor {
         }
         break;
         
-      case 'fix_bug':
+      case QueryIntent.FIX_BUG:
         agents.add('task-dispatcher'); // Analyze first
         break;
         
-      case 'add_tests':
+      case QueryIntent.ADD_TESTS:
         agents.add('test-writer');
         break;
         
-      case 'refactor_code':
+      case QueryIntent.REFACTOR_CODE:
         agents.add('architect');
         agents.add('backend');
         agents.add('frontend');
         break;
         
-      case 'deploy_app':
+      case QueryIntent.DEPLOY_APP:
         agents.add('production-architect');
         agents.add('backend');
         break;
@@ -348,14 +349,13 @@ export class QueryProcessor {
     
     return {
       id: planId,
-      query: parsed.originalQuery,
-      complexity: parsed.complexity,
-      mode: parsed.suggestedMode,
       tasks,
       dependencies,
       estimatedDuration,
-      requiredAgents: parsed.requiredAgents,
-      parallelismLevel
+      parallelizable: this.calculateParallelizability(parsed.complexity, tasks.length),
+      query: parsed.originalQuery,
+      mode: parsed.suggestedMode || ExecutionMode.ADAPTIVE,
+      requiredAgents: parsed.requiredAgents || []
     };
   }
 
@@ -366,25 +366,23 @@ export class QueryProcessor {
     const tasks: TaskDefinition[] = [];
     let taskCounter = 1;
     
-    for (const agentType of parsed.requiredAgents) {
+    for (const agentType of (parsed.requiredAgents || [])) {
       const taskId = `task_${taskCounter++}_${agentType}`;
-      const description = this.generateTaskDescription(agentType, parsed);
-      const priority = this.calculateTaskPriority(agentType, parsed.intent);
-      const estimatedDuration = this.estimateTaskDuration(agentType, parsed.complexity);
+      const description = this.generateTaskDescription(agentType as AgentType, parsed);
+      const priority = this.calculateTaskPriority(agentType as AgentType, parsed.intent);
+      const estimatedDuration = this.estimateTaskDuration(agentType as AgentType, parsed.complexity);
       
       tasks.push({
         id: taskId,
+        title: this.generateTaskTitle(agentType as AgentType, parsed),
         description,
+        agentType: agentType as AgentType,
         agent: agentType,
-        dependencies: [], // Will be populated by generateTaskDependencies
-        priority,
+        complexity: this.mapQueryComplexityToTaskComplexity(parsed.complexity),
         estimatedDuration,
-        tags: this.generateTaskTags(agentType, parsed),
-        metadata: {
-          intent: parsed.intent,
-          complexity: parsed.complexity,
-          confidence: parsed.confidence
-        }
+        dependencies: [], // Will be populated by generateTaskDependencies
+        tools: this.generateTaskTools(agentType as AgentType),
+        priority
       });
     }
     
@@ -411,18 +409,16 @@ export class QueryProcessor {
     if (architectTask) {
       if (backendTask) {
         dependencies.push({
-          sourceTaskId: architectTask,
-          targetTaskId: backendTask,
-          type: 'hard',
-          reason: 'Architecture must be planned before backend development'
+          fromTask: architectTask,
+          toTask: backendTask,
+          type: 'blocking'
         });
       }
       if (frontendTask) {
         dependencies.push({
-          sourceTaskId: architectTask,
-          targetTaskId: frontendTask,
-          type: 'hard',
-          reason: 'Architecture must be planned before frontend development'
+          fromTask: architectTask,
+          toTask: frontendTask,
+          type: 'blocking'
         });
       }
     }
@@ -430,20 +426,18 @@ export class QueryProcessor {
     // Figma extraction should precede design work
     if (figmaTask && designTask) {
       dependencies.push({
-        sourceTaskId: figmaTask,
-        targetTaskId: designTask,
-        type: 'hard',
-        reason: 'Figma components must be extracted before design work'
+        fromTask: figmaTask,
+        toTask: designTask,
+        type: 'blocking'
       });
     }
     
     // Design should precede frontend development
     if (designTask && frontendTask) {
       dependencies.push({
-        sourceTaskId: designTask,
-        targetTaskId: frontendTask,
-        type: 'soft',
-        reason: 'Design system should be established before frontend implementation'
+        fromTask: designTask,
+        toTask: frontendTask,
+        type: 'preferred'
       });
     }
     
@@ -451,18 +445,16 @@ export class QueryProcessor {
     if (testTask) {
       if (backendTask) {
         dependencies.push({
-          sourceTaskId: backendTask,
-          targetTaskId: testTask,
-          type: 'soft',
-          reason: 'Backend implementation should be ready for testing'
+          fromTask: backendTask,
+          toTask: testTask,
+          type: 'preferred'
         });
       }
       if (frontendTask) {
         dependencies.push({
-          sourceTaskId: frontendTask,
-          targetTaskId: testTask,
-          type: 'soft',
-          reason: 'Frontend implementation should be ready for testing'
+          fromTask: frontendTask,
+          toTask: testTask,
+          type: 'preferred'
         });
       }
     }
@@ -470,10 +462,9 @@ export class QueryProcessor {
     // Testing should precede deployment
     if (testTask && deployTask) {
       dependencies.push({
-        sourceTaskId: testTask,
-        targetTaskId: deployTask,
-        type: 'hard',
-        reason: 'Tests must pass before deployment'
+        fromTask: testTask,
+        toTask: deployTask,
+        type: 'blocking'
       });
     }
     
@@ -534,9 +525,9 @@ export class QueryProcessor {
     confidence: number;
   } {
     let bestMatch = {
-      intent: 'build_feature' as QueryIntent,
+      intent: QueryIntent.BUILD_FEATURE,
       agents: ['task-dispatcher'] as AgentType[],
-      complexity: 'simple' as QueryComplexity,
+      complexity: QueryComplexity.SIMPLE,
       confidence: 0.5
     };
     
@@ -567,15 +558,15 @@ export class QueryProcessor {
    * Suggest execution mode based on complexity and agent count
    */
   private suggestExecutionMode(complexity: QueryComplexity, agentCount: number): ExecutionMode {
-    if (complexity === 'enterprise' || agentCount > 4) {
-      return 'adaptive'; // Smart coordination for complex tasks
+    if (complexity === QueryComplexity.ENTERPRISE || agentCount > 4) {
+      return ExecutionMode.ADAPTIVE; // Smart coordination for complex tasks
     }
     
-    if (complexity === 'complex' || agentCount > 2) {
-      return 'parallel'; // Parallel execution when possible
+    if (complexity === QueryComplexity.COMPLEX || agentCount > 2) {
+      return ExecutionMode.PARALLEL; // Parallel execution when possible
     }
     
-    return 'sequential'; // Simple sequential execution
+    return ExecutionMode.SEQUENTIAL; // Simple sequential execution
   }
 
   // Helper methods for keyword detection
@@ -647,10 +638,10 @@ export class QueryProcessor {
     
     const base = baseTime.get(agentType) || 60;
     const multiplier = {
-      'simple': 1,
-      'moderate': 1.5,
-      'complex': 2.5,
-      'enterprise': 4
+      [QueryComplexity.SIMPLE]: 1,
+      [QueryComplexity.MODERATE]: 1.5,
+      [QueryComplexity.COMPLEX]: 2.5,
+      [QueryComplexity.ENTERPRISE]: 4
     }[complexity];
     
     return Math.round(base * multiplier);
@@ -667,6 +658,61 @@ export class QueryProcessor {
     return [...tags, ...techEntities];
   }
 
+  private generateTaskTitle(agentType: AgentType, parsed: ParsedQuery): string {
+    const actionMap = new Map([
+      ['architect', 'Design Architecture'],
+      ['backend', 'Implement Backend'],
+      ['frontend', 'Develop Frontend'],
+      ['design', 'Create Design System'],
+      ['test-writer', 'Write Tests'],
+      ['production-architect', 'Setup Deployment'],
+      ['figma-extractor', 'Extract Figma Designs'],
+      ['cli', 'Build CLI Tool'],
+      ['pr-merger', 'Review & Merge'],
+      ['task-dispatcher', 'Analyze & Dispatch']
+    ]);
+
+    const baseTitle = actionMap.get(agentType) || `Execute ${agentType} Task`;
+    
+    // Try to extract key noun from query for context
+    const query = parsed.originalQuery.toLowerCase();
+    const keyWords = query.match(/\b(api|app|component|service|feature|system|interface)\b/);
+    const context = keyWords?.[0] ? ` - ${keyWords[0].charAt(0).toUpperCase() + keyWords[0].slice(1)}` : '';
+    
+    return `${baseTitle}${context}`;
+  }
+
+  private mapQueryComplexityToTaskComplexity(queryComplexity: QueryComplexity): 'low' | 'medium' | 'high' {
+    switch (queryComplexity) {
+      case QueryComplexity.SIMPLE:
+        return 'low';
+      case QueryComplexity.MODERATE:
+        return 'medium';
+      case QueryComplexity.COMPLEX:
+      case QueryComplexity.ENTERPRISE:
+        return 'high';
+      default:
+        return 'medium';
+    }
+  }
+
+  private generateTaskTools(agentType: AgentType): string[] {
+    const toolsMap = new Map([
+      ['architect', ['system-design', 'documentation', 'modeling']],
+      ['backend', ['api-development', 'database', 'server-management']],
+      ['frontend', ['ui-development', 'component-library', 'testing']],
+      ['design', ['ui-design', 'prototyping', 'design-system']],
+      ['test-writer', ['test-automation', 'quality-assurance', 'coverage']],
+      ['production-architect', ['deployment', 'infrastructure', 'monitoring']],
+      ['figma-extractor', ['design-extraction', 'component-analysis']],
+      ['cli', ['command-line', 'scripting', 'automation']],
+      ['pr-merger', ['code-review', 'version-control', 'integration']],
+      ['task-dispatcher', ['task-analysis', 'coordination', 'planning']]
+    ]);
+
+    return toolsMap.get(agentType) || ['general-development'];
+  }
+
   private estimateExecutionTime(tasks: TaskDefinition[], dependencies: TaskDependency[]): number {
     // Simplified estimation - sum all task durations
     // In reality, this would consider parallelism and dependencies
@@ -675,32 +721,37 @@ export class QueryProcessor {
 
   private calculateParallelismLevel(complexity: QueryComplexity, taskCount: number): number {
     const baseLevel = {
-      'simple': 2,
-      'moderate': 4,
-      'complex': 6,
-      'enterprise': 8
+      [QueryComplexity.SIMPLE]: 2,
+      [QueryComplexity.MODERATE]: 4,
+      [QueryComplexity.COMPLEX]: 6,
+      [QueryComplexity.ENTERPRISE]: 8
     }[complexity];
     
     return Math.min(baseLevel, taskCount);
   }
 
+  private calculateParallelizability(complexity: QueryComplexity, taskCount: number): boolean {
+    // Tasks can be parallelized if there are multiple tasks and complexity allows it
+    return taskCount > 1 && complexity !== QueryComplexity.SIMPLE;
+  }
+
   private generateRecommendations(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
     const recommendations: string[] = [];
     
-    if (parsed.confidence < 0.7) {
+    if (parsed.confidence && parsed.confidence < 0.7) {
       recommendations.push('Query intent unclear - consider providing more specific details');
     }
     
-    if (plan.tasks.length > 5) {
+    if (plan.tasks && plan.tasks.length > 5) {
       recommendations.push('Large task count - consider breaking into smaller phases');
     }
     
-    if (parsed.complexity === 'enterprise') {
+    if (parsed.complexity === QueryComplexity.ENTERPRISE) {
       recommendations.push('Complex task - recommend close monitoring and staged execution');
     }
     
     // Figma-specific recommendations
-    if (parsed.requiredAgents.includes('figma-extractor')) {
+    if (parsed.requiredAgents && parsed.requiredAgents.includes('figma-extractor')) {
       recommendations.push('Ensure Figma access token is configured for design extraction');
     }
     
@@ -710,11 +761,11 @@ export class QueryProcessor {
   private generateWarnings(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
     const warnings: string[] = [];
     
-    if (plan.estimatedDuration > 480) { // 8 hours
+    if (plan.estimatedDuration && plan.estimatedDuration > 480) { // 8 hours
       warnings.push('Long execution time estimated - consider breaking into phases');
     }
     
-    if (parsed.requiredAgents.length > 6) {
+    if (parsed.requiredAgents && parsed.requiredAgents.length > 6) {
       warnings.push('High agent count may cause coordination overhead');
     }
     
@@ -727,15 +778,15 @@ export class QueryProcessor {
     const computeTime = plan.estimatedDuration;
     
     return {
-      computeTime,
-      resourceUnits: computeTime,
-      estimatedCost: computeTime * costPerMinute,
+      computeTime: computeTime || 0,
+      resourceUnits: computeTime || 0,
+      estimatedCost: (computeTime || 0) * costPerMinute,
       breakdown: [
         {
           component: 'Compute Time',
-          usage: computeTime,
+          usage: computeTime || 0,
           rate: costPerMinute,
-          cost: computeTime * costPerMinute
+          cost: (computeTime || 0) * costPerMinute
         }
       ]
     };

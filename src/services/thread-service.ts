@@ -195,7 +195,7 @@ export class ThreadService {
       });
       
     } catch (error) {
-      console.error(chalk.red('❌ Failed to process query:'), error.message);
+      console.error(chalk.red('❌ Failed to process query:'), error instanceof Error ? error.message : String(error));
       throw error;
     }
   }

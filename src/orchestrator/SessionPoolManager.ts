@@ -100,10 +100,9 @@ export class SessionPoolManager extends EventEmitter {
       // Build context prompt for agent  
       const contextPrompt = this.buildAgentContext(agentType, options.context);
       
-      // Spawn Claude Code process
-      const claudeProcess = spawn('claude', ['-p', contextPrompt], {
+      // Spawn Claude Code process using direct path to avoid shell issues
+      const claudeProcess = spawn('/Users/resatugurulu/.claude/local/claude', ['-p', contextPrompt], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false,
         timeout: options.timeout || this.sessionTimeout
       });
 
@@ -334,15 +333,33 @@ Focus on your specialized role and communicate clearly about your progress.`;
   }
 
   private setupSessionHandlers(session: ClaudeSession): void {
+    let isReady = false;
+
     session.process.stdout?.on('data', (data: Buffer) => {
-      session.output += data.toString();
+      const output = data.toString();
+      session.output += output;
       session.lastActivity = new Date();
-      this.emit('sessionOutput', { sessionId: session.id, data: data.toString() });
+
+      // Check if Claude is ready (it starts outputting immediately)
+      if (!isReady && session.status === 'initializing') {
+        isReady = true;
+        session.status = 'available';
+        this.emit('sessionReady', session);
+      }
+
+      this.emit('sessionOutput', { sessionId: session.id, data: output });
     });
 
     session.process.stderr?.on('data', (data: Buffer) => {
-      session.error += data.toString();
-      this.emit('sessionError', { sessionId: session.id, error: data.toString() });
+      const error = data.toString();
+      session.error += error;
+
+      // If we get stderr during initialization, consider it failed
+      if (session.status === 'initializing') {
+        session.status = 'failed';
+      }
+
+      this.emit('sessionError', { sessionId: session.id, error });
     });
 
     session.process.on('exit', (code) => {
@@ -354,11 +371,13 @@ Focus on your specialized role and communicate clearly about your progress.`;
       this.emit('sessionExit', { sessionId: session.id, code });
     });
 
+    // If the process fails to start, mark as failed
     session.process.on('error', (error) => {
       session.status = 'failed';
-      session.error += error.message;
-      this.emit('sessionProcessError', { sessionId: session.id, error });
+      session.error += `Process error: ${error.message}`;
+      this.emit('sessionError', { sessionId: session.id, error: error.message });
     });
+
 
     // Set session as available after brief initialization period
     setTimeout(() => {

@@ -7,6 +7,7 @@
 
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
+import { spawn, exec } from 'child_process';
 import { AgentType, TaskExecution, ExecutionPlan, AgentExecutionContext } from './types';
 
 /**
@@ -307,7 +308,6 @@ export class ContextSynchronizer {
     let gitCommit: string | undefined;
     
     try {
-      const { spawn } = require('child_process');
       gitBranch = await this.execGitCommand('git rev-parse --abbrev-ref HEAD');
       gitCommit = await this.execGitCommand('git rev-parse HEAD');
     } catch (error) {
@@ -403,10 +403,13 @@ export class ContextSynchronizer {
     // Group tasks by agent
     const tasksByAgent = new Map<AgentType, TaskExecution[]>();
     for (const task of tasks) {
-      if (!tasksByAgent.has(task.agent)) {
-        tasksByAgent.set(task.agent, []);
+      const agent = task.agent as AgentType;
+      if (agent && !tasksByAgent.has(agent)) {
+        tasksByAgent.set(agent, []);
       }
-      tasksByAgent.get(task.agent)!.push(task);
+      if (agent) {
+        tasksByAgent.get(agent)!.push(task);
+      }
     }
 
     content += `## Tasks by Agent\n\n`;
@@ -416,8 +419,8 @@ export class ContextSynchronizer {
       
       for (const task of agentTasks) {
         content += `- **${task.id}**: ${task.description}\n`;
-        if (task.dependencies.length > 0) {
-          content += `  - Dependencies: ${task.dependencies.join(', ')}\n`;
+        if ((task.dependencies || []).length > 0) {
+          content += `  - Dependencies: ${(task.dependencies || []).join(', ')}\n`;
         }
         content += `  - Priority: ${task.priority}\n`;
         if (task.estimatedDuration) {
@@ -433,7 +436,7 @@ export class ContextSynchronizer {
     content += 'graph TD;\n';
     
     for (const task of tasks) {
-      for (const depId of task.dependencies) {
+      for (const depId of (task.dependencies || [])) {
         content += `  ${depId} --> ${task.id};\n`;
       }
     }
@@ -533,7 +536,6 @@ export class ContextSynchronizer {
 
   private async execGitCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const { exec } = require('child_process');
       exec(command, { cwd: this.workingDir }, (error: any, stdout: string, stderr: string) => {
         if (error) {
           reject(error);
