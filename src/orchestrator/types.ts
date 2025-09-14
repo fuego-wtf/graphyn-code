@@ -1,42 +1,245 @@
 /**
- * Core business types for Task Planning and Orchestration
- * 
- * Extracted from UI components to preserve business logic while removing terminal UI.
- * Used by TaskPlanner and other orchestration components.
+ * Ultimate Orchestration Platform - Core Types
+ * All interfaces use PascalCase without I prefix
+ * All type aliases use PascalCase without T prefix
+ * All enums use PascalCase with UPPER_CASE members
+ * All variables/functions use camelCase
+ * All constants use UPPER_CASE
  */
 
-// Re-export AgentType from constants
+// Constants for configuration
+const MAX_PARALLEL_AGENTS = 8;
+const DEFAULT_TIMEOUT_MS = 30000;
+const TASK_COMPLETION_TARGET_MS = 30000;
+
+// Re-export AgentType from constants with proper naming
 export { AgentType } from '../constants/agents.js';
 
-// Task Planning Types (from ApprovalWorkflowPanel)
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  assignedAgent: string;
-  estimatedDuration: number; // in minutes
-  dependencies: string[];
-  status: TaskStatus;
-  priority: TaskPriority;
-  tools?: string[];
-  expectedOutputs?: string[];
+// Core task interface - proper PascalCase, no I prefix
+export interface TaskNode {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly assignedAgent: string;
+  readonly estimatedDuration: number; // in minutes
+  readonly dependencies: readonly string[];
+  readonly status: TaskStatus;
+  readonly priority: TaskPriority;
+  readonly tools: readonly string[];
+  readonly expectedOutputs: readonly string[];
+  readonly createdAt: Date;
+  readonly metadata: TaskMetadata;
 }
 
+// Enums with proper PascalCase name and UPPER_CASE members
 export enum TaskStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  EXECUTING = 'executing',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  CANCELLED = 'cancelled'
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  EXECUTING = 'EXECUTING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  BLOCKED = 'BLOCKED'
 }
 
 export enum TaskPriority {
-  LOW = 'low',
-  NORMAL = 'normal',
-  HIGH = 'high',
-  CRITICAL = 'critical'
+  LOW = 'LOW',
+  NORMAL = 'NORMAL',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL'
 }
+
+export enum AgentState {
+  IDLE = 'IDLE',
+  BUSY = 'BUSY',
+  ERROR = 'ERROR',
+  TERMINATED = 'TERMINATED'
+}
+
+export enum TaskComplexity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL'
+}
+
+export enum InteractionMode {
+  Planning = 'Planning',
+  Execution = 'Execution',
+  Review = 'Review',
+  Emergency = 'Emergency'
+}
+
+export enum MessageType {
+  OUTPUT = 'OUTPUT',
+  ERROR = 'ERROR',
+  PROGRESS = 'PROGRESS',
+  COMPLETION = 'COMPLETION'
+}
+
+// Additional task metadata interface
+export interface TaskMetadata {
+  readonly priority: number; // 1-10
+  readonly tags: readonly string[];
+  readonly gitBranch: string | null;
+  readonly worktreePath: string | null;
+}
+
+// Agent performance metrics
+export interface AgentPerformanceMetrics {
+  readonly tasksCompleted: number;
+  readonly averageTimeMinutes: number;
+  readonly successRate: number; // 0-1
+  readonly lastActivity: Date | null;
+}
+
+// Core agent persona interface
+export interface AgentPersona {
+  readonly id: string;
+  readonly name: string;
+  readonly emoji: string;
+  readonly role: string;
+  readonly systemPrompt: string;
+  readonly capabilities: readonly string[];
+  readonly specializations: readonly string[];
+  readonly workloadScore: number; // 0-100
+  readonly performanceMetrics: AgentPerformanceMetrics;
+}
+
+// Agent session management
+export interface AgentSession {
+  readonly id: string;
+  readonly agentPersona: AgentPersona;
+  state: AgentState;
+  currentTask: string | null;
+  readonly startTime: Date;
+  lastHeartbeat: Date;
+  processId: number | null;
+  readonly worktreePath: string | null;
+  readonly gitBranch: string | null;
+}
+
+// Task result interface (consolidated)
+export interface TaskResult {
+  readonly taskId: string;
+  readonly agentType: string;
+  readonly success: boolean;
+  readonly output?: string;
+  readonly result?: any;
+  readonly error?: string;
+  readonly duration: number;
+  readonly artifacts?: readonly string[];
+  readonly filesModified?: readonly string[];
+  readonly timeElapsedMs?: number;
+  readonly memoryUsedMb?: number;
+}
+
+// Task error interface
+export interface TaskError {
+  readonly message: string;
+  readonly code: string;
+  readonly stack: string | null;
+  readonly recoverable: boolean;
+}
+
+// Orchestration performance metrics
+export interface OrchestrationPerformanceMetrics {
+  readonly memoryPeakMb: number;
+  readonly cpuAveragePercent: number;
+  readonly parallelEfficiency: number; // 0-1
+  readonly targetTimeAchieved: boolean;
+}
+
+// Main orchestration result
+export interface OrchestrationResult {
+  readonly success: boolean;
+  readonly totalTimeSeconds: number;
+  readonly tasksCompleted: number;
+  readonly tasksFailed: number;
+  readonly agentsUsed: number;
+  readonly results: readonly TaskResult[];
+  readonly errors: readonly string[];
+  readonly performanceMetrics: OrchestrationPerformanceMetrics;
+}
+
+// Git worktree information
+export interface GitWorktreeInfo {
+  readonly path: string;
+  readonly branch: string;
+  readonly commitHash: string;
+  readonly isClean: boolean;
+}
+
+// UI state management
+export interface UiState {
+  readonly mode: InteractionMode;
+  readonly activeAgents: readonly string[];
+  readonly currentTask: TaskNode | null;
+  readonly pendingApproval: PendingApproval | null;
+  readonly streamingOutput: readonly StreamingMessage[];
+  readonly inputHistory: readonly string[];
+}
+
+// Pending approval interface
+export interface PendingApproval {
+  readonly taskId: string;
+  readonly agentAssignments: readonly AgentAssignment[];
+  readonly estimatedTime: number;
+  readonly risks: readonly string[];
+}
+
+// Agent assignment interface
+export interface AgentAssignment {
+  readonly agentId: string;
+  readonly taskIds: readonly string[];
+  readonly estimatedTime: number;
+}
+
+// Streaming message interface
+export interface StreamingMessage {
+  readonly timestamp: Date;
+  readonly agentId: string;
+  readonly type: MessageType;
+  readonly content: string;
+  readonly metadata: MessageMetadata;
+}
+
+// Message metadata interface
+export interface MessageMetadata {
+  readonly taskId: string | null;
+  readonly severity: 'info' | 'warn' | 'error';
+  readonly attachments: readonly string[];
+}
+
+// Execution graph interface (consolidated)
+export interface ExecutionGraph {
+  readonly nodes: TaskNode[] | TaskDefinition[];
+  readonly edges?: TaskDependency[];
+  readonly batches?: TaskDefinition[][];
+  readonly totalEstimatedTimeMinutes: number;
+  readonly maxConcurrency: number;
+  readonly parallelizable: boolean;
+  readonly criticalPath: readonly string[];
+}
+
+// Type aliases for complex types - PascalCase, no T prefix
+export type AgentCapabilityScore = number; // 0-1
+export type TaskDependencyGraph = Map<string, readonly string[]>;
+export type AgentWorkloadMap = Map<string, number>;
+export type TaskNodeArray = readonly TaskNode[];
+export type AgentSessionMap = Map<string, AgentSession>;
+
+// Utility types
+export type DeepReadonly<T> = {
+  readonly [P in keyof T]: T[P] extends (infer U)[]
+    ? readonly DeepReadonly<U>[]
+    : T[P] extends object
+    ? DeepReadonly<T[P]>
+    : T[P];
+};
+
+export type RequiredFields<T, K extends keyof T> = T & Required<Pick<T, K>>;
+export type OptionalFields<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
 export interface TaskDecomposition {
   id: string;
@@ -96,25 +299,18 @@ export interface ExecutionResults {
   statistics?: any;
 }
 
-export interface TaskResult {
-  taskId: string;
-  agentType: string;
-  success: boolean;
-  result?: any;
-  error?: string;
-  duration: number;
-}
-
+// ExecutionPlan interface (consolidated)
 export interface ExecutionPlan {
-  id: string;
-  tasks: TaskDefinition[];
-  dependencies: TaskDependency[];
-  estimatedDuration: number;
-  parallelizable: boolean;
-  query?: string;
-  mode?: ExecutionMode;
-  confidence?: number;
-  requiredAgents?: string[];
+  readonly id?: string;
+  readonly nodes?: TaskNode[];
+  readonly tasks?: TaskDefinition[];
+  readonly dependencies?: TaskDependency[];
+  readonly estimatedDuration?: number;
+  readonly parallelizable?: boolean;
+  readonly query?: string;
+  readonly mode?: ExecutionMode;
+  readonly confidence?: number;
+  readonly requiredAgents?: string[];
 }
 
 export interface TaskDefinition {
@@ -141,15 +337,20 @@ export interface TaskDependency {
 
 export interface AgentExecutionContext {
   agentType: string;
-  sessionId: string;
-  workingDirectory: string;
+  sessionId?: string;
+  workingDirectory?: string;
   currentTask?: string;
-  isActive: boolean;
+  isActive?: boolean;
   executionId?: string;
   repositoryContext?: any;
   otherAgents?: string[];
   tasks?: TaskExecution[];
   assignedTasks?: TaskExecution[];
+  completedTasks?: TaskExecution[];
+  failedTasks?: TaskExecution[];
+  pendingTasks?: TaskExecution[];
+  progress?: any[];
+  contextFiles?: any;
 }
 
 export interface QueryProcessingResult {
@@ -217,11 +418,20 @@ export interface ExecutionError {
   stack?: string;
 }
 
-// Additional types for UniversalTaskDecomposer
-export interface ExecutionGraph {
-  nodes: TaskDefinition[];
-  edges: TaskDependency[];
-  batches: TaskDefinition[][];
+// Additional type aliases and interfaces for task management
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  assignedAgent: string;
+  agentType?: string;
+  complexity?: 'low' | 'medium' | 'high';
+  estimatedDuration: number;
+  dependencies: string[];
+  status: TaskStatus;
+  priority: TaskPriority;
+  tools: string[];
+  expectedOutputs: string[];
 }
 
 export interface TaskTemplate {

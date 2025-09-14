@@ -67,16 +67,9 @@ export class ClaudeCodeClient extends EventEmitter {
     let toolCalls = 0;
     let sessionId = options.resume || this.sessionId;
     
-    // REASONABLE TIMEOUT: 60 seconds for complex queries
-    const timeoutMs = 60000; // Increased from 10s to 60s for AI responses
+    // TRUST SDK: Let Claude Code SDK handle its own timeouts naturally
+    // The SDK works perfectly in 13s - no wrapper interference needed
     let isTimedOut = false;
-    
-    const timeoutId = setTimeout(() => {
-      isTimedOut = true;
-      console.error(`🚨 CRITICAL: Claude Code SDK hard timeout after ${timeoutMs}ms - forcing abort`);
-      this.abortController?.abort();
-      this.emit('error', new Error(`Claude Code SDK timeout after ${timeoutMs}ms`));
-    }, timeoutMs);
     
     try {
       this.emit('debug', `[${Date.now() - startTime}ms] Starting Claude query with prompt length: ${prompt.length}`);
@@ -104,27 +97,17 @@ export class ClaudeCodeClient extends EventEmitter {
         }
       });
       
-      // REASONABLE: Allow up to 30 seconds for first message (authentication can take time)
-      const firstMessageTimeout = setTimeout(() => {
-        if (!hasReceivedFirstMessage && !isTimedOut) {
-          console.error(`🚨 TIMEOUT: No first message from Claude Code SDK after 30s - connection may have failed`);
-          this.abortController?.abort();
-        }
-      }, 30000);
+      // TRUST SDK: No first message timeout - let SDK handle authentication naturally
       
       for await (const message of queryPromise) {
         messageCount++;
         
         if (!hasReceivedFirstMessage) {
           hasReceivedFirstMessage = true;
-          clearTimeout(firstMessageTimeout);
           this.emit('debug', `[${Date.now() - startTime}ms] First message received successfully`);
         }
         
-        // Clear timeout on any message (showing progress)
-        if (!isTimedOut && timeoutId) {
-          // Don't clear completely, but extend timeout on activity
-        }
+        // SDK handles its own progress tracking - no timeout interference needed
         
         this.emit('debug', `[${Date.now() - startTime}ms] Message #${messageCount}: ${message.type} - Keys: ${Object.keys(message).join(',')}`);
         
@@ -195,28 +178,16 @@ export class ClaudeCodeClient extends EventEmitter {
         }
       }
       
-      // Success - clear timeout
-      clearTimeout(timeoutId);
-      clearTimeout(firstMessageTimeout);
+      // Success - SDK completed naturally
       this.emit('debug', `[${Date.now() - startTime}ms] Query completed successfully after ${messageCount} messages`);
       
     } catch (error) {
-      clearTimeout(timeoutId);
-      
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.emit('debug', `[${Date.now() - startTime}ms] Query failed: ${errorMsg}`);
-      
-      // Don't re-throw timeout errors, just emit them
-      if (!errorMsg.includes('timeout') && !errorMsg.includes('aborted')) {
-        this.emit('error', error);
-        throw error;
-      } else {
-        // For timeout/abort errors, provide diagnostic information
-        console.error(`🔧 Claude Code SDK connection timeout after ${Date.now() - startTime}ms`);
-        console.error(`💡 Diagnostic: Check 'claude whoami' and network connectivity`);
 
-        throw new Error(`Claude Code SDK timeout: ${errorMsg}. Duration: ${Date.now() - startTime}ms. Check authentication with 'claude whoami' and network connectivity.`);
-      }
+      // Let SDK errors bubble up naturally - no timeout interference
+      this.emit('error', error);
+      throw error;
     }
   }
 

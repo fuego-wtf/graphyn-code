@@ -128,9 +128,14 @@ export class MultiAgentSessionManager extends EventEmitter {
       const simpleTasks: TaskDefinition[] = [
         {
           id: 'task-1',
+          title: `Execute Query: ${query.substring(0, 50)}${query.length > 50 ? '...' : ''}`,
           description: query,
-          agent: requiredAgents[0] || 'architect',
+          agentType: (requiredAgents && requiredAgents[0]) || 'architect',
+          agent: (requiredAgents && requiredAgents[0]) || 'architect',
+          complexity: 'medium',
+          estimatedDuration: 30,
           dependencies: [],
+          tools: ['general-development'],
           priority: 1
         }
       ];
@@ -167,7 +172,9 @@ export class MultiAgentSessionManager extends EventEmitter {
         
         return {
           ...taskDef,
-          status: 'pending' as TaskStatus,
+          taskId: taskDef.id,
+          agentType: taskDef.agentType,
+          status: 'pending',
           progress: 0,
           logs: [],
           retryCount: 0,
@@ -224,10 +231,12 @@ export class MultiAgentSessionManager extends EventEmitter {
   async coordinateExecution(tasks: TaskExecution[], options: ExecutionOptions): Promise<ExecutionResults> {
     const results: ExecutionResults = {
       success: true,
+      results: [],
+      errors: [],
+      totalDuration: 0,
       executionId: this.executionId!,
       completedTasks: [],
       failedTasks: [],
-      totalDuration: 0,
       statistics: this.createInitialStatistics(tasks)
     };
 
@@ -238,7 +247,7 @@ export class MultiAgentSessionManager extends EventEmitter {
     while (pendingTasks.length > 0 && !this.shouldStopExecution(results)) {
       // Find tasks ready to execute (all dependencies completed)
       const readyTasks = pendingTasks.filter(task => 
-        task.dependencies.every(depId => completedTaskIds.has(depId))
+        (task.dependencies || []).every(depId => completedTaskIds.has(depId))
       );
 
       if (readyTasks.length === 0) {
@@ -277,12 +286,12 @@ export class MultiAgentSessionManager extends EventEmitter {
           });
           
           failedTaskIds.add(task.id);
-          results.failedTasks.push({
+          results.failedTasks!.push({
             taskId: task.id,
-            agentType: task.agent,
+            agentType: task.agent || 'unknown',
+            success: false,
             error: error instanceof Error ? error.message : String(error),
-            duration: 0,
-            timestamp: new Date()
+            duration: 0
           });
           
           // Remove from pending
@@ -299,21 +308,21 @@ export class MultiAgentSessionManager extends EventEmitter {
         
         if (sessionResult.status === 'completed') {
           completedTaskIds.add(sessionResult.task.id);
-          results.completedTasks.push({
+          results.completedTasks!.push({
             taskId: sessionResult.task.id,
-            agentType: sessionResult.task.agent,
+            agentType: sessionResult.task.agent || 'unknown',
+            success: true,
             result: sessionResult.result,
-            duration: Date.now() - sessionResult.startTime.getTime(),
-            timestamp: new Date()
+            duration: Date.now() - sessionResult.startTime.getTime()
           });
         } else {
           failedTaskIds.add(sessionResult.task.id);
-          results.failedTasks.push({
+          results.failedTasks!.push({
             taskId: sessionResult.task.id,
-            agentType: sessionResult.task.agent,
+            agentType: sessionResult.task.agent || 'unknown',
+            success: false,
             error: sessionResult.error || 'Unknown error',
-            duration: Date.now() - sessionResult.startTime.getTime(),
-            timestamp: new Date()
+            duration: Date.now() - sessionResult.startTime.getTime()
           });
         }
       }
@@ -324,7 +333,7 @@ export class MultiAgentSessionManager extends EventEmitter {
 
     // Update final results
     results.totalDuration = Date.now() - this.startTime!.getTime();
-    results.success = results.failedTasks.length === 0;
+    results.success = (results.failedTasks || []).length === 0;
     results.statistics = this.calculateFinalStatistics(results);
 
     return results;
@@ -399,7 +408,7 @@ export class MultiAgentSessionManager extends EventEmitter {
 
   private async startTaskExecution(task: TaskExecution, options: ExecutionOptions): Promise<void> {
     // Get session for agent type
-    const session = await this.sessionPool.getAvailableSession(task.agent, task.id);
+    const session = await this.sessionPool.getAvailableSession(task.agentType as any, task.id);
     
     // Create session execution tracking
     const sessionExecution: SessionExecution = {
@@ -412,12 +421,12 @@ export class MultiAgentSessionManager extends EventEmitter {
     this.activeSessions.set(session.id, sessionExecution);
     
     // Get agent-specific context
-    const agentContext = await this.contextSync.getAgentContext(task.agent);
+    const agentContext = await this.contextSync.getAgentContext(task.agentType as any);
     
     // Add progress update
     await this.contextSync.addProgressUpdate({
       taskId: task.id,
-      agentType: task.agent,
+      agentType: task.agentType as any,
       status: 'started',
       timestamp: new Date(),
       message: `Starting task: ${task.description}`
@@ -457,14 +466,14 @@ export class MultiAgentSessionManager extends EventEmitter {
 - **Priority**: ${task.priority}
 
 ## Dependencies
-${task.dependencies.length > 0 ? task.dependencies.map(dep => `- ${dep}`).join('\n') : 'None'}
+${(task.dependencies || []).length > 0 ? (task.dependencies || []).map(dep => `- ${dep}`).join('\n') : 'None'}
 
 ## Repository Context
 - **Root Path**: ${context.repositoryContext.rootPath}
 - **Execution ID**: ${context.executionId}
 
 ## Other Active Agents
-${context.otherAgents.map(agent => `- ${agent}`).join('\n')}
+${(context.otherAgents || []).map(agent => `- ${agent}`).join('\n')}
 
 ## Instructions
 Execute this task according to your agent specialization. 
@@ -539,7 +548,7 @@ Please execute the task now.
 
   private mergeOptions(options: Partial<ExecutionOptions>): ExecutionOptions {
     return {
-      mode: options.mode || 'adaptive',
+      mode: options.mode || ExecutionMode.ADAPTIVE,
       maxConcurrency: options.maxConcurrency || 3,
       timeout: options.timeout || 300000, // 5 minutes
       retryAttempts: options.retryAttempts || 3,
@@ -549,7 +558,7 @@ Please execute the task now.
 
   private shouldStopExecution(results: ExecutionResults): boolean {
     // Stop if too many failures
-    const failureRate = results.failedTasks.length / (results.completedTasks.length + results.failedTasks.length);
+    const failureRate = (results.failedTasks || []).length / ((results.completedTasks || []).length + (results.failedTasks || []).length);
     return failureRate > 0.5;
   }
 
@@ -567,18 +576,18 @@ Please execute the task now.
   }
 
   private calculateFinalStatistics(results: ExecutionResults): ExecutionStatistics {
-    const totalTasks = results.completedTasks.length + results.failedTasks.length;
-    const totalTaskTime = results.completedTasks.reduce((sum, task) => sum + task.duration, 0);
+    const totalTasks = (results.completedTasks || []).length + (results.failedTasks || []).length;
+    const totalTaskTime = (results.completedTasks || []).reduce((sum, task) => sum + task.duration, 0);
     
     return {
       totalTasks,
-      completedTasks: results.completedTasks.length,
-      failedTasks: results.failedTasks.length,
+      completedTasks: (results.completedTasks || []).length,
+      failedTasks: (results.failedTasks || []).length,
       activeSessions: 0,
       startTime: this.startTime || new Date(),
       duration: results.totalDuration,
       totalCost: 0, // TODO: Implement cost calculation
-      averageTaskTime: results.completedTasks.length > 0 ? totalTaskTime / results.completedTasks.length : 0
+      averageTaskTime: (results.completedTasks || []).length > 0 ? totalTaskTime / (results.completedTasks || []).length : 0
     };
   }
 

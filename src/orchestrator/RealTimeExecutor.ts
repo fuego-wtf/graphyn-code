@@ -178,7 +178,7 @@ export class RealTimeExecutor extends EventEmitter {
       
       // Show project info
       const projectName = projectAnalysis?.repository?.name || context.repositoryContext?.packageJson?.name || 'Unknown';
-      const techStack = projectAnalysis?.technologies?.map((t: any) => t.name).join(', ') || (context.repositoryContext?.hasTypeScript ? 'TypeScript' : 'JavaScript');
+      const techStack = projectAnalysis?.technologies?.map((t: any) => t.name).join(', ') || 'JavaScript';
       
       yield { 
         type: 'context', 
@@ -190,7 +190,29 @@ export class RealTimeExecutor extends EventEmitter {
       // Stream through orchestrator with appropriate context
       const orchestrationContext = projectAnalysis || await this.buildRepositoryContext(context.workingDirectory);
       
-      for await (const event of this.agentOrchestrator.executeQueryStream(query, orchestrationContext, options)) {
+      // Extract MCP servers from specialized agents if available
+      let mcpServers: Record<string, any> | undefined;
+      if (context.specializedAgents && context.specializedAgents.length > 0) {
+        // Use MCP servers from the first specialized agent (they should be similar across agents)
+        mcpServers = context.specializedAgents[0].mcp_servers;
+        
+        if (mcpServers && Object.keys(mcpServers).length > 0) {
+          yield {
+            type: 'context',
+            data: {
+              message: `🔌 Using ${Object.keys(mcpServers).length} MCP servers: ${Object.keys(mcpServers).join(', ')}`
+            }
+          };
+        }
+      }
+      
+      // Pass MCP servers to orchestrator context
+      const enhancedContext = {
+        ...orchestrationContext,
+        mcpServers
+      };
+      
+      for await (const event of this.agentOrchestrator.executeQueryStream(query, enhancedContext, options)) {
         yield event;
       }
       
@@ -241,16 +263,18 @@ export class RealTimeExecutor extends EventEmitter {
       if (orchestrationResult.success) {
         return {
           success: true,
+          results: [],
+          errors: [],
+          totalDuration,
           executionId: `exec-${Date.now()}`,
           completedTasks: [{
             taskId: 'orchestrated-response',
             agentType: 'assistant', // Map to compatible type
+            success: true,
             result: this.formatOrchestrationResponse(orchestrationResult),
-            duration: totalDuration,
-            timestamp: new Date()
+            duration: totalDuration
           }],
           failedTasks: [],
-          totalDuration,
           statistics: {
             totalTasks: orchestrationResult.agentsUsed.length,
             completedTasks: orchestrationResult.agentsUsed.length,
@@ -265,16 +289,18 @@ export class RealTimeExecutor extends EventEmitter {
       } else {
         return {
           success: false,
+          results: [],
+          errors: [orchestrationResult.error || 'Unknown orchestration error'],
+          totalDuration,
           executionId: `exec-${Date.now()}`,
           completedTasks: [],
           failedTasks: [{
             taskId: 'orchestrated-response',
             agentType: 'assistant',
+            success: false,
             error: orchestrationResult.error || 'Unknown orchestration error',
-            duration: totalDuration,
-            timestamp: new Date()
+            duration: totalDuration
           }],
-          totalDuration,
           statistics: {
             totalTasks: 1,
             completedTasks: 0,

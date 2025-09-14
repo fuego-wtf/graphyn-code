@@ -141,10 +141,9 @@ export class TaskDependencyGraph {
 
     // Add dependency
     const dependency: TaskDependency = {
-      sourceTaskId,
-      targetTaskId,
-      type,
-      reason
+      fromTask: sourceTaskId,
+      toTask: targetTaskId,
+      type: type === 'hard' ? 'blocking' : 'preferred'
     };
 
     this.dependencies.set(dependencyKey, dependency);
@@ -167,7 +166,7 @@ export class TaskDependencyGraph {
     const dependenciesToRemove: string[] = [];
     
     for (const [key, dependency] of this.dependencies) {
-      if (dependency.sourceTaskId === taskId || dependency.targetTaskId === taskId) {
+      if (dependency.fromTask === taskId || dependency.toTask === taskId) {
         dependenciesToRemove.push(key);
       }
     }
@@ -324,7 +323,7 @@ export class TaskDependencyGraph {
     }
 
     // Sort by priority
-    return readyTasks.sort((a, b) => b.priority - a.priority);
+    return readyTasks.sort((a, b) => (b.priority || 0) - (a.priority || 0));
   }
 
   /**
@@ -347,7 +346,7 @@ export class TaskDependencyGraph {
       const dependencyKey = `${dependencyId}->${taskId}`;
       const dependency = this.dependencies.get(dependencyKey);
 
-      if (dependency?.type === 'hard') {
+      if (dependency?.type === 'blocking') {
         if (!dependencyNode?.execution || dependencyNode.execution.status !== 'completed') {
           return false;
         }
@@ -372,6 +371,7 @@ export class TaskDependencyGraph {
 
     const execution: TaskExecution = {
       ...node.task,
+      taskId,
       status: 'in_progress',
       startTime: new Date(),
       progress: 0,
@@ -496,7 +496,7 @@ export class TaskDependencyGraph {
    */
   public getTaskDependencies(taskId: string): TaskDependency[] {
     return Array.from(this.dependencies.values())
-      .filter(dep => dep.targetTaskId === taskId);
+      .filter(dep => dep.toTask === taskId);
   }
 
   /**
@@ -504,7 +504,7 @@ export class TaskDependencyGraph {
    */
   public getTaskDependents(taskId: string): TaskDependency[] {
     return Array.from(this.dependencies.values())
-      .filter(dep => dep.sourceTaskId === taskId);
+      .filter(dep => dep.fromTask === taskId);
   }
 
   // Private helper methods

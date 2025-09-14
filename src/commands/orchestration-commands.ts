@@ -6,7 +6,7 @@
  */
 
 import { analyzeProjectContext, type ProjectContext } from '../context/context7-integration.js';
-import { universalTaskDecomposer } from '../orchestrator/UniversalTaskDecomposer.js';
+import { UniversalTaskDecomposer } from '../orchestrator/UniversalTaskDecomposer.js';
 import { dynamicAgentRegistry } from '../agents/DynamicAgentRegistry.js';
 import { MultiAgentSessionManager } from '../orchestrator/MultiAgentSessionManager.js';
 import { generateMCPConfig } from '../services/mcp-config-generator.js';
@@ -121,7 +121,7 @@ export class OrchestrationCommands {
     
     // Step 7: Initialize task decomposer
     console.log(chalk.blue('🎯 Initializing task decomposer...'));
-    await universalTaskDecomposer.initialize(projectPath);
+    const taskDecomposer = new UniversalTaskDecomposer();
     
     console.log(chalk.green('\\n✨ Project initialization complete!'));
     console.log(chalk.gray('\\nNext steps:'));
@@ -146,42 +146,41 @@ export class OrchestrationCommands {
     await this.ensureInitialized();
     
     // Decompose request into tasks
-    const decomposition = await universalTaskDecomposer.decomposeRequest(request, {
-      maxTasks: options.maxTasks,
-      preferredAgents: options.agents as any,
-      complexity: options.complexity
-    });
+    const taskDecomposer = new UniversalTaskDecomposer();
+    const decomposition = await taskDecomposer.decomposeQuery(request);
     
     // Display plan
     console.log(chalk.blue('\\n📋 Task Plan:'));
-    console.log(chalk.gray(`   Complexity: ${decomposition.complexity}`));
-    console.log(chalk.gray(`   Estimated time: ${decomposition.estimatedTime} minutes`));
     console.log(chalk.gray(`   Parallelizable: ${decomposition.parallelizable ? 'Yes' : 'No'}`));
-    console.log(chalk.gray(`   Recommended agents: ${decomposition.recommendedAgents.join(', ')}`));
+    console.log(chalk.gray(`   Max Concurrency: ${decomposition.maxConcurrency}`));
+    console.log(chalk.gray(`   Estimated time: ${decomposition.totalEstimatedTimeMinutes} minutes`));
     
     console.log(chalk.blue('\\n📝 Tasks:'));
-    for (let i = 0; i < decomposition.tasks.length; i++) {
-      const task = decomposition.tasks[i];
-      console.log(chalk.white(`   ${i + 1}. ${task.description}`));
-      console.log(chalk.gray(`      Agent: ${task.agent} | Priority: ${task.priority} | Est: ${task.estimatedMinutes || 30}min`));
-      
-      if (task.dependencies.length > 0) {
-        const depNames = task.dependencies.map(depId => {
-          const dep = decomposition.tasks.find(t => t.id === depId);
-          return dep ? dep.description : depId;
+    for (let i = 0; i < decomposition.nodes.length; i++) {
+      const task = decomposition.nodes[i] as any;
+      console.log(chalk.white(`   ${i + 1}. ${task.description || task.title}`));
+      console.log(chalk.gray(`      Agent: ${task.assignedAgent || task.agent} | Priority: ${task.priority} | Est: ${task.estimatedDuration || task.estimatedMinutes || 30}min`));
+
+      if (task.dependencies && task.dependencies.length > 0) {
+        const depNames = task.dependencies.map((depId: string) => {
+          const dep = decomposition.nodes.find((t: any) => t.id === depId);
+          return dep ? (dep.description || dep.title) : depId;
         });
         console.log(chalk.gray(`      Dependencies: ${depNames.join(', ')}`));
       }
     }
     
     // Show execution graph
-    if (decomposition.executionGraph.batches.length > 1) {
+    if (decomposition.batches && decomposition.batches.length > 1) {
       console.log(chalk.blue('\\n🔀 Execution Order:'));
-      for (let i = 0; i < decomposition.executionGraph.batches.length; i++) {
-        const batch = decomposition.executionGraph.batches[i];
-        const batchTasks = batch.map(taskId => {
-          const task = decomposition.tasks.find(t => t.id === taskId);
-          return task ? task.description : taskId;
+      for (let i = 0; i < decomposition.batches.length; i++) {
+        const batch = decomposition.batches[i];
+        const batchTasks = batch.map((item: any) => {
+          // Batches contain TaskDefinition objects per types; be defensive if strings appear
+          const taskObj = typeof item === 'string'
+            ? decomposition.nodes.find((t: any) => t.id === item)
+            : item;
+          return taskObj ? (taskObj.description || taskObj.title) : String(item);
         });
         console.log(chalk.gray(`   Batch ${i + 1}: ${batchTasks.join(', ')}`));
       }
@@ -250,7 +249,8 @@ export class OrchestrationCommands {
         message: 'What would you like to accomplish?'
       }]);
       
-      decomposition = await universalTaskDecomposer.decomposeRequest(request);
+      const taskDecomposer = new UniversalTaskDecomposer();
+      decomposition = await taskDecomposer.decomposeQuery(request);
     }
     
     await this.executeDecomposition(decomposition, options);
@@ -449,9 +449,9 @@ export class OrchestrationCommands {
       console.log(chalk.green('\\n🎉 Execution completed!'));
       console.log(chalk.gray(`   Success: ${result.success}`));
       console.log(chalk.gray(`   Duration: ${Math.round(result.totalDuration / 1000)}s`));
-      console.log(chalk.gray(`   Tasks completed: ${result.completedTasks.length}`));
+      console.log(chalk.gray(`   Tasks completed: ${result.completedTasks?.length || 0}`));
       
-      if (result.failedTasks.length > 0) {
+      if (result.failedTasks && result.failedTasks.length > 0) {
         console.log(chalk.red(`   Tasks failed: ${result.failedTasks.length}`));
         for (const failed of result.failedTasks) {
           console.log(chalk.red(`     • ${failed.error}`));

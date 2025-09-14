@@ -101,8 +101,8 @@ export class ConsoleOutput {
       agentTasks.forEach((task, index) => {
         const statusEmoji = this.getTaskStatusEmoji(task.status);
         const priority = task.priority ? ` [P${task.priority}]` : '';
-        const dependencies = task.dependencies.length > 0 
-          ? ` (depends on: ${task.dependencies.join(', ')})` 
+        const dependencies = (task.dependencies || []).length > 0 
+          ? ` (depends on: ${(task.dependencies || []).join(', ')})` 
           : '';
         
         console.log(`  ${statusEmoji} ${task.id}: ${task.description}${priority}${dependencies}`);
@@ -239,11 +239,13 @@ export class ConsoleOutput {
   /**
    * Get emoji for task status
    */
-  private getTaskStatusEmoji(status: TaskStatus): string {
+  private getTaskStatusEmoji(status: string): string {
     switch (status) {
       case 'pending':
         return '⏳';
       case 'in_progress':
+        return '🔄';
+      case 'running':
         return '🔄';
       case 'completed':
         return '✅';

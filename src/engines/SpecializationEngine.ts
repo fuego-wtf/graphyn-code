@@ -65,6 +65,8 @@ export interface SpecializedAgentConfig {
     context: string;
     examples: string[];
   };
+  mcp_servers?: Record<string, any>;
+  mcp_enabled_tools?: string[];
 }
 
 export class SpecializationEngine {
@@ -121,9 +123,12 @@ export class SpecializationEngine {
     const specializedAgents: SpecializedAgentConfig[] = [];
     
     for (const candidate of candidateAgents) {
-      const specialization = await this.applyTechnologySpecialization(candidate, analysis);
-      if (specialization.confidence_score > 0.6) {
+      const specialization = await this.applyTechnologySpecialization(candidate, analysis, userQuery);
+      // 🔥 LOWERED THRESHOLD: 0.4 instead of 0.6 to allow more agents through
+      if (specialization.confidence_score > 0.4) {
         specializedAgents.push(specialization);
+      } else {
+        console.log(`⚠️ Agent ${candidate.name} scored ${specialization.confidence_score.toFixed(2)}, below 0.4 threshold`);
       }
     }
 
@@ -411,6 +416,7 @@ export class SpecializationEngine {
 
   /**
    * Select candidate agents based on analysis (Steps 16-18)
+   * 🔥 FIXED: Now works for ALL queries including greetings!
    */
   private async selectCandidateAgents(
     analysis: ProjectAnalysis, 
@@ -418,39 +424,117 @@ export class SpecializationEngine {
   ): Promise<AgentProfile[]> {
     const allAgents = this.agentRegistry.getAgents();
     const candidates: AgentProfile[] = [];
+    const queryLower = userQuery.toLowerCase();
 
-    // Always include architect for complex projects
-    if (analysis.architecture.complexity_score > 50) {
-      const architect = allAgents.find(a => a.type === 'architect');
-      if (architect) candidates.push(architect);
+    console.log(`🔍 Candidate Selection: Found ${allAgents.length} total agents available`);
+    
+    // UNIVERSAL FALLBACK: Always ensure we have at least one agent for ANY query
+    const getUniversalAgent = () => {
+      // Priority order for universal queries
+      const universalTypes: AgentType[] = ['researcher', 'task-dispatcher', 'architect', 'cli'];
+      for (const type of universalTypes) {
+        const agent = allAgents.find(a => a.type === type);
+        if (agent) return agent;
+      }
+      // Absolute fallback - return any available agent
+      return allAgents[0];
+    };
+
+    // QUERY TYPE DETECTION with better pattern matching
+    if (queryLower.includes('help') || queryLower.includes('how') || queryLower.includes('what') || 
+        queryLower.includes('explain') || queryLower.includes('show me') || queryLower.includes('hey') || 
+        queryLower.includes('hello') || queryLower.includes('hi ') || queryLower.includes('there')) {
+      // Conversational/Help queries - prioritize researcher and task-dispatcher
+      const researcher = allAgents.find(a => a.type === 'researcher');
+      const dispatcher = allAgents.find(a => a.type === 'task-dispatcher');
+      if (researcher) candidates.push(researcher);
+      if (dispatcher && !candidates.includes(dispatcher)) candidates.push(dispatcher);
     }
 
-    // Add technology-specific agents
+    // ARCHITECTURE & COMPLEX PROJECTS
+    if (analysis.architecture.complexity_score > 30) { // Lowered threshold
+      const architect = allAgents.find(a => a.type === 'architect');
+      if (architect && !candidates.includes(architect)) candidates.push(architect);
+    }
+
+    // TECHNOLOGY-SPECIFIC AGENTS (More comprehensive matching)
     for (const tech of analysis.technologies) {
       if (tech.category === 'framework') {
-        if (tech.name.toLowerCase().includes('react') || tech.name.toLowerCase().includes('next')) {
+        // Frontend frameworks
+        if (tech.name.toLowerCase().includes('react') || tech.name.toLowerCase().includes('next') || 
+            tech.name.toLowerCase().includes('vue') || tech.name.toLowerCase().includes('angular')) {
           const frontend = allAgents.find(a => a.type === 'frontend');
           if (frontend && !candidates.includes(frontend)) candidates.push(frontend);
         }
         
-        if (tech.name.toLowerCase().includes('express') || tech.name.toLowerCase().includes('django')) {
+        // Backend frameworks
+        if (tech.name.toLowerCase().includes('express') || tech.name.toLowerCase().includes('django') ||
+            tech.name.toLowerCase().includes('flask') || tech.name.toLowerCase().includes('fastapi')) {
           const backend = allAgents.find(a => a.type === 'backend');
           if (backend && !candidates.includes(backend)) candidates.push(backend);
         }
       }
     }
 
-    // Add testing agent if testing frameworks detected
-    if (analysis.development_workflow.testing_framework.length > 0) {
-      const tester = allAgents.find(a => a.type === 'test-writer');
-      if (tester) candidates.push(tester);
+    // TYPESCRIPT/JAVASCRIPT PROJECTS get CLI agent
+    if (analysis.repository.primary_language === 'typescript' || 
+        analysis.repository.primary_language === 'javascript') {
+      const cliAgent = allAgents.find(a => a.type === 'cli' || a.type === 'code-cli-developer');
+      if (cliAgent && !candidates.includes(cliAgent)) candidates.push(cliAgent);
     }
 
-    // Query-based agent selection
-    const queryLower = userQuery.toLowerCase();
-    if (queryLower.includes('design') || queryLower.includes('ui') || queryLower.includes('figma')) {
-      const designer = allAgents.find(a => a.type === 'design');
+    // TESTING FRAMEWORKS
+    if (analysis.development_workflow.testing_framework.length > 0) {
+      const tester = allAgents.find(a => a.type === 'test-writer');
+      if (tester && !candidates.includes(tester)) candidates.push(tester);
+    }
+
+    // QUERY-BASED INTELLIGENT MATCHING
+    if (queryLower.includes('design') || queryLower.includes('ui') || queryLower.includes('figma') || queryLower.includes('styling')) {
+      const designer = allAgents.find(a => a.type === 'design' || a.type === 'figma-extractor');
       if (designer && !candidates.includes(designer)) candidates.push(designer);
+    }
+
+    if (queryLower.includes('security') || queryLower.includes('auth') || queryLower.includes('login') || queryLower.includes('permission')) {
+      const security = allAgents.find(a => a.type === 'security');
+      if (security && !candidates.includes(security)) candidates.push(security);
+    }
+
+    if (queryLower.includes('deploy') || queryLower.includes('docker') || queryLower.includes('production') || queryLower.includes('ci')) {
+      const devops = allAgents.find(a => a.type === 'devops' || a.type === 'production-architect');
+      if (devops && !candidates.includes(devops)) candidates.push(devops);
+    }
+
+    if (queryLower.includes('test') || queryLower.includes('bug') || queryLower.includes('debug') || queryLower.includes('fix')) {
+      const tester = allAgents.find(a => a.type === 'test-writer');
+      if (tester && !candidates.includes(tester)) candidates.push(tester);
+    }
+
+    if (queryLower.includes('performance') || queryLower.includes('optimize') || queryLower.includes('slow') || queryLower.includes('speed')) {
+      const performance = allAgents.find(a => a.type === 'performance');
+      if (performance && !candidates.includes(performance)) candidates.push(performance);
+    }
+
+    // 🚨 CRITICAL: ENSURE WE ALWAYS HAVE AT LEAST ONE AGENT
+    if (candidates.length === 0) {
+      console.log('⚠️ No specific candidates found, adding universal agent...');
+      const universalAgent = getUniversalAgent();
+      if (universalAgent) {
+        candidates.push(universalAgent);
+        console.log(`✅ Added universal agent: ${universalAgent.name} (${universalAgent.type})`);
+      }
+    }
+
+    // Add more agents if we have room and they're available
+    if (candidates.length < 3) {
+      const remaining = allAgents.filter(agent => !candidates.includes(agent));
+      const additionalAgents = remaining.slice(0, 3 - candidates.length);
+      candidates.push(...additionalAgents);
+    }
+
+    console.log(`🎯 Selected ${candidates.length} candidate agents:`);
+    for (const candidate of candidates) {
+      console.log(`   • ${candidate.name} (${candidate.type})`);
     }
 
     return candidates.slice(0, 8); // Limit to 8 agents
@@ -458,21 +542,65 @@ export class SpecializationEngine {
 
   /**
    * Apply technology specialization (Steps 19-24)
+   * 🔥 ENHANCED: More bonuses, universal agent support, better scoring
    */
   private async applyTechnologySpecialization(
     agent: AgentProfile, 
-    analysis: ProjectAnalysis
+    analysis: ProjectAnalysis,
+    userQuery: string
   ): Promise<SpecializedAgentConfig> {
-    let confidenceScore = 0.3; // Base confidence
+    let confidenceScore = 0.4; // 🔥 RAISED BASE: 0.4 instead of 0.3
     const reasoning: string[] = [`Base ${agent.type} agent`];
     const technologyMatch: TechnologyProfile[] = [];
     const specializations: AgentSpecialization[] = [];
+    const queryLower = userQuery.toLowerCase();
 
-    // Match agent to technologies
+    console.log(`🔍 Scoring agent ${agent.name} (${agent.type})...`);
+
+    // 🚀 UNIVERSAL AGENT BONUSES
+    if (agent.type === 'researcher' || agent.type === 'task-dispatcher') {
+      confidenceScore += 0.15; // Universal agents get bonus for any query
+      reasoning.push('universal agent');
+    }
+
+    // 🗨️ CONVERSATIONAL QUERY BONUSES
+    if (queryLower.includes('hey') || queryLower.includes('hello') || queryLower.includes('hi ') || 
+        queryLower.includes('there') || queryLower.includes('help') || queryLower.includes('what')) {
+      if (agent.type === 'researcher' || agent.type === 'task-dispatcher') {
+        confidenceScore += 0.2;
+        reasoning.push('conversational query match');
+      }
+    }
+
+    // 🏢 PROJECT LANGUAGE BONUSES
+    if (analysis.repository.primary_language === 'typescript' && 
+        (agent.type === 'cli' || agent.type === 'frontend' || agent.type === 'backend')) {
+      confidenceScore += 0.15;
+      reasoning.push('TypeScript project');
+    }
+
+    // 🎯 ARCHITECTURE BONUSES (Lowered thresholds)
+    if (agent.type === 'architect') {
+      if (analysis.architecture.complexity_score > 50) {
+        confidenceScore += 0.25; // 🔥 INCREASED from 0.2
+        reasoning.push('complex architecture');
+      } else if (analysis.architecture.complexity_score > 20) {
+        confidenceScore += 0.15; // Bonus for moderate complexity
+        reasoning.push('moderate architecture');
+      }
+    }
+
+    // 📊 TESTING FRAMEWORK BONUSES
+    if (agent.type === 'test-writer' && analysis.development_workflow.testing_framework.length > 0) {
+      confidenceScore += 0.2;
+      reasoning.push(`${analysis.development_workflow.testing_framework.join(', ')} testing`);
+    }
+
+    // 🔧 TECHNOLOGY MATCHING (Lowered threshold)
     for (const tech of analysis.technologies) {
       const match = this.matchAgentToTechnology(agent.type, tech);
-      if (match.confidence > 0.7) {
-        confidenceScore += match.confidence * 0.4;
+      if (match.confidence > 0.5) { // 🔥 LOWERED from 0.7 to 0.5
+        confidenceScore += match.confidence * 0.3; // Slightly reduced multiplier
         technologyMatch.push(tech);
         reasoning.push(`${tech.name} expertise`);
         
@@ -495,16 +623,29 @@ export class SpecializationEngine {
       }
     }
 
-    // Architecture bonus
-    if (agent.type === 'architect' && analysis.architecture.complexity_score > 70) {
+    // 🎯 QUERY KEYWORD BONUSES
+    if (queryLower.includes('cli') && agent.type === 'cli') {
       confidenceScore += 0.2;
-      reasoning.push('complex architecture');
+      reasoning.push('CLI query match');
     }
+    
+    if (queryLower.includes('security') && agent.type === 'security') {
+      confidenceScore += 0.2;
+      reasoning.push('security query match');
+    }
+    
+    if (queryLower.includes('design') && agent.type === 'design') {
+      confidenceScore += 0.2;
+      reasoning.push('design query match');
+    }
+
+    const finalScore = Math.min(confidenceScore, 1.0);
+    console.log(`   → Final score: ${finalScore.toFixed(2)} (${reasoning.join(', ')})`);
 
     return {
       base_agent: agent,
       specializations,
-      confidence_score: Math.min(confidenceScore, 1.0),
+      confidence_score: finalScore,
       reasoning: reasoning.join(', '),
       technology_match: technologyMatch,
       enhanced_capabilities: [],
@@ -683,7 +824,77 @@ export class SpecializationEngine {
   }
 
   private async assignSpecializedTools(agent: SpecializedAgentConfig, analysis: ProjectAnalysis): Promise<void> {
-    // Assign specialized tools based on technology stack
+    // STEP 26: MCP Server Discovery and Auto-Installation
+    console.log(`🔌 Discovering MCP servers for ${agent.base_agent.name}...`);
+    
+    try {
+      // Import MCP discovery module
+      const { discoverMCPServersForProject } = await import('../mcp/server-discovery.js');
+      
+      // Discover MCP servers based on project analysis
+      const mcpResult = await discoverMCPServersForProject(analysis, {
+        autoInstall: true,
+        skipValidation: false, // Validate servers can start
+        silent: false,
+        includeOptional: false
+      });
+      
+      // Assign discovered MCP servers to agent
+      if (Object.keys(mcpResult.recommendedServers).length > 0) {
+        agent.mcp_servers = mcpResult.recommendedServers;
+        agent.mcp_enabled_tools = [];
+        
+        // Collect all available MCP tools
+        const { getMCPServerConfig } = await import('../mcp/server-registry.js');
+        for (const serverName of Object.keys(mcpResult.recommendedServers)) {
+          const config = getMCPServerConfig(serverName);
+          if (config) {
+            agent.mcp_enabled_tools.push(...config.tools.map(tool => `mcp__${serverName}__${tool}`));
+          }
+        }
+        
+        console.log(`✅ ${agent.base_agent.name} configured with ${Object.keys(mcpResult.recommendedServers).length} MCP servers`);
+        console.log(`   Available tools: ${agent.mcp_enabled_tools.slice(0, 5).join(', ')}${agent.mcp_enabled_tools.length > 5 ? '...' : ''}`);
+      } else {
+        console.log(`⚠️ No MCP servers configured for ${agent.base_agent.name}`);
+        
+        // Fallback to minimal configuration
+        const { createMinimalMCPConfiguration } = await import('../mcp/server-discovery.js');
+        const minimalServers = createMinimalMCPConfiguration();
+        
+        if (Object.keys(minimalServers).length > 0) {
+          agent.mcp_servers = minimalServers;
+          agent.mcp_enabled_tools = ['mcp__filesystem__Read', 'mcp__filesystem__Write', 'mcp__git__Status'];
+          console.log(`✅ ${agent.base_agent.name} configured with minimal MCP servers (filesystem, git)`);
+        }
+      }
+      
+      // Show any skipped servers with reasons
+      if (mcpResult.skippedServers.length > 0) {
+        console.log(`⚠️ Skipped MCP servers for ${agent.base_agent.name}:`);
+        for (const skipped of mcpResult.skippedServers) {
+          console.log(`   • ${skipped.name}: ${skipped.reason}`);
+          if (skipped.missingEnv) {
+            console.log(`     Missing env: ${skipped.missingEnv.join(', ')}`);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error(`❌ MCP discovery failed for ${agent.base_agent.name}:`, error);
+      
+      // Always provide fallback - at minimum filesystem access
+      agent.mcp_servers = {
+        filesystem: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem', process.cwd()],
+          env: {}
+        }
+      };
+      agent.mcp_enabled_tools = ['mcp__filesystem__Read', 'mcp__filesystem__Write'];
+      
+      console.log(`🔄 ${agent.base_agent.name} configured with emergency MCP fallback (filesystem only)`);
+    }
   }
 
   private async generateSpecializedPrompts(agent: SpecializedAgentConfig, analysis: ProjectAnalysis, userQuery: string): Promise<void> {

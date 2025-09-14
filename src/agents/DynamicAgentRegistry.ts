@@ -696,43 +696,86 @@ export class DynamicAgentRegistry {
   
   /**
    * Create default agent profiles if none exist
+   * 🔥 ENHANCED: Complete agent set with all types, matching .md agents
    */
   private async createDefaultAgents(): Promise<void> {
+    console.log('🤖 Creating default agent profiles...');
+    
     const defaultAgents: Partial<AgentProfile>[] = [
       {
         name: 'System Architect',
         type: 'architect',
-        description: 'Designs system architecture and technical solutions'
+        description: 'Designs scalable system architecture, microservices, and technical solutions'
       },
       {
         name: 'Backend Developer',
         type: 'backend',
-        description: 'Implements server-side logic and APIs'
+        description: 'Implements server-side logic, APIs, databases, and backend systems'
       },
       {
         name: 'Frontend Developer',
         type: 'frontend',
-        description: 'Creates user interfaces and client-side functionality'
+        description: 'Creates responsive user interfaces, React/Vue components, and client-side functionality'
       },
       {
         name: 'Test Engineer',
         type: 'test-writer',
-        description: 'Writes comprehensive test suites and quality assurance'
+        description: 'Writes comprehensive test suites, TDD/BDD, and quality assurance'
       },
       {
         name: 'UI/UX Designer',
         type: 'design',
-        description: 'Designs user interfaces and user experiences'
+        description: 'Designs user interfaces, user experiences, and design systems'
       },
       {
         name: 'Security Expert',
         type: 'security',
-        description: 'Implements security best practices, authentication, and authorization systems'
+        description: 'Implements security best practices, authentication, authorization, and RBAC systems'
       },
       {
         name: 'Research Specialist',
         type: 'researcher',
-        description: 'Researches best practices, patterns, and provides technical recommendations'
+        description: 'Researches best practices, analyzes patterns, and provides technical recommendations'
+      },
+      {
+        name: 'Task Coordinator',
+        type: 'task-dispatcher',
+        description: 'Coordinates multi-agent workflows, breaks down complex tasks, and manages project execution'
+      },
+      {
+        name: 'CLI Developer',
+        type: 'cli',
+        description: 'Creates command-line interfaces, developer tools, and automation scripts'
+      },
+      {
+        name: 'DevOps Engineer',
+        type: 'devops',
+        description: 'Manages CI/CD pipelines, containerization, and deployment automation'
+      },
+      {
+        name: 'Performance Expert',
+        type: 'performance',
+        description: 'Optimizes application performance, identifies bottlenecks, and implements optimizations'
+      },
+      {
+        name: 'Figma Specialist',
+        type: 'figma-extractor',
+        description: 'Extracts designs from Figma, converts to code, and manages design tokens'
+      },
+      {
+        name: 'Production Architect',
+        type: 'production-architect',
+        description: 'Designs production infrastructure, monitoring, and scalability solutions'
+      },
+      {
+        name: 'Code CLI Developer',
+        type: 'code-cli-developer',
+        description: 'Specializes in CLI tools, developer experience, and command-line interfaces'
+      },
+      {
+        name: 'PR Manager',
+        type: 'pr-merger',
+        description: 'Reviews code, manages pull requests, and ensures code quality standards'
       }
     ];
     
@@ -743,6 +786,8 @@ export class DynamicAgentRegistry {
         description: config.description!
       });
     }
+    
+    console.log(`✅ Created ${defaultAgents.length} default agent profiles`);
   }
   
   /**

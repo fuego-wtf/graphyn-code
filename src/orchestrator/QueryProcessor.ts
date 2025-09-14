@@ -188,11 +188,11 @@ export class QueryProcessor {
     const executionPlan = await this.generateExecutionPlan(parsed, workspaceContext);
     
     return {
-      parsed,
+      query: parsed.originalQuery,
+      intent: parsed.intent,
+      complexity: parsed.complexity,
       executionPlan,
-      recommendations: this.generateRecommendations(parsed, executionPlan),
-      warnings: this.generateWarnings(parsed, executionPlan),
-      estimatedCost: this.estimateCost(executionPlan)
+      confidence: parsed.confidence || 0.8
     };
   }
 
@@ -349,14 +349,13 @@ export class QueryProcessor {
     
     return {
       id: planId,
-      query: parsed.originalQuery,
-      complexity: parsed.complexity,
-      mode: parsed.suggestedMode,
       tasks,
       dependencies,
       estimatedDuration,
-      requiredAgents: parsed.requiredAgents,
-      parallelismLevel
+      parallelizable: this.calculateParallelizability(parsed.complexity, tasks.length),
+      query: parsed.originalQuery,
+      mode: parsed.suggestedMode || ExecutionMode.ADAPTIVE,
+      requiredAgents: parsed.requiredAgents || []
     };
   }
 
@@ -367,29 +366,23 @@ export class QueryProcessor {
     const tasks: TaskDefinition[] = [];
     let taskCounter = 1;
     
-    for (const agentType of parsed.requiredAgents) {
+    for (const agentType of (parsed.requiredAgents || [])) {
       const taskId = `task_${taskCounter++}_${agentType}`;
-      const description = this.generateTaskDescription(agentType, parsed);
-      const priority = this.calculateTaskPriority(agentType, parsed.intent);
-      const estimatedDuration = this.estimateTaskDuration(agentType, parsed.complexity);
+      const description = this.generateTaskDescription(agentType as AgentType, parsed);
+      const priority = this.calculateTaskPriority(agentType as AgentType, parsed.intent);
+      const estimatedDuration = this.estimateTaskDuration(agentType as AgentType, parsed.complexity);
       
       tasks.push({
         id: taskId,
-        title: this.generateTaskTitle(agentType, parsed),
+        title: this.generateTaskTitle(agentType as AgentType, parsed),
         description,
-        agentType,
+        agentType: agentType as AgentType,
         agent: agentType,
         complexity: this.mapQueryComplexityToTaskComplexity(parsed.complexity),
         estimatedDuration,
         dependencies: [], // Will be populated by generateTaskDependencies
-        tools: this.generateTaskTools(agentType),
-        priority,
-        tags: this.generateTaskTags(agentType, parsed),
-        metadata: {
-          intent: parsed.intent,
-          complexity: parsed.complexity,
-          confidence: parsed.confidence
-        }
+        tools: this.generateTaskTools(agentType as AgentType),
+        priority
       });
     }
     
@@ -416,18 +409,16 @@ export class QueryProcessor {
     if (architectTask) {
       if (backendTask) {
         dependencies.push({
-          sourceTaskId: architectTask,
-          targetTaskId: backendTask,
-          type: 'hard',
-          reason: 'Architecture must be planned before backend development'
+          fromTask: architectTask,
+          toTask: backendTask,
+          type: 'blocking'
         });
       }
       if (frontendTask) {
         dependencies.push({
-          sourceTaskId: architectTask,
-          targetTaskId: frontendTask,
-          type: 'hard',
-          reason: 'Architecture must be planned before frontend development'
+          fromTask: architectTask,
+          toTask: frontendTask,
+          type: 'blocking'
         });
       }
     }
@@ -435,20 +426,18 @@ export class QueryProcessor {
     // Figma extraction should precede design work
     if (figmaTask && designTask) {
       dependencies.push({
-        sourceTaskId: figmaTask,
-        targetTaskId: designTask,
-        type: 'hard',
-        reason: 'Figma components must be extracted before design work'
+        fromTask: figmaTask,
+        toTask: designTask,
+        type: 'blocking'
       });
     }
     
     // Design should precede frontend development
     if (designTask && frontendTask) {
       dependencies.push({
-        sourceTaskId: designTask,
-        targetTaskId: frontendTask,
-        type: 'soft',
-        reason: 'Design system should be established before frontend implementation'
+        fromTask: designTask,
+        toTask: frontendTask,
+        type: 'preferred'
       });
     }
     
@@ -456,18 +445,16 @@ export class QueryProcessor {
     if (testTask) {
       if (backendTask) {
         dependencies.push({
-          sourceTaskId: backendTask,
-          targetTaskId: testTask,
-          type: 'soft',
-          reason: 'Backend implementation should be ready for testing'
+          fromTask: backendTask,
+          toTask: testTask,
+          type: 'preferred'
         });
       }
       if (frontendTask) {
         dependencies.push({
-          sourceTaskId: frontendTask,
-          targetTaskId: testTask,
-          type: 'soft',
-          reason: 'Frontend implementation should be ready for testing'
+          fromTask: frontendTask,
+          toTask: testTask,
+          type: 'preferred'
         });
       }
     }
@@ -475,10 +462,9 @@ export class QueryProcessor {
     // Testing should precede deployment
     if (testTask && deployTask) {
       dependencies.push({
-        sourceTaskId: testTask,
-        targetTaskId: deployTask,
-        type: 'hard',
-        reason: 'Tests must pass before deployment'
+        fromTask: testTask,
+        toTask: deployTask,
+        type: 'blocking'
       });
     }
     
@@ -744,14 +730,19 @@ export class QueryProcessor {
     return Math.min(baseLevel, taskCount);
   }
 
+  private calculateParallelizability(complexity: QueryComplexity, taskCount: number): boolean {
+    // Tasks can be parallelized if there are multiple tasks and complexity allows it
+    return taskCount > 1 && complexity !== QueryComplexity.SIMPLE;
+  }
+
   private generateRecommendations(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
     const recommendations: string[] = [];
     
-    if (parsed.confidence < 0.7) {
+    if (parsed.confidence && parsed.confidence < 0.7) {
       recommendations.push('Query intent unclear - consider providing more specific details');
     }
     
-    if (plan.tasks.length > 5) {
+    if (plan.tasks && plan.tasks.length > 5) {
       recommendations.push('Large task count - consider breaking into smaller phases');
     }
     
@@ -760,7 +751,7 @@ export class QueryProcessor {
     }
     
     // Figma-specific recommendations
-    if (parsed.requiredAgents.includes('figma-extractor')) {
+    if (parsed.requiredAgents && parsed.requiredAgents.includes('figma-extractor')) {
       recommendations.push('Ensure Figma access token is configured for design extraction');
     }
     
@@ -770,11 +761,11 @@ export class QueryProcessor {
   private generateWarnings(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
     const warnings: string[] = [];
     
-    if (plan.estimatedDuration > 480) { // 8 hours
+    if (plan.estimatedDuration && plan.estimatedDuration > 480) { // 8 hours
       warnings.push('Long execution time estimated - consider breaking into phases');
     }
     
-    if (parsed.requiredAgents.length > 6) {
+    if (parsed.requiredAgents && parsed.requiredAgents.length > 6) {
       warnings.push('High agent count may cause coordination overhead');
     }
     
@@ -787,15 +778,15 @@ export class QueryProcessor {
     const computeTime = plan.estimatedDuration;
     
     return {
-      computeTime,
-      resourceUnits: computeTime,
-      estimatedCost: computeTime * costPerMinute,
+      computeTime: computeTime || 0,
+      resourceUnits: computeTime || 0,
+      estimatedCost: (computeTime || 0) * costPerMinute,
       breakdown: [
         {
           component: 'Compute Time',
-          usage: computeTime,
+          usage: computeTime || 0,
           rate: costPerMinute,
-          cost: computeTime * costPerMinute
+          cost: (computeTime || 0) * costPerMinute
         }
       ]
     };

@@ -528,8 +528,8 @@ export async function interactiveFigmaWorkflowSetup(): Promise<MultiAgentResult 
       message: 'Maximum concurrent agents (3-8):',
       default: 6,
       validate: (input) => {
-        const num = parseInt(input);
-        if (num < 3 || num > 8) return 'Please enter a number between 3 and 8';
+        const num = parseInt(String(input));
+        if (isNaN(num) || num < 3 || num > 8) return 'Please enter a number between 3 and 8';
         return true;
       }
     },

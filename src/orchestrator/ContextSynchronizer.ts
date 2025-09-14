@@ -403,10 +403,13 @@ export class ContextSynchronizer {
     // Group tasks by agent
     const tasksByAgent = new Map<AgentType, TaskExecution[]>();
     for (const task of tasks) {
-      if (!tasksByAgent.has(task.agent)) {
-        tasksByAgent.set(task.agent, []);
+      const agent = task.agent as AgentType;
+      if (agent && !tasksByAgent.has(agent)) {
+        tasksByAgent.set(agent, []);
       }
-      tasksByAgent.get(task.agent)!.push(task);
+      if (agent) {
+        tasksByAgent.get(agent)!.push(task);
+      }
     }
 
     content += `## Tasks by Agent\n\n`;
@@ -416,8 +419,8 @@ export class ContextSynchronizer {
       
       for (const task of agentTasks) {
         content += `- **${task.id}**: ${task.description}\n`;
-        if (task.dependencies.length > 0) {
-          content += `  - Dependencies: ${task.dependencies.join(', ')}\n`;
+        if ((task.dependencies || []).length > 0) {
+          content += `  - Dependencies: ${(task.dependencies || []).join(', ')}\n`;
         }
         content += `  - Priority: ${task.priority}\n`;
         if (task.estimatedDuration) {
@@ -433,7 +436,7 @@ export class ContextSynchronizer {
     content += 'graph TD;\n';
     
     for (const task of tasks) {
-      for (const depId of task.dependencies) {
+      for (const depId of (task.dependencies || [])) {
         content += `  ${depId} --> ${task.id};\n`;
       }
     }
