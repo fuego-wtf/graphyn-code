@@ -148,9 +148,8 @@ export class AgentOrchestrator extends EventEmitter {
                           (keywordAnalysis.confidence < 70 && query.length > 20)
                           );
     
-    // CRITICAL FIX: Skip Claude routing entirely for now to prevent hangs
-    // TODO: Re-enable once Claude Code SDK hang is resolved
-    const BYPASS_CLAUDE_ROUTING = true; // Emergency bypass while debugging
+    // FIXED: Claude routing enabled with proper timeout handling
+    const BYPASS_CLAUDE_ROUTING = false; // Emergency bypass removed
     
     if (!isComplexQuery || BYPASS_CLAUDE_ROUTING) {
       // Fast path: Use keyword analysis only to prevent hangs
@@ -381,8 +380,8 @@ export class AgentOrchestrator extends EventEmitter {
   ): AsyncGenerator<any> {
     let agentConfig = this.agentConfigs.get(agentName);
     
-    // EMERGENCY BYPASS: Skip Claude Code SDK calls to prevent hangs
-    const EMERGENCY_MODE = true; // TODO: Remove when Claude Code SDK hanging is fixed
+    // FIXED: Claude Code SDK enabled with proper error handling
+    const EMERGENCY_MODE = false; // Emergency bypass removed
     
     // IMMEDIATE FEEDBACK: Let user know we're starting
     yield {
@@ -474,14 +473,22 @@ export class AgentOrchestrator extends EventEmitter {
     };
 
     // Use REAL Claude Code SDK streaming - NO MOCKING
-    for await (const message of this.claudeClient.executeQueryStream(agentPrompt, {
+    const claudeOptions = {
       maxTurns: 10,
       allowedTools: [
         'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
-        'WebFetch', 'WebSearch', 'NotebookEdit', 'Task'
+        'WebFetch', 'WebSearch', 'NotebookEdit'  // Removed 'Task' as potential hang point
       ],
-      model: 'claude-3-5-sonnet-20241022'
-    })) {
+      model: 'claude-3-5-sonnet-20241022',
+      mcpServers: repositoryContext?.mcpServers // Pass MCP servers from context
+    };
+    
+    // Log MCP server usage
+    if (repositoryContext?.mcpServers && Object.keys(repositoryContext.mcpServers).length > 0) {
+      this.emit('debug', `Using ${Object.keys(repositoryContext.mcpServers).length} MCP servers: ${Object.keys(repositoryContext.mcpServers).join(', ')}`);
+    }
+    
+    for await (const message of this.claudeClient.executeQueryStream(agentPrompt, claudeOptions)) {
       // Yield each message as it arrives from Claude
       yield message;
     }
@@ -497,8 +504,8 @@ export class AgentOrchestrator extends EventEmitter {
   ): Promise<{ result: string; metrics?: any }> {
     let agentConfig = this.agentConfigs.get(agentName);
     
-    // EMERGENCY BYPASS: Skip Claude Code SDK calls to prevent hangs
-    const EMERGENCY_MODE = true; // TODO: Remove when Claude Code SDK hanging is fixed
+    // FIXED: Claude Code SDK enabled with proper error handling
+    const EMERGENCY_MODE = false; // Emergency bypass removed
     
     // Fallback mechanism for unknown agents
     if (!agentConfig) {

@@ -67,8 +67,8 @@ export class ClaudeCodeClient extends EventEmitter {
     let toolCalls = 0;
     let sessionId = options.resume || this.sessionId;
     
-    // AGGRESSIVE TIMEOUT: 10 seconds max to prevent infinite hangs
-    const timeoutMs = 10000; // Reduced from 30s to 10s
+    // REASONABLE TIMEOUT: 60 seconds for complex queries
+    const timeoutMs = 60000; // Increased from 10s to 60s for AI responses
     let isTimedOut = false;
     
     const timeoutId = setTimeout(() => {
@@ -91,7 +91,7 @@ export class ClaudeCodeClient extends EventEmitter {
       const queryPromise = query({
         prompt,
         options: {
-          maxTurns: options.maxTurns || 5, // Reduced from 10 to 5
+          maxTurns: options.maxTurns || 15, // Increased from 5 to 15 for complex queries
           appendSystemPrompt: options.appendSystemPrompt,
           allowedTools: options.allowedTools || [
             'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
