@@ -10,7 +10,7 @@
  */
 
 // Re-export AgentType from constants with proper naming
-export { AgentType } from '../constants/agents.js';
+export type { AgentType } from '../constants/agents';
 
 // Core task interface - proper PascalCase, no I prefix
 export interface TaskNode {

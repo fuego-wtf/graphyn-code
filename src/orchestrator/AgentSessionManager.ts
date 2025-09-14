@@ -32,6 +32,7 @@ import {
   WORKTREE_CLEANUP_TIMEOUT_MS,
   AGENT_PERSONAS
 } from './constants.js';
+import { dynamicAgentRegistry } from '../agents/DynamicAgentRegistry.js';
 
 /**
  * Session metrics for monitoring and performance analysis
@@ -96,6 +97,7 @@ export class AgentSessionManager extends EventEmitter {
   private sessionCounter = 0;
   private worktreeCounter = 0;
   private isShuttingDown = false;
+  private registryInitialized = false;
 
   constructor(config: AgentSessionManagerConfig = {}) {
     super();
@@ -119,12 +121,31 @@ export class AgentSessionManager extends EventEmitter {
   }
 
   /**
+   * Initialize dynamic agent registry (once per session lifecycle)
+   */
+  private async ensureRegistryInitialized(): Promise<void> {
+    if (!this.registryInitialized) {
+      try {
+        // This automatically runs cleanup of old agent files on initialize
+        await dynamicAgentRegistry.initialize();
+        this.registryInitialized = true;
+      } catch (error) {
+        console.warn('Failed to initialize dynamic agent registry:', error);
+        // Continue with static personas as fallback
+      }
+    }
+  }
+
+  /**
    * Create agent sessions for given personas
    */
   async createSessions(agentIds: string[]): Promise<AgentSession[]> {
     if (this.isShuttingDown) {
       throw new Error('Session manager is shutting down');
     }
+
+    // Ensure registry is initialized (which runs cleanup automatically)
+    await this.ensureRegistryInitialized();
 
     const sessions: AgentSession[] = [];
     const creationPromises = agentIds.map(async (agentId) => {
@@ -421,6 +442,18 @@ export class AgentSessionManager extends EventEmitter {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
+
+    // Initialize registry if needed (this triggers automatic cleanup of old agent files)
+    if (!this.registryInitialized) {
+      try {
+        await dynamicAgentRegistry.initialize();
+      } catch (error) {
+        console.warn('Failed to cleanup agent registry:', error);
+      }
+    }
+
+    // Reset initialization flag for next session
+    this.registryInitialized = false;
   }
 
   /**

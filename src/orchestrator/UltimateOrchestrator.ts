@@ -116,15 +116,11 @@ export class UltimateOrchestrator extends EventEmitter {
       this.performanceMonitor.startExecution(executionId, query);
 
       // Phase 1: Task Decomposition (< 3s)
-      console.log(`🔍 Phase 1: Analyzing query - "${query}"`);
       const executionGraph = await this.taskDecomposer.decomposeQuery(query);
 
       if (!executionGraph.nodes || executionGraph.nodes.length === 0) {
         throw new Error('No tasks generated from query');
       }
-
-      console.log(`✅ Generated ${executionGraph.nodes.length} tasks in ${executionGraph.totalEstimatedTimeMinutes}min`);
-      console.log(`📊 Parallelizable: ${executionGraph.parallelizable}, Max Concurrency: ${executionGraph.maxConcurrency}`);
       
       // HUMAN-IN-THE-LOOP APPROVAL CHECKPOINT
       const approved = await this.requestHumanApproval(executionGraph.nodes as TaskNode[], query);
@@ -134,17 +130,13 @@ export class UltimateOrchestrator extends EventEmitter {
       }
 
       // Phase 2: Agent Assignment & Session Creation (< 2s)
-      console.log('🤖 Phase 2: Assigning agents and creating sessions...');
       const agentAssignments = await this.assignAgentsToTasks(executionGraph.nodes as TaskNode[]);
 
       // Create agent sessions for required personas
       const requiredPersonas = [...new Set(agentAssignments.map(task => task.assignedAgent))];
       const sessions = await this.agentSessionManager.createSessions(requiredPersonas);
 
-      console.log(`✅ Created ${sessions.length} agent sessions: ${requiredPersonas.join(', ')}`);
-
       // Phase 3: Parallel Task Execution (let Claude SDK handle its own timing)
-      console.log('⚡ Phase 3: Executing tasks in parallel...');
       const results = await this.executeTasksInParallel(
         agentAssignments,
         sessions
@@ -229,7 +221,16 @@ export class UltimateOrchestrator extends EventEmitter {
   ): Promise<TaskResult[]> {
     const sessionMap = new Map(sessions.map(s => [s.agentPersona.id, s]));
 
-    console.log(`🚀 Running ${tasks.length} tasks in PARALLEL with worktree isolation...`);
+    // Progress tracking for multiple tasks
+    let completedCount = 0;
+    const totalTasks = tasks.length;
+    
+    const displayProgress = () => {
+      if (tasks.length > 1) {
+        const percentage = Math.round((completedCount / totalTasks) * 100);
+        console.log(`  Progress: ${completedCount}/${totalTasks} tasks (${percentage}%)`);
+      }
+    };
 
     // Execute all tasks in parallel using Promise.allSettled for robust error handling
     const taskPromises = tasks.map(async (task, i) => {
@@ -237,6 +238,8 @@ export class UltimateOrchestrator extends EventEmitter {
 
       if (!session) {
         console.error(`❌ No session found for agent: ${task.assignedAgent}`);
+        completedCount++;
+        displayProgress();
         return {
           taskId: task.id,
           agentType: task.assignedAgent,
@@ -247,16 +250,16 @@ export class UltimateOrchestrator extends EventEmitter {
         };
       }
 
-      console.log(`🚀 Starting task ${i + 1}/${tasks.length} in parallel: ${task.title} (@${task.assignedAgent})`);
-
       try {
         // Execute task in parallel - each agent has its own worktree
         const result = await this.executeTask(task, session);
-        console.log(`✅ Task ${i + 1}/${tasks.length} completed: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+        completedCount++;
+        displayProgress();
         return result;
 
       } catch (error) {
-        console.error(`❌ Task ${i + 1}/${tasks.length} failed:`, error);
+        completedCount++;
+        displayProgress();
         return {
           taskId: task.id,
           agentType: task.assignedAgent,
@@ -267,6 +270,9 @@ export class UltimateOrchestrator extends EventEmitter {
         };
       }
     });
+
+    // Initial progress display
+    displayProgress();
 
     // Wait for all tasks to complete (or fail)
     const taskResults = await Promise.allSettled(taskPromises);
@@ -283,7 +289,6 @@ export class UltimateOrchestrator extends EventEmitter {
       }
     );
 
-    console.log(`🎯 Parallel execution completed: ${results.filter(r => r.success).length}/${results.length} tasks succeeded`);
     return results;
   }
 
@@ -576,25 +581,25 @@ Execute this task efficiently and report your progress.`;
    * Request human approval before execution - HUMAN-IN-THE-LOOP CONTROL
    */
   private async requestHumanApproval(tasks: TaskNode[], originalQuery: string): Promise<boolean> {
-    // Display task summary
-    console.log('\n📋 TASK PLAN SUMMARY:');
-    console.log(`┌${'─'.repeat(50)}┐`);
-    tasks.forEach((task, i) => {
-      const taskLine = `│ ${i + 1}. ${task.title}`.padEnd(37);
-      const agentInfo = `(@${task.assignedAgent})`;
-      const timeInfo = `${task.estimatedDuration}min`;
-      console.log(`${taskLine}${agentInfo} ${timeInfo.padStart(7)}│`);
-    });
-    console.log(`└${'─'.repeat(50)}┘`);
+    // For simple single tasks, show minimal info
+    if (tasks.length === 1 && tasks[0].estimatedDuration <= 2) {
+      console.log(`  Planning: ${tasks[0].title}`);
+    } else {
+      // Show detailed plan for complex tasks
+      console.log('  Planning:');
+      tasks.forEach((task, i) => {
+        console.log(`    ${i + 1}. ${task.title} (${task.estimatedDuration}min)`);
+      });
+    }
     
     // Check for suspicious patterns and warn user
     const warnings = this.detectSuspiciousDecomposition(tasks, originalQuery);
     if (warnings.length > 0) {
-      console.log('\n⚠️  POTENTIAL ISSUES DETECTED:');
-      warnings.forEach(warning => console.log(`   • ${warning}`));
+      console.log('  \n⚠️  Issues detected:');
+      warnings.forEach(warning => console.log(`    • ${warning}`));
     }
 
-    // Simple approval prompt
+    // Simple approval prompt with proper input handling
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout
@@ -602,7 +607,9 @@ Execute this task efficiently and report your progress.`;
 
     try {
       const answer = await new Promise<string>((resolve) => {
-        rl.question('\n🤔 Proceed with this plan? [Y/n]: ', resolve);
+        rl.question('  Continue? [Y/n]: ', (input) => {
+          resolve(input);
+        });
       });
       
       const response = answer.trim().toLowerCase();

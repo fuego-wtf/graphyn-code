@@ -87,6 +87,7 @@ export class DynamicAgentRegistry {
     console.log('🤖 Initializing dynamic agent registry...');
     
     await this.ensureAgentDirectory();
+    await this.cleanupOldAgentFiles(); // Clean up before loading
     await this.loadAgentProfiles();
     await this.loadSpecializations();
     
@@ -139,7 +140,7 @@ export class DynamicAgentRegistry {
   }
   
   /**
-   * Create a new agent profile dynamically
+   * Create a new agent profile dynamically (IN-MEMORY ONLY)
    */
   async createAgent(config: {
     name: string;
@@ -149,7 +150,7 @@ export class DynamicAgentRegistry {
     technologies?: string[];
   }): Promise<AgentProfile> {
     const profile: AgentProfile = {
-      id: `${config.type}-${Date.now()}`,
+      id: `${config.type}-ephemeral-${Date.now()}`,
       name: config.name,
       type: config.type,
       description: config.description,
@@ -166,16 +167,45 @@ export class DynamicAgentRegistry {
       },
       metadata: {
         version: '1.0.0',
-        author: 'dynamic',
+        author: 'dynamic-ephemeral',
         tags: [config.type, ...(config.technologies || [])],
         lastUpdated: new Date()
       }
     };
     
+    // Store in memory only - no file persistence for dynamic agents
     this.profiles.set(profile.id, profile);
-    await this.saveAgentProfile(profile);
     
     return profile;
+  }
+  
+  /**
+   * Clean up old timestamped agent files
+   */
+  private async cleanupOldAgentFiles(): Promise<void> {
+    try {
+      const files = await fs.readdir(this.agentDir);
+      const timestampedFiles = files.filter(f => 
+        f.endsWith('.json') && 
+        /\w+-\w+-\d{13}/.test(f) // Matches pattern like "agent-type-timestamp"
+      );
+      
+      if (timestampedFiles.length > 0) {
+        console.log(`🧹 Cleaning up ${timestampedFiles.length} old agent files...`);
+        
+        for (const file of timestampedFiles) {
+          try {
+            await fs.unlink(path.join(this.agentDir, file));
+          } catch (error) {
+            console.warn(`Failed to delete old agent file ${file}:`, error);
+          }
+        }
+        
+        console.log(`✅ Cleaned up ${timestampedFiles.length} old agent files`);
+      }
+    } catch (error) {
+      console.warn('Failed to cleanup old agent files:', error);
+    }
   }
   
   /**
@@ -779,21 +809,19 @@ export class DynamicAgentRegistry {
       }
     ];
     
-    for (const config of defaultAgents) {
-      await this.createAgent({
-        name: config.name!,
-        type: config.type!,
-        description: config.description!
-      });
-    }
-    
-    console.log(`✅ Created ${defaultAgents.length} default agent profiles`);
+    // Don't create default agents automatically - use static .md files instead
+    console.log('✅ Default agent profiles will be loaded from .md files in .claude/agents/');
   }
   
   /**
-   * Save agent profile to disk
+   * Save agent profile to disk (only for persistent agents)
    */
   private async saveAgentProfile(profile: AgentProfile): Promise<void> {
+    // Only save non-ephemeral agents
+    if (profile.metadata.author === 'dynamic-ephemeral') {
+      return; // Skip saving ephemeral agents
+    }
+    
     const filename = `${profile.type}-${profile.id}.json`;
     const filepath = path.join(this.agentDir, filename);
     

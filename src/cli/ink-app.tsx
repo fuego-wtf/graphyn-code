@@ -29,22 +29,22 @@ export class GraphynInkApp {
     
     context.logger.debug('Running in CLI orchestrator mode (Ink.js removed)');
     
-    // Route to CLI orchestrator for all commands
-    const { main: orchestratorMain } = await import('../cli-orchestrator.js');
+    // Route to new clean CLI for all commands
+    const { main: cleanMain } = await import('./main.js');
     
-    // Set up process.argv for the orchestrator
+    // Set up process.argv for the clean CLI
     const originalArgv = process.argv;
-    const orchestratorArgs = ['node', 'cli-orchestrator.ts'];
+    const cleanArgs = ['node', 'cli-main'];
     
     // Add command and args if provided
-    if (command) orchestratorArgs.push(command);
-    if (args.length > 0) orchestratorArgs.push(...args);
+    if (command) cleanArgs.push(command);
+    if (args.length > 0) cleanArgs.push(...args);
     
-    process.argv = orchestratorArgs;
+    process.argv = cleanArgs;
     
     try {
-      // Call the orchestrator
-      await orchestratorMain();
+      // Call the clean CLI
+      await cleanMain();
     } finally {
       // Restore original argv
       process.argv = originalArgv;

@@ -247,30 +247,24 @@ async function handleLegacyAgentCommand(command: string, args: string[], options
 }
 
 /**
- * Route queries to the CLI orchestrator
+ * Route queries to the new clean CLI
  */
 async function routeToOrchestrator(query: string, options: CLIOptions): Promise<void> {
   try {
-    // Import the CLI orchestrator and route the query
-    const { main: orchestratorMain } = await import('./cli-orchestrator.js');
+    // Import the new clean CLI and route the query
+    const { main: cleanMain } = await import('./cli/main.js');
     
-    // Set up process.argv for the orchestrator
+    // Set up process.argv for the clean CLI
     const originalArgv = process.argv;
-    const orchestratorArgs = ['node', 'cli-orchestrator.ts'];
+    const cleanArgs = ['node', 'cli-main'];
     
-    // Add options
-    if (options.dev) orchestratorArgs.push('--dev');
-    if (options.debug) orchestratorArgs.push('--debug');
-    if (options.nonInteractive) orchestratorArgs.push('--non-interactive');
-    if (options.new) orchestratorArgs.push('--new');
+    // Add query as first argument (clean CLI expects this)
+    if (query) cleanArgs.push(query);
     
-    // Add query
-    if (query) orchestratorArgs.push(query);
+    process.argv = cleanArgs;
     
-    process.argv = orchestratorArgs;
-    
-    // Call the orchestrator
-    await orchestratorMain();
+    // Call the clean CLI
+    await cleanMain();
     
     // Restore original argv
     process.argv = originalArgv;
@@ -286,9 +280,17 @@ async function routeToOrchestrator(query: string, options: CLIOptions): Promise<
  */
 async function startInteractiveMode(): Promise<void> {
   try {
-    // Import and start the interactive orchestrator
-    const { startInteractiveOrchestrator } = await import('./cli-orchestrator.js');
-    await startInteractiveOrchestrator();
+    // Import and start the new clean CLI in continuous mode
+    const { main: cleanMain } = await import('./cli/main.js');
+    
+    // Set up process.argv for continuous mode
+    const originalArgv = process.argv;
+    process.argv = ['node', 'cli-main', '--continuous'];
+    
+    await cleanMain();
+    
+    // Restore original argv
+    process.argv = originalArgv;
   } catch (error) {
     console.error(colors.error('❌ Interactive mode failed:'), error instanceof Error ? error.message : error);
     process.exit(1);
