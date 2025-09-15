@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
-import type { CommandIntent } from '../coordinator/smart-coordinator.js';
+import type { CommandIntent } from '../coordinator-legacy/smart-coordinator.js';
 
 export interface AgentConfig {
   name: string;

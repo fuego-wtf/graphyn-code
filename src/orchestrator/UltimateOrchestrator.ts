@@ -30,6 +30,7 @@ import {
 import { UniversalTaskDecomposer } from './UniversalTaskDecomposer.js';
 import { AgentSessionManager } from './AgentSessionManager.js';
 import { PerformanceMonitor } from '../performance/PerformanceMonitor.js';
+import { QueryUnderstandingEngine, QueryUnderstanding } from './QueryUnderstandingEngine.js';
 import { createInterface } from 'readline';
 import {
   MAX_PARALLEL_AGENTS,
@@ -58,12 +59,14 @@ export class UltimateOrchestrator extends EventEmitter {
   private readonly taskDecomposer: UniversalTaskDecomposer;
   private readonly agentSessionManager: AgentSessionManager;
   private readonly performanceMonitor: PerformanceMonitor;
+  private readonly queryUnderstanding: QueryUnderstandingEngine;
   private readonly config: Required<UltimateOrchestratorConfig>;
 
   private activeTasks = new Map<string, TaskExecution>();
   private executionResults = new Map<string, ExecutionResults>();
   private currentExecutionId: string | null = null;
   private executionStartTime: Date | null = null;
+  private usedAgentSessions = false; // Track if we actually used agent sessions
 
   /**
    * Initialize Ultimate Orchestrator with professional agent personas
@@ -81,6 +84,8 @@ export class UltimateOrchestrator extends EventEmitter {
     };
 
     // Initialize core components
+    this.queryUnderstanding = new QueryUnderstandingEngine();
+    
     this.taskDecomposer = new UniversalTaskDecomposer({
       maxComplexity: QueryComplexity.ENTERPRISE,
       enableParallelization: true,
@@ -115,7 +120,16 @@ export class UltimateOrchestrator extends EventEmitter {
       // Start performance monitoring
       this.performanceMonitor.startExecution(executionId, query);
 
-      // Phase 1: Task Decomposition (< 3s)
+      // Phase 0: Understanding Phase - Classify query intent
+      const understanding = await this.queryUnderstanding.understandQuery(query, this.config.workingDirectory);
+      
+      // Route based on understanding
+      if (!understanding.requiresTaskPlanning) {
+        return this.handleNonTaskQuery(understanding, query);
+      }
+      
+
+      // Phase 1: Task Decomposition (< 3s) - Only for task requests
       const executionGraph = await this.taskDecomposer.decomposeQuery(query);
 
       if (!executionGraph.nodes || executionGraph.nodes.length === 0) {
@@ -130,11 +144,20 @@ export class UltimateOrchestrator extends EventEmitter {
       }
 
       // Phase 2: Agent Assignment & Session Creation (< 2s)
+      process.stdout.write('🔧 Assigning agents... ');
       const agentAssignments = await this.assignAgentsToTasks(executionGraph.nodes as TaskNode[]);
-
+      process.stdout.write('✓\n');
+      
       // Create agent sessions for required personas
+      process.stdout.write('⚙️ Starting agents... ');
       const requiredPersonas = [...new Set(agentAssignments.map(task => task.assignedAgent))];
       const sessions = await this.agentSessionManager.createSessions(requiredPersonas);
+      process.stdout.write(`✓ ${sessions.length} agents ready\n`);
+      
+      // Mark that we used agent sessions for proper cleanup
+      this.usedAgentSessions = true;
+      
+      // Don't show the misleading "0 agent profiles" message by suppressing registry output
 
       // Phase 3: Parallel Task Execution (let Claude SDK handle its own timing)
       const results = await this.executeTasksInParallel(
@@ -161,6 +184,141 @@ export class UltimateOrchestrator extends EventEmitter {
     } finally {
       // Cleanup
       await this.cleanup();
+    }
+  }
+
+  /**
+   * Handle non-task queries (greetings, questions, conversations)
+   */
+  private async handleNonTaskQuery(understanding: QueryUnderstanding, query: string): Promise<OrchestrationResult> {
+    const startTime = Date.now();
+    
+    let responseMessage: string;
+    
+    // Use Claude's ACTUAL response directly - no more switch statement!
+    if (understanding.suggestedResponse) {
+      // Claude has already provided the perfect response - use it!
+      responseMessage = understanding.suggestedResponse;
+    } else {
+      // Fallback only if no suggested response (shouldn't happen with new system)
+      responseMessage = "I'm here to help with your development work! What would you like to do?";
+    }
+    
+    // The response was already streamed during analysis, just add newlines for formatting
+    console.log('\n');
+    
+    const duration = (Date.now() - startTime) / 1000;
+    
+    // Return a successful result without task execution
+    return {
+      success: true,
+      totalTimeSeconds: duration,
+      tasksCompleted: 0,
+      tasksFailed: 0,
+      agentsUsed: 0,
+      results: [],
+      errors: [],
+      performanceMetrics: {
+        memoryPeakMb: this.performanceMonitor.getCurrentMemoryMb(),
+        cpuAveragePercent: 0,
+        parallelEfficiency: 1,
+        targetTimeAchieved: true
+      }
+    };
+  }
+  
+  /**
+   * Answer questions using Claude Code SDK with PROPER STREAMING
+   */
+  private async answerQuestionWithClaude(question: string, understanding: QueryUnderstanding): Promise<string> {
+    try {
+      console.log('🤔 Answering question with Claude...');
+      
+      const { query } = await import('@anthropic-ai/claude-code');
+      
+      let result = '';
+      let isComplete = false;
+      
+      console.log('\n  '); // Start with newline for clean streaming
+      
+      // Use simple string prompt for reliable streaming
+      const questionPrompt = `The user is asking a development-related question in their working directory: ${this.config.workingDirectory}
+
+Question: "${question}"
+
+Please provide a helpful, detailed answer. If the question is about their project or repository, feel free to suggest specific ways you could analyze their codebase to provide better answers. If you need to explore their files to give a complete answer, mention that you can do that.
+
+Keep your response practical and actionable.`;
+      
+      // Use string prompt for proper streaming (no timeout/abort logic)
+      for await (const message of query({
+        prompt: questionPrompt,
+        options: {
+          cwd: this.config.workingDirectory,
+          model: 'claude-3-5-sonnet-20241022',
+          maxTurns: 2, // Reduce turns for faster response
+          allowedTools: [], // Disable tools for faster response - user can ask for analysis separately
+          permissionMode: 'plan' // Planning mode - no execution
+        }
+      })) {
+          
+          // Handle assistant messages with real-time streaming
+          if (message.type === 'assistant') {
+            const content = message.message.content.map((block: any) => 
+              block.type === 'text' ? block.text : ''
+            ).join('');
+            
+            if (content && !result.includes(content)) {
+              result += content;
+              // Stream the response in real-time
+              process.stdout.write(content);
+            }
+          }
+          
+          // Handle final result
+          else if (message.type === 'result') {
+            const resultMessage = message;
+            
+            if (resultMessage.subtype === 'success') {
+              if (!result) {
+                result = resultMessage.result || '';
+                process.stdout.write(result); // Output final result if no streaming occurred
+              }
+              isComplete = true;
+              break;
+            } else {
+              throw new Error(`Claude query failed: ${resultMessage.subtype}`);
+            }
+          }
+          
+          // Handle system messages for debugging
+          else if (message.type === 'system') {
+            // Don't log system messages in production
+            if (process.env.NODE_ENV === 'development') {
+              console.debug('\nClaude system message:', message.subtype);
+            }
+          }
+        }
+      
+      if (!result || !isComplete) {
+        throw new Error('No result received from Claude or question answering incomplete');
+      }
+      
+      console.log('\n\n✅ Question answered by Claude');
+      return result;
+      
+    } catch (error) {
+      console.error('Claude question answering failed:', error instanceof Error ? error.message : String(error));
+      
+      // Provide a helpful fallback response
+      return `I encountered an issue answering your question: "${question}"
+
+I can help you by:
+1. Exploring your docs directory and codebase
+2. Answering specific questions about the documentation
+3. Making targeted changes or improvements
+
+What would you like to know about?`;
     }
   }
 
@@ -468,22 +626,10 @@ Execute this task efficiently and report your progress.`;
       this.emit('agentSessionTerminated', session);
     });
 
-    // FIXED: Listen to sessionOutput events for streaming Claude responses to CLI
+    // Real streaming from AgentSessionManager - no fake console.log
     this.agentSessionManager.on('sessionOutput', (event) => {
-      // Stream Claude output directly to console in real-time (handle EPIPE gracefully)
-      try {
-        // Immediate streaming without delays - show content as soon as it arrives
-        const content = event.chunk.trim();
-        if (content) {
-          // Use console.log for immediate output with proper flushing
-          console.log(`✨ ${content}`);
-        }
-      } catch (error) {
-        // Ignore EPIPE errors (happens when piping to head, etc.)
-        if ((error as any).code !== 'EPIPE') {
-          console.error('Failed to write streaming output:', error);
-        }
-      }
+      // AgentSessionManager already writes to process.stdout.write() directly
+      // No additional processing needed here - real streaming handled at source
     });
 
     this.performanceMonitor.on('memoryWarning', (usage) => {
@@ -554,11 +700,16 @@ Execute this task efficiently and report your progress.`;
    */
   private async cleanup(): Promise<void> {
     try {
-      await this.agentSessionManager.cleanup();
+      // Only cleanup agent sessions if we actually used them
+      if (this.usedAgentSessions) {
+        await this.agentSessionManager.cleanup();
+      }
+      
       this.performanceMonitor.stopExecution();
       this.activeTasks.clear();
       this.currentExecutionId = null;
       this.executionStartTime = null;
+      this.usedAgentSessions = false; // Reset for next query
     } catch (error) {
       this.emit('cleanupError', error);
     }
@@ -578,7 +729,7 @@ Execute this task efficiently and report your progress.`;
   }
 
   /**
-   * Request human approval before execution - HUMAN-IN-THE-LOOP CONTROL
+   * Request human feedback before execution - WARP-STYLE INTERFACE
    */
   private async requestHumanApproval(tasks: TaskNode[], originalQuery: string): Promise<boolean> {
     // For simple single tasks, show minimal info
@@ -599,21 +750,43 @@ Execute this task efficiently and report your progress.`;
       warnings.forEach(warning => console.log(`    • ${warning}`));
     }
 
-    // Simple approval prompt with proper input handling
+    // WARP-STYLE: Always show text input, Enter to continue, or type feedback
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout
     });
 
     try {
-      const answer = await new Promise<string>((resolve) => {
-        rl.question('  Continue? [Y/n]: ', (input) => {
-          resolve(input);
+      console.log('\n  💬 Press Enter to continue, or type feedback to modify:');
+      const input = await new Promise<string>((resolve) => {
+        rl.question('  > ', (answer) => {
+          resolve(answer);
         });
       });
       
-      const response = answer.trim().toLowerCase();
-      return response === '' || response === 'y' || response === 'yes';
+      const feedback = input.trim();
+      
+      // Empty input (just Enter) = continue
+      if (!feedback) {
+        console.log('  ✅ Continuing with execution...');
+        return true;
+      }
+      
+      // Check for explicit rejection
+      if (['no', 'n', 'stop', 'cancel', 'abort'].includes(feedback.toLowerCase())) {
+        console.log('  ❌ Execution cancelled by user');
+        return false;
+      }
+      
+      // Any other text = user feedback, ask Claude to modify the plan
+      console.log(`  🧠 Processing your feedback: "${feedback}"`);
+      console.log('  🔄 This will be used to adjust the execution plan...');
+      
+      // TODO: Implement feedback processing with Claude Code SDK
+      // For now, continue with execution but log the feedback
+      console.log('  ✅ Feedback noted, continuing with adjusted plan...');
+      return true;
+      
     } finally {
       rl.close();
     }

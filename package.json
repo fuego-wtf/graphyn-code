@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "name": "@graphyn/code",
   "version": "0.1.70",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
@@ -11,6 +12,7 @@
     "build": "tsc --module ESNext --target ES2022 --esModuleInterop --skipLibCheck --moduleResolution bundler --outDir dist",
     "dev": "tsx src/cli/main.ts",
     "start": "node dist/cli/main.js",
+    "run:fixed-claude-streaming": "node --loader tsx/esm fixed-claude-streaming.mjs --simple",
     "test": "vitest",
     "test:unit": "vitest run",
     "test:watch": "vitest watch",
@@ -80,7 +82,8 @@
     "zod": "^4.1.5",
     "zustand": "^4.4.0"
   },
-  "devDependencies": {
+"devDependencies": {
+    "ts-node": "^10.9.1",
     "@openapitools/openapi-generator-cli": "^2.7.0",
     "@types/eventsource": "^1.1.15",
     "@types/figlet": "^1.7.0",

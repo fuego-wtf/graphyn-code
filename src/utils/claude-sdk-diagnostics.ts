@@ -225,7 +225,7 @@ async function checkAPIConfiguration(results: SDKDiagnosticResult[]): Promise<vo
 async function testBasicSDKFunction(results: SDKDiagnosticResult[]): Promise<void> {
   try {
     // Try to import the SDK
-    const { ClaudeCodeClient } = await import('../sdk/claude-code-client.js');
+    // ClaudeCodeClient removed - using direct SDK now
     
     results.push({
       category: 'SDK',
@@ -237,7 +237,8 @@ async function testBasicSDKFunction(results: SDKDiagnosticResult[]): Promise<voi
     
     // Try to create a client instance
     try {
-      const client = new ClaudeCodeClient();
+      // TODO: Replace with direct Claude SDK usage
+      throw new Error('Claude SDK diagnostics needs to be updated to use direct Claude SDK');
       
       results.push({
         category: 'SDK',
@@ -247,71 +248,14 @@ async function testBasicSDKFunction(results: SDKDiagnosticResult[]): Promise<voi
         details: 'SDK client object created successfully'
       });
       
-      // Test with a minimal query (with short timeout)
-      try {
-        const abortController = new AbortController();
-        setTimeout(() => abortController.abort(), 5000); // 5 second timeout
-        
-        let hasResponse = false;
-        const testPromise = (async () => {
-          for await (const message of client.executeQueryStream('Say "Hello test"', {
-            abortController,
-            maxTurns: 1,
-            allowedTools: []
-          })) {
-            hasResponse = true;
-            if (message.type === 'result') {
-              break;
-            }
-          }
-        })();
-        
-        await Promise.race([
-          testPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Test timeout')), 5000))
-        ]);
-        
-        if (hasResponse) {
-          results.push({
-            category: 'SDK',
-            test: 'Basic Query Test',
-            status: 'pass',
-            message: 'SDK can execute basic queries',
-            details: 'Successfully executed test query'
-          });
-        } else {
-          results.push({
-            category: 'SDK',
-            test: 'Basic Query Test',
-            status: 'warn',
-            message: 'SDK query completed but no response received',
-            details: 'May indicate API or configuration issues'
-          });
-        }
-        
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        
-        if (errorMsg.includes('timeout') || errorMsg.includes('aborted')) {
-          results.push({
-            category: 'SDK',
-            test: 'Basic Query Test',
-            status: 'fail',
-            message: 'SDK query timed out',
-            details: 'Unable to complete test query within 5 seconds',
-            fix: 'Check API key and network connectivity'
-          });
-        } else {
-          results.push({
-            category: 'SDK',
-            test: 'Basic Query Test',
-            status: 'fail',
-            message: 'SDK query failed',
-            details: errorMsg,
-            fix: 'Verify API configuration and network access'
-          });
-        }
-      }
+      // Basic query test disabled since ClaudeCodeClient was removed
+      results.push({
+        category: 'SDK',
+        test: 'Basic Query Test',
+        status: 'warn',
+        message: 'Basic query test skipped',
+        details: 'Test needs to be updated for direct Claude SDK usage'
+      });
       
     } catch (error) {
       results.push({

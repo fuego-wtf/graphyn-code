@@ -10,7 +10,7 @@ import chalk from 'chalk';
 import { GraphynAPIClient } from '../api/client.js';
 import type { Agent, Thread } from '../api-client.js';
 import { GraphynMCPBridge } from '../mcp/bridge-implementation.js';
-import type { CommandIntent } from '../coordinator/smart-coordinator.js';
+import type { CommandIntent } from '../coordinator-legacy/smart-coordinator.js';
 
 export interface RemoteAgent {
   id: string;

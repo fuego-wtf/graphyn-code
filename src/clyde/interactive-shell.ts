@@ -6,7 +6,7 @@
 /// <reference path="../types/globals.d.ts" />
 import * as readline from 'readline';
 import chalk from 'chalk';
-import { SmartCoordinator } from '../coordinator/smart-coordinator.js';
+import { SmartCoordinator } from '../coordinator-legacy/smart-coordinator.js';
 import { ModeManager } from './mode-manager.js';
 import { ContextPreservingSession } from './context-preserving-session.js';
 

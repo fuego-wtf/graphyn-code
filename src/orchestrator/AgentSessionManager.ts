@@ -12,7 +12,6 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
 import { promises as fs } from 'fs';
-import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
 import { join, resolve } from 'path';
 import {
   AgentSession,
@@ -477,82 +476,72 @@ export class AgentSessionManager extends EventEmitter {
   // Private methods
 
   /**
-   * Execute Claude Code with session context using SDK
-   * (Simplified for sequential execution to avoid resource conflicts)
+   * Execute Claude Code with session context using direct SDK
    */
   private async executeClaude(
     session: AgentSession,
     contextPrompt: string,
     task: TaskExecution
   ): Promise<any> {
-    // Create fresh client for each task to avoid conflicts
-    const client = new ClaudeCodeClient();
     let output = '';
 
     console.log(`🤖 [@${session.agentPersona.id}] Starting task: ${task.id}`);
 
     try {
-      // Set up event handlers for streaming output
-      client.on('partial_content', (chunk: string) => {
-        output += chunk;
+      // Use direct Claude Code SDK - no wrapper client
+      const { query } = await import('@anthropic-ai/claude-code');
+      
+      // Direct Claude Code SDK usage
+      for await (const message of query({
+        prompt: contextPrompt,
+        options: {
+          maxTurns: 15,
+          allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep'],
+          model: 'claude-3-5-sonnet-20241022'
+        }
+      })) {
         this.updateHeartbeat(session.id);
+        
+        // Handle assistant messages
+        if (message.type === 'assistant') {
+          const content = (message as any).content?.[0]?.text || '';
+          if (content) {
+            output += content;
+            // Write output to stdout for streaming effect
+            process.stdout.write(content);
+            
+            this.emit('sessionOutput', {
+              sessionId: session.id,
+              taskId: task.id,
+              chunk: content
+            });
+          }
+        }
 
-        this.emit('sessionOutput', {
-          sessionId: session.id,
-          taskId: task.id,
-          chunk
-        });
-      });
+        if (message.type === 'result') {
+          const resultMessage = message;
+          
+          if (resultMessage.subtype === 'success') {
+            console.log(`\n✅ [@${session.agentPersona.id}] Task completed successfully`);
+            
+            session.processId = null;
+            this.updateHeartbeat(session.id);
 
-      // Listen to thinking events
-      client.on('thinking_start', () => {
-        console.log(`🤔 [@${session.agentPersona.id}] Claude thinking started...`);
-      });
-
-      client.on('thinking_end', () => {
-        console.log(`✨ [@${session.agentPersona.id}] Claude thinking ended`);
-      });
-
-      client.on('error', (error: Error) => {
-        console.error(`❌ [@${session.agentPersona.id}] Claude error:`, error.message);
-        this.emit('sessionError', {
-          sessionId: session.id,
-          taskId: task.id,
-          error: error.message
-        });
-      });
-
-      // Remove excessive debug logs for cleaner user experience
-      // client.on('debug', (message: string) => {
-      //   console.log(`🔍 [@${session.agentPersona.id}] ${message}`);
-      //   this.emit('sessionDebug', {
-      //     sessionId: session.id,
-      //     taskId: task.id,
-      //     message
-      //   });
-      // });
-
-      // FIXED: Let Claude SDK handle its own timing - no artificial timeouts
-      // Increased maxTurns to allow Claude to complete complex conversations with tools
-      const result = await client.executeQuery(contextPrompt, {
-        maxTurns: 15, // Increased to allow tool-heavy conversations to complete
-        allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep'] // Restored tools
-      }) as any;
-
-      console.log(`✅ [@${session.agentPersona.id}] Task completed successfully`);
-
-      // Update session state
-      session.processId = null;
-      this.updateHeartbeat(session.id);
-
-      return {
-        output: result?.result || '',
-        result: this.parseClaudeOutput(result?.result || ''),
-        artifacts: this.extractArtifacts(result?.result || ''),
-        filesModified: this.extractFilesModified(result?.result || ''),
-        metrics: result?.metrics || {},
-        sessionId: result?.sessionId || ''
-      };
+            return {
+              output,
+              result: resultMessage.result || '',
+              artifacts: this.extractArtifacts(resultMessage.result || ''),
+              filesModified: this.extractFilesModified(resultMessage.result || ''),
+              metrics: {},
+              sessionId: session.id
+            };
+          } else {
+            throw new Error(`Claude query failed: ${resultMessage.subtype}`);
+          }
+        }
+      }
+      
+      throw new Error('No result received from Claude');
 
     } catch (error) {
       session.processId = null;

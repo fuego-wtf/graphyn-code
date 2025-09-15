@@ -91,7 +91,8 @@ export class DynamicAgentRegistry {
     await this.loadAgentProfiles();
     await this.loadSpecializations();
     
-    console.log(`✅ Loaded ${this.profiles.size} agent profiles`);
+    // Note: System uses built-in AGENT_PERSONAS for orchestration
+    // Dynamic profiles are for specialized/custom agents only
   }
   
   /**

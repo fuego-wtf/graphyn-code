@@ -16,7 +16,7 @@ import {
   TaskResult,
   TaskStatus 
 } from './types.js';
-import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
+// ClaudeCodeClient removed - using direct SDK now
 import { AgentOrchestrator } from './AgentOrchestrator.js';
 import { specializationEngine } from '../engines/SpecializationEngine.js';
 import fs from 'fs/promises';

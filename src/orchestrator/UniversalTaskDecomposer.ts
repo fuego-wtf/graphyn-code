@@ -204,151 +204,144 @@ export class UniversalTaskDecomposer extends EventEmitter {
   }
 
   /**
-   * Generate tasks for build/create operations - INTELLIGENT VERSION
-   * Uses QueryClassifier to prevent over-engineering simple tasks
+   * Generate tasks for build/create operations - CLAUDE POWERED VERSION with proper streaming
+   * Uses Claude Code SDK for intelligent task decomposition
    */
   private async generateBuildTasks(parsedQuery: ParsedQuery): Promise<TaskDefinition[]> {
     const { originalQuery, entities, complexity } = parsedQuery;
     
-    // Use intelligent classification to determine appropriate task decomposition
-    const classification = this.queryClassifier.classifyQuery(originalQuery);
-    
-    // For SIMPLE queries (like hello world), generate minimal tasks
-    if (classification.complexity === QueryComplexity.SIMPLE) {
+    try {
+      // Import Claude Code SDK
+      const { query } = await import('@anthropic-ai/claude-code');
+      
+      let result = '';
+      let isComplete = false;
+      
+      // Use simple string prompt for better compatibility
+      const taskPrompt = `You are a professional software architect. Break down this development request into specific, actionable tasks.
+
+Request: "${originalQuery}"
+
+Provide a JSON response with tasks that are:
+- Specific and actionable
+- Appropriately sized (simple requests = 1 task, complex = multiple tasks)
+- Include realistic time estimates
+- Assign appropriate agent types
+
+Response format:
+{
+  "tasks": [
+    {
+      "title": "Task title",
+      "description": "Detailed description",
+      "agentType": "assistant|backend|frontend|tester|devops|architect",
+      "estimatedMinutes": 5,
+      "tools": ["Write", "Edit", "Bash"],
+      "complexity": "low|medium|high"
+    }
+  ]
+}`;
+      
+      // Use simple string prompt mode
+      for await (const message of query({
+        prompt: taskPrompt,
+        options: {
+          model: 'claude-3-5-sonnet-20241022',
+          allowedTools: [], // No tools needed for planning
+          maxTurns: 1, // Single turn for task decomposition
+          permissionMode: 'plan' // Planning mode - no execution
+        }
+      })) {
+          
+          // Handle assistant messages with real-time streaming
+          if (message.type === 'assistant') {
+            const content = message.message.content.map((block: any) => 
+              block.type === 'text' ? block.text : ''
+            ).join('');
+            
+            if (content && !result.includes(content)) {
+              result += content;
+              // Stream the task planning in real-time
+              process.stdout.write(content);
+            }
+          }
+          
+          // Handle final result
+          if (message.type === 'result') {
+            const resultMessage = message;
+            
+            if (resultMessage.subtype === 'success') {
+              if (!result) {
+                result = resultMessage.result || '';
+              }
+              isComplete = true;
+              break;
+            } else {
+              throw new Error(`Claude task planning failed: ${resultMessage.subtype}`);
+            }
+          }
+          
+          // Handle system messages for debugging
+          if (message.type === 'system') {
+            // Don't log system messages in production
+            if (process.env.NODE_ENV === 'development') {
+              console.debug('Claude system message during task planning:', message.subtype);
+            }
+          }
+        }
+      
+      if (!result || !isComplete) {
+        throw new Error('No result received from Claude or task planning incomplete');
+      }
+
+      // Parse Claude's response
+      try {
+        const jsonMatch = result.trim().match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('No JSON found in response');
+        
+        const parsed = JSON.parse(jsonMatch[0]);
+        const claudeTasks = parsed.tasks || [];
+        
+        // Convert Claude's response to TaskDefinition format
+        const tasks: TaskDefinition[] = claudeTasks.map((task: any, index: number) => ({
+          id: this.generateTaskId('claude'),
+          title: task.title || `Task ${index + 1}`,
+          description: task.description || task.title,
+          agentType: task.agentType || 'assistant',
+          complexity: task.complexity || 'medium',
+          estimatedDuration: task.estimatedMinutes || 10,
+          dependencies: [], // Claude doesn't handle dependencies in this simple format
+          tools: task.tools || ['Write', 'Edit']
+        }));
+        
+        if (tasks.length > 0) {
+          console.log(`🎯 Claude generated ${tasks.length} intelligent tasks`);
+          return tasks;
+        } else {
+          throw new Error('No tasks found in Claude response');
+        }
+        
+      } catch (parseError) {
+        console.error('Failed to parse Claude task response:', parseError);
+        throw new Error('Failed to parse Claude task decomposition response');
+      }
+      
+    } catch (error) {
+      console.warn(`Claude task planning failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.log('Falling back to simple task generation...');
+      
+      // Fallback to simple static task if Claude fails
       return [{
-        id: this.generateTaskId('create'),
+        id: this.generateTaskId('fallback'),
         title: this.generateSimpleTaskTitle(originalQuery),
         description: `Create: ${originalQuery}`,
-        agentType: 'assistant', // Single agent for simple tasks
-        complexity: 'low',
-        estimatedDuration: classification.estimatedMinutes,
+        agentType: this.selectBestAgent(entities),
+        complexity: this.mapComplexity(complexity),
+        estimatedDuration: 10,
         dependencies: [],
         tools: this.getSimpleTaskTools(originalQuery)
       }];
     }
-    
-    // For MODERATE complexity, generate focused tasks
-    if (classification.complexity === QueryComplexity.MODERATE) {
-      const tasks: TaskDefinition[] = [];
-      
-      // Core implementation task
-      tasks.push({
-        id: this.generateTaskId('implement'),
-        title: 'Implementation',
-        description: `Implement: ${originalQuery}`,
-        agentType: this.selectBestAgent(entities),
-        complexity: 'medium',
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.7),
-        dependencies: [],
-        tools: this.getImplementationTools(entities)
-      });
-      
-      // Testing task
-      tasks.push({
-        id: this.generateTaskId('test'),
-        title: 'Testing',
-        description: 'Create tests for the implementation',
-        agentType: 'tester',
-        complexity: 'medium',
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.3),
-        dependencies: [tasks[0].id],
-        tools: ['testing', 'validation']
-      });
-      
-      return tasks;
-    }
-    
-    // For COMPLEX/ENTERPRISE, use full workflow but with intelligent sizing
-    const tasks: TaskDefinition[] = [];
-    
-    // Requirements analysis (reduced for non-enterprise)
-    tasks.push({
-      id: this.generateTaskId('analyze'),
-      title: 'Analyze Requirements',
-      description: `Analyze requirements for: ${originalQuery}`,
-      agentType: 'researcher',
-      complexity: this.mapComplexity(complexity),
-      estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.15),
-      dependencies: [],
-      tools: ['analysis', 'documentation']
-    });
-
-    // System design (only for complex systems)
-    if (classification.complexity === QueryComplexity.ENTERPRISE) {
-      tasks.push({
-        id: this.generateTaskId('design'),
-        title: 'System Design',
-        description: 'Create technical design and architecture plan',
-        agentType: 'architect',
-        complexity: this.mapComplexity(complexity),
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.2),
-        dependencies: [tasks[0].id],
-        tools: ['design', 'architecture', 'documentation']
-      });
-    }
-
-    // Implementation tasks based on entities
-    const implementationDeps = classification.complexity === QueryComplexity.ENTERPRISE ? 
-      [tasks[1].id] : [tasks[0].id];
-      
-    // Frontend tasks if UI-related
-    if (this.hasUIComponents(entities)) {
-      tasks.push({
-        id: this.generateTaskId('frontend'),
-        title: 'Frontend Implementation',
-        description: 'Build user interface components',
-        agentType: 'frontend',
-        complexity: this.mapComplexity(complexity),
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.4),
-        dependencies: implementationDeps,
-        tools: ['react', 'typescript', 'styling']
-      });
-    }
-
-    // Backend tasks if API-related
-    if (this.hasBackendComponents(entities)) {
-      tasks.push({
-        id: this.generateTaskId('backend'),
-        title: 'Backend Implementation',
-        description: 'Build API and business logic',
-        agentType: 'backend',
-        complexity: this.mapComplexity(complexity),
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.4),
-        dependencies: implementationDeps,
-        tools: ['api', 'database', 'server']
-      });
-    }
-
-    // General implementation if no specific components detected
-    if (!this.hasUIComponents(entities) && !this.hasBackendComponents(entities)) {
-      tasks.push({
-        id: this.generateTaskId('implement'),
-        title: 'Implementation',
-        description: `Implement: ${originalQuery}`,
-        agentType: this.selectBestAgent(entities),
-        complexity: this.mapComplexity(complexity),
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.6),
-        dependencies: implementationDeps,
-        tools: this.getImplementationTools(entities)
-      });
-    }
-
-    // Testing tasks (proportional to complexity)
-    const implementationTaskIds = tasks.slice(classification.complexity === QueryComplexity.ENTERPRISE ? 2 : 1).map(t => t.id);
-    if (implementationTaskIds.length > 0) {
-      tasks.push({
-        id: this.generateTaskId('test'),
-        title: 'Testing',
-        description: 'Create tests for implementation',
-        agentType: 'tester',
-        complexity: 'medium',
-        estimatedDuration: Math.ceil(classification.estimatedMinutes * 0.25),
-        dependencies: implementationTaskIds,
-        tools: ['testing', 'validation', 'quality_assurance']
-      });
-    }
-
-    return tasks;
   }
 
   /**

@@ -818,7 +818,7 @@ async function executeClaudeWithStreaming(task: Task, worktreePath: string): Pro
   
   try {
     // Import Claude Code SDK client
-    const { ClaudeCodeClient } = await import('../sdk/claude-code-client.js');
+    // ClaudeCodeClient removed - using direct SDK now
     
     // Build repository context without creating files
     const repoContext = await buildRepositoryContext(worktreePath);
@@ -831,91 +831,62 @@ TASK: ${task.prompt}
 Please work in this directory: ${worktreePath}
 Focus on implementing the task according to the agent specialization: ${task.agent}`;
 
-    // Create Claude Code client with timeout protection
-    const client = new ClaudeCodeClient();
-    const abortController = new AbortController();
+    // Use direct Claude Code SDK for task execution
+    const { query } = await import('@anthropic-ai/claude-code');
     
-    // Set aggressive timeout: 30 seconds max
-    const timeoutMs = 30000;
-    const timeoutId = setTimeout(() => {
-      console.log(chalk.red(`\n❌ Claude Code SDK timeout after ${timeoutMs/1000}s - providing static guidance`));
-      abortController.abort();
-    }, timeoutMs);
+    const claudeOptions = {
+      maxTurns: 3, // Limit turns to prevent infinite loops
+      allowedTools: [
+        'Read', 'Glob' // Only safe read-only tools for conversation
+      ],
+      model: 'claude-3-5-sonnet-20241022'
+    };
     
     let hasOutput = false;
     let finalResult = '';
     
-    // Set up real-time streaming handlers
-    client.on('partial_content', (content: string) => {
-      hasOutput = true;
-      // Add indentation to distinguish from system output
-      const indentedText = content.split('\n').map((line: string) => 
-        line.trim() ? `  ${line}` : line
-      ).join('\n');
-      process.stdout.write(indentedText);
-    });
-
-    client.on('thinking_start', () => {
-      process.stdout.write(chalk.gray('  [Thinking...] '));
-    });
-
-    client.on('thinking_end', () => {
-      process.stdout.write(chalk.gray(' [Done]\n'));
-    });
-
-    client.on('debug', (message: string) => {
-      // Only show debug in verbose mode
-      if (process.env.DEBUG) {
-        console.log(chalk.gray(`    Debug: ${message}`));
-      }
-    });
-
-    try {
-      // Execute query with streaming
-      for await (const message of client.executeQueryStream(enhancedPrompt, {
-        abortController,
-        maxTurns: 3, // Limit turns to prevent infinite loops
-        allowedTools: ['Read', 'Write', 'Edit', 'MultiEdit', 'Bash', 'Glob', 'Grep'],
-        appendSystemPrompt: `You are working as a ${task.agent} agent. Focus on the specific task and provide clear, actionable results.`
-      })) {
-        if (message.type === "result") {
-          if ('subtype' in message && message.subtype === "success") {
-            finalResult = (message as any).result || "Task completed";
-            clearTimeout(timeoutId);
-            
-            if (!hasOutput) {
-              console.log(chalk.gray('  Task completed successfully (no intermediate output)'));
-            }
-            console.log(''); // Add spacing after task output
-            return;
-          } else if ('subtype' in message && (message.subtype === "error_max_turns" || message.subtype === "error_during_execution")) {
-            throw new Error((message as any).error || "Claude Code SDK error");
-          }
+    // Execute with real-time streaming
+    for await (const message of query({ prompt: enhancedPrompt, options: claudeOptions })) {
+      // Handle assistant messages for real-time streaming feedback
+      if (message.type === 'assistant' && message.message?.content) {
+        hasOutput = true;
+        const content = Array.isArray(message.message.content) 
+          ? message.message.content.map((c: any) => c.text || '').join('')
+          : message.message.content;
+          
+        if (content && !finalResult.includes(content)) {
+          // Add to final result
+          finalResult += content;
+          
+          // Add indentation to distinguish from system output and stream in real-time
+          const indentedText = content.split('\n').map((line: string) => 
+            line.trim() ? `  ${line}` : line
+          ).join('\n');
+          process.stdout.write(indentedText);
         }
       }
       
-      clearTimeout(timeoutId);
-      if (!hasOutput) {
-        console.log(chalk.gray('  (No output received from Claude Code SDK)'));
-      }
-      console.log(''); // Add spacing after task output
-
-    } catch (error) {
-      clearTimeout(timeoutId);
-      
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      
-      // Check if it's a timeout/abort error
-      if (errorMsg.includes('timeout') || errorMsg.includes('aborted') || abortController.signal.aborted) {
-        console.log(chalk.yellow('\n  ⚠️  Claude Code SDK timed out - providing static guidance instead\n'));
-        
-        // Provide static guidance based on task and agent type
-        await provideStaticGuidance(task, worktreePath);
+      // Handle final result
+      if (message.type === 'result' && 'subtype' in message && message.subtype === 'success') {
+        finalResult = (message as any).result || 'Task completed';
+        if (!hasOutput) {
+          console.log(chalk.gray('  Task completed successfully (no intermediate output)'));
+        }
+        console.log(''); // Add spacing after task output
         return;
       }
       
-      throw error;
+      // Handle errors
+      if (message.type === 'result' && 'subtype' in message && 
+          (message.subtype === 'error_max_turns' || message.subtype === 'error_during_execution')) {
+        throw new Error((message as any).error || 'Claude Code SDK error');
+      }
     }
+    
+    if (!hasOutput) {
+      console.log(chalk.gray('  (No output received from Claude Code SDK)'));
+    }
+    console.log(''); // Add spacing after task output
     
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

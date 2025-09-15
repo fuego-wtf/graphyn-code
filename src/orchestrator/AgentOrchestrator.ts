@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
+// ClaudeCodeClient removed - using direct SDK now
 import { ConsoleOutput } from '../console/ConsoleOutput.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -52,7 +52,7 @@ export interface OrchestrationResult {
  */
 export class AgentOrchestrator extends EventEmitter {
   private static instance: AgentOrchestrator | null = null;
-  private claudeClient!: ClaudeCodeClient;
+  // ClaudeCodeClient removed - using direct SDK now
   private consoleOutput!: ConsoleOutput;
   private agentConfigs: Map<string, AgentConfig> = new Map();
   private agentsPath!: string;
@@ -67,7 +67,7 @@ export class AgentOrchestrator extends EventEmitter {
       return AgentOrchestrator.instance;
     }
     
-    this.claudeClient = new ClaudeCodeClient();
+    // ClaudeCodeClient removed - using direct SDK now
     this.consoleOutput = new ConsoleOutput();
     this.agentsPath = agentsPath;
     
@@ -352,7 +352,7 @@ export class AgentOrchestrator extends EventEmitter {
    */
   private async *executeWithAgentStream(
     agentName: string,
-    query: string,
+    userQuery: string,
     repositoryContext?: any
   ): AsyncGenerator<any> {
     let agentConfig = this.agentConfigs.get(agentName);
@@ -393,7 +393,7 @@ export class AgentOrchestrator extends EventEmitter {
 
     if (EMERGENCY_MODE) {
       // EMERGENCY FALLBACK: Provide detailed emergency response using getEmergencyResponse
-      const emergencyContent = this.getEmergencyResponse(agentName, query, repositoryContext);
+      const emergencyContent = this.getEmergencyResponse(agentName, userQuery, repositoryContext);
       
       yield {
         type: 'assistant',
@@ -437,7 +437,7 @@ export class AgentOrchestrator extends EventEmitter {
     };
 
     // Build specialized prompt for the agent
-    const agentPrompt = await this.buildAgentPrompt(agentConfig, query, repositoryContext);
+    const agentPrompt = await this.buildAgentPrompt(agentConfig, userQuery, repositoryContext);
 
     // IMMEDIATE FEEDBACK: Connecting to Claude
     yield {
@@ -449,15 +449,16 @@ export class AgentOrchestrator extends EventEmitter {
       }
     };
 
-    // Use REAL Claude Code SDK streaming - NO MOCKING
+    // Use direct Claude Code SDK streaming
+    const { query: claudeQuery } = await import('@anthropic-ai/claude-code');
+    
     const claudeOptions = {
-      maxTurns: 10,
+      maxTurns: 3, // Reduced from 10 to prevent infinite loops
       allowedTools: [
-        'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
-        'WebFetch', 'WebSearch', 'NotebookEdit'  // Removed 'Task' as potential hang point
+        'Read', 'Glob' // Only safe read-only tools for simple conversation
       ],
-      model: 'claude-3-5-sonnet-20241022',
-      mcpServers: repositoryContext?.mcpServers // Pass MCP servers from context
+      model: 'claude-3-5-sonnet-20241022'
+      // Removed mcpServers to prevent complications
     };
     
     // Log MCP server usage
@@ -465,9 +466,20 @@ export class AgentOrchestrator extends EventEmitter {
       this.emit('debug', `Using ${Object.keys(repositoryContext.mcpServers).length} MCP servers: ${Object.keys(repositoryContext.mcpServers).join(', ')}`);
     }
     
-    for await (const message of this.claudeClient.executeQueryStream(agentPrompt, claudeOptions)) {
-      // Yield each message as it arrives from Claude
-      yield message;
+    try {
+      // Execute with direct Claude SDK streaming
+      for await (const message of claudeQuery({ prompt: agentPrompt, options: claudeOptions })) {
+        // Yield each message as it streams from Claude
+        yield message;
+        
+        // Log successful completion
+        if (message.type === 'result' && 'subtype' in message && message.subtype === 'success') {
+          this.emit('debug', `Agent ${agentName} completed successfully`);
+        }
+      }
+    } catch (error) {
+      this.emit('debug', `Agent ${agentName} failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   }
 
@@ -476,7 +488,7 @@ export class AgentOrchestrator extends EventEmitter {
    */
   private async executeWithAgent(
     agentName: string,
-    query: string,
+    userQuery: string,
     repositoryContext?: any
   ): Promise<{ result: string; metrics?: any }> {
     let agentConfig = this.agentConfigs.get(agentName);
@@ -508,7 +520,7 @@ export class AgentOrchestrator extends EventEmitter {
 
     this.consoleOutput.streamAgentActivity(
       'orchestrator',
-      `${agentName} agent analyzing: "${query}"`,
+      `${agentName} agent analyzing: "${userQuery}"`,
       'progress'
     );
 
@@ -516,7 +528,7 @@ export class AgentOrchestrator extends EventEmitter {
       // EMERGENCY FALLBACK: Provide helpful static response instead of calling Claude Code SDK
       const staticResult = `🚨 Emergency mode: ${agentName} agent analysis (static mode)
 
-Query: "${query}"
+Query: "${userQuery}"
 
 As your ${agentConfig.role}, I can help with:
 ${agentConfig.responsibilities.slice(0, 3).map(r => `• ${r}`).join('\n')}
@@ -538,7 +550,7 @@ Specialized knowledge: ${agentConfig.specializedKnowledge.slice(0, 3).join(', ')
     }
 
     // Build specialized prompt for the agent
-    const agentPrompt = await this.buildAgentPrompt(agentConfig, query, repositoryContext);
+    const agentPrompt = await this.buildAgentPrompt(agentConfig, userQuery, repositoryContext);
 
     // REAL-TIME STREAMING: Show progress indicators and stream character-by-character
     let finalResult = '';
@@ -557,22 +569,21 @@ Specialized knowledge: ${agentConfig.specializedKnowledge.slice(0, 3).join(', ')
     }, 500);
 
     try {
-      // Stream through Claude Code SDK for real-time output
-      for await (const message of this.claudeClient.executeQueryStream(agentPrompt, {
-        maxTurns: 10,
+      // Use direct Claude Code SDK for blocking execution
+      const { query: claudeQuery } = await import('@anthropic-ai/claude-code');
+      
+      const claudeOptions = {
+        maxTurns: 3, // Reduced from 10 to prevent infinite loops
         allowedTools: [
-          'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
-          'WebFetch', 'WebSearch', 'NotebookEdit', 'Task'
+          'Read', 'Glob' // Only safe read-only tools for simple conversation
         ],
         model: 'claude-3-5-sonnet-20241022'
-      })) {
-        // Stop thinking indicator once we get first response
-        if (isThinking && message.type === 'assistant') {
-          isThinking = false;
-          clearInterval(thinkingInterval);
-        }
-
-        // Stream assistant messages in real-time
+        // Removed mcpServers to prevent complications
+      };
+      
+      // Execute and collect all results
+      for await (const message of claudeQuery({ prompt: agentPrompt, options: claudeOptions })) {
+        // Stream partial content for real-time feedback
         if (message.type === 'assistant' && message.message?.content) {
           const content = Array.isArray(message.message.content) 
             ? message.message.content.map((c: any) => c.text || '').join('')
@@ -583,11 +594,17 @@ Specialized knowledge: ${agentConfig.specializedKnowledge.slice(0, 3).join(', ')
           }
         }
         
-        // Collect result for return value
+        // Collect final result
         if (message.type === 'result' && 'subtype' in message && message.subtype === 'success') {
           finalResult = (message as any).result || '';
+          break;
         }
       }
+      
+      if (!finalResult) {
+        throw new Error('No result received from Claude Code SDK');
+      }
+      
     } finally {
       // Always clear thinking indicator
       isThinking = false;
@@ -794,7 +811,7 @@ Specialized knowledge: ${agentConfig.specializedKnowledge.slice(0, 3).join(', ')
    * Use Claude to validate and improve routing decisions
    */
   private async getClaudeRoutingRecommendation(
-    query: string,
+    userQuery: string,
     repositoryContext: any,
     initialAnalysis: TaskAnalysis
   ): Promise<TaskAnalysis> {
@@ -819,7 +836,7 @@ Specialized knowledge: ${agentConfig.specializedKnowledge.slice(0, 3).join(', ')
 Agents:
 ${agentList}
 
-Task: "${query}"
+Task: "${userQuery}"
 Context: ${contextSummary}
 Keyword suggestion: ${initialAnalysis.primaryAgent} (${initialAnalysis.confidence}%)
 
@@ -831,21 +848,25 @@ Respond with JSON only:
   "reasoning": "Brief explanation"
 }`;
 
-      // Use STREAMING Claude Code SDK for routing - faster feedback
-      let routingResult = '';
-      for await (const message of this.claudeClient.executeQueryStream(routingPrompt, {
-        maxTurns: 3, // Increased from 1 to handle complex routing decisions
+      // Use direct Claude Code SDK for routing recommendation
+      const { query: claudeQuery } = await import('@anthropic-ai/claude-code');
+      
+      const claudeOptions = {
+        maxTurns: 2, // Simple routing query
+        allowedTools: [], // No tools needed for routing decision
         model: 'claude-3-5-sonnet-20241022'
-      })) {
+      };
+      
+      let routingResult = '';
+      for await (const message of claudeQuery({ prompt: routingPrompt, options: claudeOptions })) {
         if (message.type === 'result' && 'subtype' in message && message.subtype === 'success') {
           routingResult = (message as any).result || '';
           break;
         }
       }
-      const result = { result: routingResult };
-
+      
       // Parse JSON response from Claude
-      const jsonMatch = result.result.match(/\{[\s\S]*\}/);
+      const jsonMatch = routingResult.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const recommendation = JSON.parse(jsonMatch[0]);
         
@@ -884,13 +905,13 @@ Respond with JSON only:
    */
   private async buildAgentPrompt(
     agentConfig: AgentConfig,
-    query: string,
+    userQuery: string,
     repositoryContext?: any
   ): Promise<string> {
     // OPTIMIZATION: Build much shorter, focused prompt
     let prompt = `You are a ${agentConfig.role.toLowerCase()}. 
 
-Query: "${query}"
+Query: "${userQuery}"
 
 `;
 
@@ -932,40 +953,14 @@ Provide a concise, practical response with actionable steps.`;
    * Set up event handlers for the Claude client
    */
   private setupEventHandlers(): void {
-    this.claudeClient.on('error', (error) => {
-      this.emit('agent-error', error);
-    });
-
-    this.claudeClient.on('retry', ({ attempt, error }) => {
-      this.emit('agent-retry', { attempt, error });
-    });
-
-    this.claudeClient.on('debug', (message) => {
-      // Add timestamp for better debugging visibility
-      const timestamp = new Date().toLocaleTimeString();
-      this.consoleOutput.streamAgentActivity('claude-sdk', `[${timestamp}] ${message}`, 'progress');
-    });
-
-    // Handle streaming events from Claude Code SDK
-    this.claudeClient.on('partial_content', (text) => {
-      // Emit partial content for real-time display
-      this.emit('streaming_content', text);
-    });
-
-    this.claudeClient.on('thinking_start', () => {
-      this.emit('thinking_start');
-    });
-
-    this.claudeClient.on('thinking_end', () => {
-      this.emit('thinking_end');
-    });
+    // Event handlers removed with ClaudeCodeClient - no longer needed
   }
 
   /**
    * Emergency response when Claude Code SDK fails
    */
-  private getEmergencyResponse(agentName: string, query: string, repositoryContext?: any): string {
-    return `Claude Code SDK unavailable. Query: "${query}"\nEmergency mode active - limited functionality.\nRun 'graphyn doctor' to diagnose connectivity issues.`;
+  private getEmergencyResponse(agentName: string, userQuery: string, repositoryContext?: any): string {
+    return `Claude Code SDK unavailable. Query: "${userQuery}"\nEmergency mode active - limited functionality.\nRun 'graphyn doctor' to diagnose connectivity issues.`;
   }
 
   /**
@@ -1064,7 +1059,7 @@ Provide a concise, practical response with actionable steps.`;
    * Cleanup resources
    */
   async cleanup(): Promise<void> {
-    this.claudeClient.reset();
+    // ClaudeCodeClient cleanup removed
     this.removeAllListeners();
   }
 }
