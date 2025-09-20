@@ -1,0 +1,41 @@
+{
+  "name": "@graphyn/cli",
+  "version": "0.1.70",
+  "description": "Graphyn CLI runner and TUI for multi-agent orchestration",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "graphyn": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@graphyn/core": "workspace:*",
+    "@graphyn/db": "workspace:*",
+    "@graphyn/agents": "workspace:*",
+    "@anthropic-ai/claude-code": "^1.0.108",
+    "commander": "^12.0.0",
+    "inquirer": "^12.9.4",
+    "ora": "^8.2.0",
+    "chalk": "^5.3.0",
+    "blessed": "^0.1.81",
+    "figlet": "^1.6.0",
+    "gradient-string": "^2.0.2",
+    "boxen": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/blessed": "^0.1.25",
+    "@types/figlet": "^1.7.0",
+    "@types/gradient-string": "^1.1.6",
+    "@types/inquirer": "^9.0.9",
+    "typescript": "^5.9.2",
+    "tsx": "^4.7.0",
+    "vitest": "^3.2.4"
+  },
+  "keywords": ["cli", "tui", "orchestration", "graphyn"],
+  "license": "MIT"
+}

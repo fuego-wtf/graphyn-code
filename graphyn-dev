@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Quick script to run the development version with streaming UI
+# This bypasses the compiled version and uses the TypeScript directly
+
+cd /Users/resatugurulu/Developer/graphyn-workspace/code
+
+if [ $# -eq 0 ]; then
+    # No arguments - start continuous mode
+    npm run dev
+else
+    # With arguments - execute the query
+    npm run dev -- "$*"
+fi

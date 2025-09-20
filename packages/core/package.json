@@ -1,0 +1,35 @@
+{
+  "name": "@graphyn/core",
+  "version": "0.1.70",
+  "description": "Graphyn Core - Shared types, utilities, and base functionality",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@graphyn/db": "workspace:*",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0"
+  },
+  "keywords": [
+    "graphyn",
+    "core",
+    "utilities",
+    "types"
+  ],
+  "author": "Graphyn Team",
+  "license": "MIT"
+}

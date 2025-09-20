@@ -1,0 +1,46 @@
+{
+  "name": "@graphyn/db",
+  "version": "0.1.70",
+  "description": "Graphyn Database - SQLite abstraction layer with task queuing and WAL2 optimization",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.2.2",
+    "sql-template-strings": "^2.2.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "vitest": "^1.0.4"
+  },
+  "keywords": [
+    "graphyn",
+    "database",
+    "sqlite",
+    "task-queue",
+    "wal2",
+    "persistence"
+  ],
+  "author": "Graphyn Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/graphyn/workspace.git",
+    "directory": "packages/db"
+  }
+}
