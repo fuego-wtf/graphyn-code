@@ -24,6 +24,8 @@ export interface SessionMetadata {
     type: string;
     status: 'idle' | 'running' | 'completed' | 'failed';
     pid?: number;
+    startedAt?: string;
+    completedAt?: string;
   }>;
   tasks: Array<{
     id: string;
@@ -32,6 +34,13 @@ export interface SessionMetadata {
     status: 'pending' | 'running' | 'completed' | 'failed';
     assignedAgent?: string;
     dependencies: string[];
+    startedAt?: string;
+    completedAt?: string;
+    metrics?: {
+      durationMs?: number;
+      tokensUsed?: number;
+      toolsUsed?: string[];
+    };
   }>;
   metrics: {
     duration: number; // milliseconds
@@ -42,9 +51,29 @@ export interface SessionMetadata {
   };
 }
 
+export interface TaskAuditRecord {
+  sessionId?: string;
+  taskId: string;
+  agentId: string;
+  status: 'completed' | 'failed';
+  summary?: string;
+  output?: string;
+  workspaceDir?: string;
+  metrics?: {
+    durationMs?: number;
+    tokensUsed?: number;
+    toolsUsed?: string[];
+  };
+  knowledgeReferences?: Array<{ source: string; title: string; url?: string }>;
+  startedAt?: Date;
+  completedAt?: Date;
+  errors?: Array<{ message: string; stack?: string }>;
+}
+
 export class SessionManager {
   private userDataManager: UserDataManager;
   private currentSession: SessionMetadata | null = null;
+  private currentSessionPath: string | null = null;
 
   constructor(userDataManager?: UserDataManager) {
     this.userDataManager = userDataManager || UserDataManager.getInstance();
@@ -98,6 +127,7 @@ export class SessionManager {
       await this.createRepositoryMapping(sessionDir, sessionMetadata.repositories);
 
       this.currentSession = sessionMetadata;
+      this.currentSessionPath = sessionDir;
       
       console.log(`✅ Session created: ${sessionId}`);
       console.log(`📂 Project: ${detectedProjectName}`);
@@ -125,6 +155,7 @@ export class SessionManager {
       const sessionMetadata: SessionMetadata = JSON.parse(metadataContent);
       
       this.currentSession = sessionMetadata;
+      this.currentSessionPath = await this.userDataManager.getSessionPath(sessionId);
       console.log(`📂 Session loaded: ${sessionId}`);
       
       return sessionMetadata;
@@ -181,6 +212,13 @@ export class SessionManager {
     const agent = this.currentSession.agents.find(a => a.id === agentId);
     if (agent) {
       agent.status = status;
+      const nowIso = new Date().toISOString();
+      if (status === 'running' && !agent.startedAt) {
+        agent.startedAt = nowIso;
+      }
+      if ((status === 'completed' || status === 'failed')) {
+        agent.completedAt = nowIso;
+      }
       await this.saveSessionMetadata(this.currentSession);
       console.log(`🔄 Agent ${agentId} status: ${status}`);
     }
@@ -199,7 +237,7 @@ export class SessionManager {
       type,
       description,
       status: 'pending' as const,
-      dependencies
+      dependencies,
     };
 
     this.currentSession.tasks.push(task);
@@ -223,6 +261,13 @@ export class SessionManager {
       task.status = status;
       if (assignedAgent) {
         task.assignedAgent = assignedAgent;
+      }
+      const nowIso = new Date().toISOString();
+      if (status === 'running' && !task.startedAt) {
+        task.startedAt = nowIso;
+      }
+      if ((status === 'completed' || status === 'failed')) {
+        task.completedAt = nowIso;
       }
 
       // Update metrics
@@ -271,6 +316,54 @@ export class SessionManager {
 
     await this.saveSessionMetadata(session);
     console.log(`📦 Session archived: ${targetSession}`);
+  }
+
+  async recordTaskAudit(record: TaskAuditRecord): Promise<void> {
+    if (!this.currentSession) {
+      throw new Error('No active session to record audit');
+    }
+
+    const sessionId = record.sessionId || this.currentSession.sessionId;
+    const sessionDir = await this.getSessionDirectory(sessionId);
+    const agentDir = path.join(sessionDir, 'agents', record.agentId);
+    const auditsDir = path.join(agentDir, 'audits');
+
+    await fs.mkdir(auditsDir, { recursive: true });
+
+    const payload = {
+      sessionId,
+      taskId: record.taskId,
+      agentId: record.agentId,
+      status: record.status,
+      summary: record.summary,
+      output: record.output,
+      workspaceDir: record.workspaceDir,
+      metrics: record.metrics,
+      knowledgeReferences: record.knowledgeReferences,
+      startedAt: record.startedAt?.toISOString(),
+      completedAt: record.completedAt?.toISOString(),
+      errors: record.errors,
+      recordedAt: new Date().toISOString(),
+    };
+
+    const auditPath = path.join(auditsDir, `${record.taskId}.json`);
+    await fs.writeFile(auditPath, JSON.stringify(payload, null, 2));
+
+    const task = this.currentSession.tasks.find((t) => t.id === record.taskId);
+    if (task) {
+      task.metrics = {
+        durationMs: record.metrics?.durationMs,
+        tokensUsed: record.metrics?.tokensUsed,
+        toolsUsed: record.metrics?.toolsUsed,
+      };
+      if (record.startedAt) {
+        task.startedAt = record.startedAt.toISOString();
+      }
+      if (record.completedAt) {
+        task.completedAt = record.completedAt.toISOString();
+      }
+      await this.saveSessionMetadata(this.currentSession);
+    }
   }
 
   /**
@@ -335,5 +428,17 @@ export class SessionManager {
       await fs.mkdir(path.join(workspaceDir, 'input'), { recursive: true });
       await fs.mkdir(path.join(workspaceDir, 'output'), { recursive: true });
     }
+  }
+
+  private async getSessionDirectory(sessionId: string): Promise<string> {
+    if (this.currentSession && this.currentSession.sessionId === sessionId && this.currentSessionPath) {
+      return this.currentSessionPath;
+    }
+
+    const dir = await this.userDataManager.getSessionPath(sessionId);
+    if (this.currentSession && this.currentSession.sessionId === sessionId) {
+      this.currentSessionPath = dir;
+    }
+    return dir;
   }
 }

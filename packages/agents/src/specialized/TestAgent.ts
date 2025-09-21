@@ -1,11 +1,15 @@
-import { ClaudeCodeAgent } from '../base/ClaudeCodeAgent';
+import { ClaudeCodeAgent } from '../base/ClaudeCodeAgent.js';
 import type { Task } from '@graphyn/core';
 
 export class TestAgent extends ClaudeCodeAgent {
   constructor(id: string, workingDirectory: string, config = {}) {
-    super(id, workingDirectory, {
-      ...config,
-      agentType: 'test'
+    super({
+      id,
+      type: 'test',
+      specialization: 'Test Engineering',
+      capabilities: ['jest', 'cypress', 'playwright', 'unit-testing', 'e2e-testing'],
+      workspaceDir: workingDirectory,
+      ...config
     });
   }
 
@@ -60,64 +64,80 @@ Quality Assurance Standards:
 Always write tests that improve confidence in the codebase and catch regressions early in the development process.`;
   }
 
-  protected async prepareWorkspace(): Promise<void> {
-    await super.prepareWorkspace();
+  async initialize(): Promise<void> {
+    await super.initialize();
     
-    // Check for testing frameworks and configuration
-    const packageJsonPath = this.path.join(this.workingDirectory, 'package.json');
-    if (await this.fs.pathExists(packageJsonPath)) {
-      const packageJson = await this.fs.readJson(packageJsonPath);
-      
-      // Log detected testing frameworks
-      const testFrameworks = [];
-      const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
-      
-      if (dependencies.jest) testFrameworks.push('Jest');
-      if (dependencies.vitest) testFrameworks.push('Vitest');
-      if (dependencies.mocha) testFrameworks.push('Mocha');
-      if (dependencies.cypress) testFrameworks.push('Cypress');
-      if (dependencies.playwright || dependencies['@playwright/test']) testFrameworks.push('Playwright');
-      if (dependencies['@testing-library/react'] || dependencies['@testing-library/vue']) {
-        testFrameworks.push('Testing Library');
-      }
-      if (dependencies.enzyme) testFrameworks.push('Enzyme');
-      if (dependencies.puppeteer) testFrameworks.push('Puppeteer');
-      
-      if (testFrameworks.length > 0) {
-        this.logger.info(`Test Agent detected frameworks: ${testFrameworks.join(', ')}`);
-      }
+    if (this.config.workspaceDir) {
+      await this.detectTestEnvironment();
     }
-
-    // Check for test configuration files
-    const configFiles = [];
-    const files = await this.fs.readdir(this.workingDirectory).catch(() => []);
+  }
+  
+  private async detectTestEnvironment(): Promise<void> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
     
-    if (files.some(f => f.startsWith('jest.config'))) configFiles.push('Jest config');
-    if (files.some(f => f.startsWith('vitest.config'))) configFiles.push('Vitest config');
-    if (files.some(f => f.startsWith('cypress.config'))) configFiles.push('Cypress config');
-    if (files.some(f => f.startsWith('playwright.config'))) configFiles.push('Playwright config');
-    if (files.includes('.mocharc.json') || files.includes('.mocharc.js')) configFiles.push('Mocha config');
-    
-    if (configFiles.length > 0) {
-      this.logger.info(`Test Agent detected configs: ${configFiles.join(', ')}`);
-    }
-
-    // Check for existing test directories
-    const testDirs = [];
-    const testPaths = ['test', 'tests', '__tests__', 'spec', 'cypress', 'e2e'];
-    
-    for (const testPath of testPaths) {
-      const fullPath = this.path.join(this.workingDirectory, testPath);
-      if (await this.fs.pathExists(fullPath)) {
-        const stat = await this.fs.stat(fullPath);
-        if (stat.isDirectory()) {
-          testDirs.push(testPath);
+    try {
+      // Check for testing frameworks and configuration
+      const packageJsonPath = path.join(this.config.workspaceDir!, 'package.json');
+      const packageJsonExists = await fs.access(packageJsonPath).then(() => true).catch(() => false);
+      
+      if (packageJsonExists) {
+        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+        
+        // Log detected testing frameworks
+        const testFrameworks = [];
+        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+        
+        if (dependencies.jest) testFrameworks.push('Jest');
+        if (dependencies.vitest) testFrameworks.push('Vitest');
+        if (dependencies.mocha) testFrameworks.push('Mocha');
+        if (dependencies.cypress) testFrameworks.push('Cypress');
+        if (dependencies.playwright || dependencies['@playwright/test']) testFrameworks.push('Playwright');
+        if (dependencies['@testing-library/react'] || dependencies['@testing-library/vue']) {
+          testFrameworks.push('Testing Library');
+        }
+        if (dependencies.enzyme) testFrameworks.push('Enzyme');
+        if (dependencies.puppeteer) testFrameworks.push('Puppeteer');
+        
+        if (testFrameworks.length > 0) {
+          this.emit('log', { level: 'info', message: `Test Agent detected frameworks: ${testFrameworks.join(', ')}` });
         }
       }
-    }
-    
-    if (testDirs.length > 0) {
-      this.logger.info(`Test Agent found test directories: ${testDirs.join(', ')}`);
+
+      // Check for test configuration files
+      const configFiles = [];
+      const files: string[] = await fs.readdir(this.config.workspaceDir!).catch(() => []);
+      
+      if (files.some((f: string) => f.startsWith('jest.config'))) configFiles.push('Jest config');
+      if (files.some((f: string) => f.startsWith('vitest.config'))) configFiles.push('Vitest config');
+      if (files.some((f: string) => f.startsWith('cypress.config'))) configFiles.push('Cypress config');
+      if (files.some((f: string) => f.startsWith('playwright.config'))) configFiles.push('Playwright config');
+      if (files.includes('.mocharc.json') || files.includes('.mocharc.js')) configFiles.push('Mocha config');
+      
+      if (configFiles.length > 0) {
+        this.emit('log', { level: 'info', message: `Test Agent detected configs: ${configFiles.join(', ')}` });
+      }
+
+      // Check for existing test directories
+      const testDirs = [];
+      const testPaths = ['test', 'tests', '__tests__', 'spec', 'cypress', 'e2e'];
+      
+      for (const testPath of testPaths) {
+        const fullPath = path.join(this.config.workspaceDir!, testPath);
+        const exists = await fs.access(fullPath).then(() => true).catch(() => false);
+        if (exists) {
+          const stat = await fs.stat(fullPath);
+          if (stat.isDirectory()) {
+            testDirs.push(testPath);
+          }
+        }
+      }
+      
+      if (testDirs.length > 0) {
+        this.emit('log', { level: 'info', message: `Test Agent found test directories: ${testDirs.join(', ')}` });
+      }
+    } catch (error) {
+      this.emit('log', { level: 'warn', message: `Failed to detect test environment: ${error}` });
     }
   }
 
@@ -161,8 +181,8 @@ Always write tests that improve confidence in the codebase and catch regressions
     return hasKeyword || isTestType || hasTestFiles || hasTestSkills;
   }
 
-  protected getTaskSpecificContext(task: Task): string {
-    const context = super.getTaskSpecificContext(task);
+  protected buildTaskPrompt(task: Task): string {
+    const context = super.buildTaskPrompt(task);
     
     return `${context}
 

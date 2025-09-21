@@ -211,6 +211,30 @@ export class UserDataManager {
   }
 
   /**
+   * Get path to a specific session directory
+   */
+  async getSessionPath(sessionId: string): Promise<string> {
+    const structure = this.getDirectoryStructure();
+    return path.join(structure.sessions, sessionId);
+  }
+
+  /**
+   * Get sessions directory path
+   */
+  async getSessionsDirectory(): Promise<string> {
+    const structure = this.getDirectoryStructure();
+    return structure.sessions;
+  }
+
+  /**
+   * Get archive path for a session
+   */
+  async getArchivePath(sessionId: string): Promise<string> {
+    const structure = this.getDirectoryStructure();
+    return path.join(structure.exports, 'archives', `${sessionId}.archive`);
+  }
+
+  /**
    * Private methods
    */
   private detectUsername(): string {

@@ -8,6 +8,16 @@
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import { EventEmitter } from 'events';
+import { existsSync, readFileSync } from 'fs';
+import type { TransparencyEngine } from '../monitoring/TransparencyEngine.js';
+import type { TaskConfig } from '../types/TaskEnvelope.js';
+
+interface MCPClientConfig {
+  mcpServers?: Record<string, {
+    serverUrl: string;
+    apiKey?: string;
+  }>;
+}
 
 export interface MCPConnectionStatus {
   connected: boolean;
@@ -34,11 +44,23 @@ export class MCPCoordinator extends EventEmitter {
   private connectionStatus: MCPConnectionStatus = { connected: false };
   private toolCalls: MCPToolCall[] = [];
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  private transparency?: TransparencyEngine;
+  private clientConfig: MCPClientConfig = {};
+  private readonly mockMode: boolean;
+  private mockDb: any = null;
 
   constructor(serverPath?: string) {
     super();
-    // Default to our MCP server
-    this.serverPath = serverPath || path.resolve(process.cwd(), 'services/mcp/src/index.ts');
+    // Default to our MCP server entrypoint
+    this.serverPath = serverPath || path.resolve(process.cwd(), 'services/mcp/src/server.ts');
+    this.loadClientConfig();
+
+    this.mockMode = process.env.GRAPHYN_USE_MOCK_MCP === '1' || process.env.GRAPHYN_USE_MOCK_MCP === 'true';
+  }
+
+  attachTransparencyEngine(engine: TransparencyEngine): void {
+    this.transparency = engine;
+    engine.attachTo(this);
   }
 
   /**
@@ -50,15 +72,47 @@ export class MCPCoordinator extends EventEmitter {
 
     try {
       // Check if MCP server is already running
-      if (this.connected && this.mcpProcess) {
+      if (this.connected && (this.mcpProcess || this.mockMode)) {
         console.log('✅ MCP server already running');
+        return this.connectionStatus;
+      }
+
+      if (this.mockMode) {
+        await this.ensureMockDb();
+        console.log('🧪 Using in-process mock MCP server');
+        this.connected = true;
+        this.connectionStatus = {
+          connected: true,
+          pid: process.pid,
+          startTime: new Date(),
+          lastPing: new Date(),
+        };
+        this.emit('connected', this.connectionStatus);
         return this.connectionStatus;
       }
 
       console.log('🚀 Starting MCP server...');
       
-      // Spawn MCP server process
-      this.mcpProcess = spawn('tsx', [this.serverPath], {
+      // Spawn MCP server process using compiled JS
+      const compiledPath = this.serverPath.replace('/src/', '/dist/').replace('.ts', '.js');
+      let command = 'node';
+      let args = [compiledPath];
+      const compiledCoordinationPath = path.resolve(path.dirname(compiledPath), 'coordination', 'task-coordinator.js');
+
+      const compiledBundleMissing = !existsSync(compiledCoordinationPath);
+
+      if (!existsSync(compiledPath) || compiledBundleMissing) {
+        if (!existsSync(this.serverPath)) {
+          throw new Error(`MCP server entry not found at ${compiledPath} or ${this.serverPath}`);
+        }
+
+        // Fall back to tsx executing TypeScript source directly
+        command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+        args = ['tsx', this.serverPath];
+        console.log('⚙️  Compiled MCP server not ready; using tsx to run TypeScript sources.');
+      }
+
+      this.mcpProcess = spawn(command, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         cwd: process.cwd(),
         env: { ...process.env, NODE_ENV: 'production' }
@@ -108,6 +162,10 @@ export class MCPCoordinator extends EventEmitter {
    * Execute MCP tool with proper coordination
    */
   async executeMCPTool(toolName: string, params: Record<string, any> = {}): Promise<any> {
+    if (this.mockMode) {
+      return this.executeMockTool(toolName, params);
+    }
+
     if (!this.connected || !this.mcpProcess) {
       throw new Error('MCP server not connected');
     }
@@ -124,9 +182,10 @@ export class MCPCoordinator extends EventEmitter {
       const startTime = Date.now();
       
       // Send tool call to MCP server via stdio
+      const requestId = Date.now();
       const request = {
         jsonrpc: '2.0',
-        id: Date.now(),
+        id: requestId,
         method: 'tools/call',
         params: {
           name: toolName,
@@ -137,8 +196,15 @@ export class MCPCoordinator extends EventEmitter {
       // Write to stdin
       this.mcpProcess.stdin?.write(JSON.stringify(request) + '\n');
 
+      this.emit('mcp:tool-call', {
+        id: requestId,
+        name: toolName,
+        params
+      });
+
       // Wait for response (simplified - real implementation would handle async responses)
-      const result = await this.waitForToolResponse(request.id);
+      const payload = await this.waitForToolResponse(requestId);
+      const result = this.parseToolResult(toolName, payload);
       
       const duration = Date.now() - startTime;
       
@@ -149,7 +215,14 @@ export class MCPCoordinator extends EventEmitter {
       this.toolCalls.push(toolCall);
 
       console.log(`📥 MCP: ${toolName} → Success (${duration}ms)`);
-      
+      this.emit('mcp:tool-response', {
+        id: requestId,
+        name: toolName,
+        duration,
+        success: true,
+        result
+      });
+
       return result;
 
     } catch (error) {
@@ -163,6 +236,13 @@ export class MCPCoordinator extends EventEmitter {
       this.toolCalls.push(toolCall);
 
       console.error(`📥 MCP: ${toolName} → Error (${duration}ms): ${err.message}`);
+      this.emit('mcp:tool-response', {
+        id: toolCall.timestamp.getTime(),
+        name: toolName,
+        duration,
+        success: false,
+        error: err.message
+      });
       throw error;
     }
   }
@@ -170,12 +250,30 @@ export class MCPCoordinator extends EventEmitter {
   /**
    * Enqueue task via MCP
    */
-  async enqueueTask(taskId: string, taskType: string, description: string, dependencies: string[] = []): Promise<void> {
+  async enqueueTask(
+    taskId: string,
+    taskType: string,
+    description: string,
+    dependencies: string[] = [],
+    workspacePath?: string,
+    priority?: number,
+    config?: TaskConfig,
+    metadata?: Record<string, any>,
+    tags?: string[],
+  ): Promise<void> {
     return this.executeMCPTool('enqueue_task', {
-      taskId,
-      taskType,
+      task_id: taskId,
+      agent_type: taskType,
       description,
-      dependencies
+      dependencies,
+      workspace_path: workspacePath,
+      priority,
+      tools: config?.tools,
+      timeout_seconds: config?.timeoutSeconds,
+      max_retries: config?.maxRetries,
+      environment: config?.environment,
+      metadata,
+      tags,
     });
   }
 
@@ -189,11 +287,17 @@ export class MCPCoordinator extends EventEmitter {
   /**
    * Complete task via MCP
    */
-  async completeTask(taskId: string, result: any, metrics?: any): Promise<void> {
+  async completeTask(
+    taskId: string,
+    success: boolean,
+    options: { result?: any; metrics?: any; error?: string } = {}
+  ): Promise<void> {
     return this.executeMCPTool('complete_task', {
-      taskId,
-      result,
-      metrics
+      task_id: taskId,
+      success,
+      result: options.result,
+      metrics: options.metrics,
+      error_message: options.error
     });
   }
 
@@ -201,7 +305,7 @@ export class MCPCoordinator extends EventEmitter {
    * Get task status via MCP
    */
   async getTaskStatus(taskId?: string): Promise<any> {
-    return this.executeMCPTool('get_task_status', { taskId });
+    return this.executeMCPTool('get_task_status', { task_id: taskId });
   }
 
   /**
@@ -229,10 +333,27 @@ export class MCPCoordinator extends EventEmitter {
     return [...this.toolCalls];
   }
 
+  getClientConfig(): MCPClientConfig {
+    return { ...this.clientConfig };
+  }
+
+  async ingestDeepwiki(query: string, sessionId: string): Promise<any> {
+    return this.executeMCPTool('ingest_deepwiki', {
+      query,
+      session_id: sessionId,
+    });
+  }
+
   /**
    * Stop MCP server
    */
   async stopMCPServer(): Promise<void> {
+    if (this.mockMode) {
+      this.connected = false;
+      this.connectionStatus = { connected: false };
+      return;
+    }
+
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
@@ -310,7 +431,7 @@ export class MCPCoordinator extends EventEmitter {
       const parsed = JSON.parse(message);
       
       // Handle initialization/handshake
-      if (parsed.method === 'initialize') {
+      if ((parsed.id === 1 && parsed.result) || parsed.method === 'initialize') {
         this.connected = true;
         this.emit('handshake', parsed);
       }
@@ -325,7 +446,7 @@ export class MCPCoordinator extends EventEmitter {
         this.emit('notification', parsed);
       }
     } catch (error) {
-      // Ignore non-JSON messages (logs, etc.)
+      this.emit('mcp:process-log', { message });
     }
   }
 
@@ -396,7 +517,28 @@ export class MCPCoordinator extends EventEmitter {
     });
   }
 
+  private parseToolResult(tool: string, result: any): any {
+    if (!result || !Array.isArray(result.content)) {
+      return result;
+    }
+
+    const first = result.content.find((item: any) => item.type === 'text' && typeof item.text === 'string');
+    if (!first) {
+      return result;
+    }
+
+    try {
+      return JSON.parse(first.text);
+    } catch (error) {
+      console.warn(`Unable to parse ${tool} response payload`, error);
+      return result;
+    }
+  }
+
   private startHealthChecks(): void {
+    if (this.mockMode) {
+      return;
+    }
     // Ping MCP server every 30 seconds
     this.healthCheckInterval = setInterval(async () => {
       try {
@@ -407,5 +549,126 @@ export class MCPCoordinator extends EventEmitter {
         // Could implement reconnection logic here
       }
     }, 30000);
+  }
+
+  private async ensureMockDb(): Promise<void> {
+    if (this.mockDb) {
+      return;
+    }
+
+    const moduleUrl = new URL('../../../db/dist/index.js', import.meta.url).href;
+    const dbModule: any = await import(moduleUrl);
+    if (typeof dbModule.createDatabase !== 'function') {
+      throw new Error('Failed to load mock database module');
+    }
+    this.mockDb = dbModule.createDatabase({ type: 'mock' });
+  }
+
+  private async executeMockTool(toolName: string, params: Record<string, any>): Promise<any> {
+    await this.ensureMockDb();
+    const db = this.mockDb;
+
+    const callId = Date.now();
+    this.emit('mcp:tool-call', {
+      id: callId,
+      name: toolName,
+      params,
+    });
+
+    const startTime = Date.now();
+
+    try {
+      let result: any;
+
+      switch (toolName) {
+        case 'enqueue_task': {
+          const taskId = params.task_id || params.taskId;
+          if (!taskId) {
+            throw new Error('Missing task_id');
+          }
+          await db.enqueueTask(taskId, {
+            agentType: params.agent_type || params.agentType,
+            description: params.description,
+            priority: params.priority ?? 5,
+            dependencies: params.dependencies || [],
+            workspace: params.workspace_path,
+            config: { tools: params.tools || [] },
+          });
+          result = { success: true };
+          break;
+        }
+        case 'get_next_task': {
+          const task = await db.getNextTask(params.agent_type || params.agentType);
+          result = { success: true, task: task || null };
+          break;
+        }
+        case 'complete_task': {
+          await db.completeTask(params.task_id || params.taskId, {
+            success: params.success,
+            result: params.result,
+            error: params.error_message,
+          });
+          result = { success: true };
+          break;
+        }
+        case 'get_task_status': {
+          const status = await db.getTaskStatus();
+          result = { success: true, status };
+          break;
+        }
+        case 'ingest_deepwiki': {
+          const title = params.query || 'mock-topic';
+          const content = `Mock deepwiki content for ${title}`;
+          await db.upsertKnowledgeEntry({
+            source: 'deepwiki',
+            sessionId: params.session_id,
+            title,
+            content,
+          });
+          result = { success: true, entry: { title, content } };
+          break;
+        }
+        case 'health_check': {
+          result = { success: true };
+          break;
+        }
+        default:
+          throw new Error(`Unknown mock MCP tool: ${toolName}`);
+      }
+
+      this.emit('mcp:tool-response', {
+        id: callId,
+        name: toolName,
+        duration: Date.now() - startTime,
+        success: true,
+        result,
+      });
+
+      return result;
+    } catch (error) {
+      this.emit('mcp:tool-response', {
+        id: callId,
+        name: toolName,
+        duration: Date.now() - startTime,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  private loadClientConfig(): void {
+    const configPath = path.resolve(process.cwd(), 'config/mcp-clients.json');
+    if (!existsSync(configPath)) {
+      return;
+    }
+
+    try {
+      const raw = readFileSync(configPath, 'utf-8');
+      this.clientConfig = JSON.parse(raw) as MCPClientConfig;
+    } catch (error) {
+      console.warn('Failed to read MCP client configuration:', error);
+      this.clientConfig = {};
+    }
   }
 }

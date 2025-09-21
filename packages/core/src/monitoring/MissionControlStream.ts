@@ -1,6 +1,18 @@
 import { EventEmitter } from 'events';
-import type { Task } from '../planning/TaskGraphGenerator';
-import type { ClaudeCodeSession } from '../session/WorkspaceManager';
+import type { Task } from '../task-graph-generator';
+import type { TransparencyEngine, TransparencyEvent as TransparencyRecord } from './TransparencyEngine.js';
+
+// Mock session type to avoid cross-package import
+export interface ClaudeCodeSession {
+  id: string;
+  startTime?: Date;
+}
+
+export interface MissionControlOptions {
+  id: string;
+  startTime: Date;
+  transparency?: TransparencyEngine;
+}
 
 export interface AgentStatus {
   id: string;
@@ -9,6 +21,16 @@ export interface AgentStatus {
   status: 'idle' | 'active' | 'paused' | 'error' | 'complete';
   currentTask?: string;
   progress: number;
+  currentOperation?: string;
+  output?: string[];
+  toolsUsed?: string[];
+  needsFeedback?: boolean;
+  feedbackRequest?: string;
+  telemetry?: {
+    cpuUsage?: number;
+    memoryUsage?: number;
+    durationMs?: number;
+  };
   metrics: {
     tasksCompleted: number;
     tasksActive: number;
@@ -16,6 +38,8 @@ export interface AgentStatus {
     uptime: number;
   };
   lastActivity: Date;
+  startedAt?: Date;
+  completedAt?: Date;
 }
 
 export interface TaskStatus {
@@ -51,6 +75,9 @@ export interface SessionMetrics {
     memoryUsage: number;
     diskUsage: number;
   };
+  dbLatencyMs: number;
+  knowledgeEntries: number;
+  knowledgeLastIngested?: Date;
 }
 
 export interface MissionControlEvent {
@@ -60,15 +87,51 @@ export interface MissionControlEvent {
   data: AgentStatus | TaskStatus | SessionMetrics | { message: string; level: string };
 }
 
+export interface MissionControlAgentInit {
+  id: string;
+  name: string;
+  type?: AgentStatus['type'];
+  status?: AgentStatus['status'];
+  task?: string;
+  initialProgress?: number;
+}
+
+export interface AgentRuntimeUpdate extends Partial<AgentStatus> {
+  currentOperation?: string;
+  output?: string[];
+  toolsUsed?: string[];
+  needsFeedback?: boolean;
+  feedbackRequest?: string;
+  telemetry?: AgentStatus['telemetry'];
+}
+
 export class MissionControlStream extends EventEmitter {
   private agentStatuses: Map<string, AgentStatus> = new Map();
   private taskStatuses: Map<string, TaskStatus> = new Map();
   private sessionMetrics: SessionMetrics | null = null;
   private subscribers: Set<(event: MissionControlEvent) => void> = new Set();
   private updateInterval: NodeJS.Timeout | null = null;
+  private dashboardInterval: NodeJS.Timeout | null = null;
+  private transparency?: TransparencyEngine;
+  private transparencyListener?: (event: TransparencyRecord) => void;
+  private dbLatencySamples: number[] = [];
+  private knowledgeStats = { entries: 0, lastIngested: undefined as Date | undefined };
+  private readonly maxLatencySamples = 20;
+  private session?: ClaudeCodeSession;
+  private active = false;
 
-  constructor(private session?: ClaudeCodeSession) {
+  constructor(sessionOrOptions?: ClaudeCodeSession | MissionControlOptions) {
     super();
+
+    if (sessionOrOptions && 'transparency' in sessionOrOptions) {
+      this.session = { id: sessionOrOptions.id, startTime: sessionOrOptions.startTime };
+      if (sessionOrOptions.transparency) {
+        this.bindTransparency(sessionOrOptions.transparency);
+      }
+    } else if (sessionOrOptions) {
+      this.session = sessionOrOptions;
+    }
+
     this.startMetricsCollection();
   }
 
@@ -109,36 +172,143 @@ export class MissionControlStream extends EventEmitter {
     };
   }
 
-  // Agent management
-  updateAgentStatus(agentId: string, updates: Partial<AgentStatus>): void {
+  start(): void {
+    if (this.active) {
+      return;
+    }
+    this.active = true;
+    if (!this.updateInterval) {
+      this.startMetricsCollection();
+    }
+    if (!this.dashboardInterval) {
+      this.dashboardInterval = setInterval(() => {
+        if (!this.active) {
+          return;
+        }
+        this.renderDashboard();
+      }, 1000);
+    }
+  }
+
+  stop(): void {
+    if (!this.active) {
+      return;
+    }
+    this.active = false;
+    if (this.dashboardInterval) {
+      clearInterval(this.dashboardInterval);
+      this.dashboardInterval = null;
+    }
+  }
+
+  addAgent(agent: MissionControlAgentInit): void {
+    const type = agent.type ?? this.inferAgentType(agent.id);
+    this.updateAgent(agent.id, {
+      id: agent.id,
+      name: agent.name,
+      type,
+      status: agent.status ?? 'idle',
+      currentTask: agent.task,
+      currentOperation: agent.task,
+      progress: agent.initialProgress ?? 0,
+    });
+  }
+
+  updateAgent(agentId: string, updates: AgentRuntimeUpdate): void {
     const existing = this.agentStatuses.get(agentId);
-    const updated: AgentStatus = {
+    const defaults: AgentStatus = existing ?? {
       id: agentId,
-      type: 'backend',
+      type: this.inferAgentType(agentId),
       name: agentId,
       status: 'idle',
+      currentTask: undefined,
       progress: 0,
+      currentOperation: undefined,
+      output: undefined,
+      toolsUsed: undefined,
+      needsFeedback: undefined,
+      feedbackRequest: undefined,
+      telemetry: {},
       metrics: {
         tasksCompleted: 0,
         tasksActive: 0,
         errorCount: 0,
         uptime: 0
       },
-      lastActivity: new Date(),
-      ...existing,
-      ...updates,
       lastActivity: new Date()
     };
 
-    this.agentStatuses.set(agentId, updated);
+    const newStatus = updates.status ?? defaults.status;
+    const metrics = {
+      ...defaults.metrics,
+      ...updates.metrics
+    };
+
+    if (newStatus === 'complete' && defaults.status !== 'complete') {
+      metrics.tasksCompleted += 1;
+      metrics.tasksActive = Math.max(0, metrics.tasksActive - 1);
+    } else if (newStatus === 'active' && defaults.status !== 'active') {
+      metrics.tasksActive = Math.max(metrics.tasksActive, 1);
+    } else if (newStatus === 'error' && defaults.status !== 'error') {
+      metrics.errorCount += 1;
+      metrics.tasksActive = Math.max(0, metrics.tasksActive - 1);
+    }
+
+    const telemetry = {
+      ...defaults.telemetry,
+      ...updates.telemetry
+    };
+
+    const output = updates.output
+      ? [...(defaults.output ?? []), ...updates.output]
+      : defaults.output;
+
+    const toolsUsed = updates.toolsUsed
+      ? Array.from(new Set([...(defaults.toolsUsed ?? []), ...updates.toolsUsed]))
+      : defaults.toolsUsed;
+
+    const merged: AgentStatus = {
+      ...defaults,
+      ...updates,
+      status: newStatus,
+      type: updates.type ?? defaults.type,
+      name: updates.name ?? defaults.name,
+      currentTask: updates.currentTask ?? updates.currentOperation ?? defaults.currentTask,
+      currentOperation: updates.currentOperation ?? defaults.currentOperation,
+      output,
+      toolsUsed,
+      telemetry,
+      needsFeedback: updates.needsFeedback ?? defaults.needsFeedback,
+      feedbackRequest: updates.feedbackRequest ?? defaults.feedbackRequest,
+      progress: Math.max(0, Math.min(100, updates.progress ?? defaults.progress)),
+      metrics,
+      lastActivity: new Date(),
+      startedAt: defaults.startedAt,
+      completedAt: defaults.completedAt
+    };
+
+    if (merged.status === 'active' && !merged.startedAt) {
+      merged.startedAt = new Date();
+    }
+
+    if ((merged.status === 'complete' || merged.status === 'error') && !merged.completedAt) {
+      merged.completedAt = new Date();
+    }
+
+    this.agentStatuses.set(agentId, merged);
     this.broadcastEvent({
       type: 'agent_status_change',
       timestamp: new Date(),
       sessionId: this.session?.id || 'default',
-      data: updated
+      data: merged
     });
 
     this.updateSessionMetrics();
+  }
+
+  // Agent management
+  updateAgentStatus(agentId: string, updates: Partial<AgentStatus>): void {
+    this.updateAgent(agentId, updates);
   }
 
   // Task management
@@ -159,6 +329,13 @@ export class MissionControlStream extends EventEmitter {
       ...updates
     };
 
+    if (updated.status === 'active' && !updated.startTime) {
+      updated.startTime = new Date();
+    }
+    if ((updated.status === 'complete' || updated.status === 'error') && !updated.completedTime) {
+      updated.completedTime = new Date();
+    }
+
     this.taskStatuses.set(taskId, updated);
     this.broadcastEvent({
       type: 'task_status_change',
@@ -174,14 +351,14 @@ export class MissionControlStream extends EventEmitter {
   updateMultipleTasks(tasks: Task[]): void {
     tasks.forEach(task => {
       this.updateTaskStatus(task.id, {
-        title: task.name,
+        title: task.description || task.id,
         status: 'pending',
         priority: task.priority || 1,
         dependencies: task.dependencies || [],
-        assignedAgent: task.assignedAgent,
+        assignedAgent: (task as any).assignedAgent,
         metrics: {
-          estimatedDuration: task.estimatedDuration || 300,
-          complexity: task.complexity || 1
+          estimatedDuration: (task as any).estimatedDuration || 300,
+          complexity: (task as any).complexity || 1
         }
       });
     });
@@ -191,7 +368,7 @@ export class MissionControlStream extends EventEmitter {
   private startMetricsCollection(): void {
     this.updateInterval = setInterval(() => {
       this.updateSessionMetrics();
-    }, 5000); // Update every 5 seconds
+    }, 500); // Update every 500ms
   }
 
   private updateSessionMetrics(): void {
@@ -228,7 +405,10 @@ export class MissionControlStream extends EventEmitter {
         cpuUsage: process.cpuUsage().user / 1000000, // Convert to seconds
         memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // Convert to MB
         diskUsage: 0 // Would need additional tooling for real disk usage
-      }
+      },
+      dbLatencyMs: this.getAverageLatency(),
+      knowledgeEntries: this.knowledgeStats.entries,
+      knowledgeLastIngested: this.knowledgeStats.lastIngested
     };
 
     this.broadcastEvent({
@@ -298,7 +478,133 @@ export class MissionControlStream extends EventEmitter {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
     }
+    if (this.dashboardInterval) {
+      clearInterval(this.dashboardInterval);
+      this.dashboardInterval = null;
+    }
     this.subscribers.clear();
     this.removeAllListeners();
+    if (this.transparency && this.transparencyListener) {
+      if ('off' in this.transparency && typeof this.transparency.off === 'function') {
+        this.transparency.off('event', this.transparencyListener as any);
+      }
+    }
+  }
+
+  bindTransparency(engine: TransparencyEngine): void {
+    if (this.transparency === engine) {
+      return;
+    }
+
+    if (this.transparency && this.transparencyListener) {
+      if ('off' in this.transparency && typeof this.transparency.off === 'function') {
+        this.transparency.off('event', this.transparencyListener as any);
+      }
+    }
+
+    this.transparency = engine;
+    this.transparencyListener = (event: TransparencyRecord) => {
+      this.handleTransparencyEvent(event);
+    };
+
+    engine.onEvent(this.transparencyListener);
+  }
+
+  private handleTransparencyEvent(event: TransparencyRecord): void {
+    switch (event.eventType) {
+      case 'task_planned':
+        this.updateTaskStatus(event.metadata?.taskId || event.message, {
+          id: event.metadata?.taskId || event.message,
+          title: event.metadata?.description || event.message,
+          status: 'pending',
+          priority: event.metadata?.priority ?? 1,
+          dependencies: event.metadata?.dependencies ?? [],
+        });
+        break;
+      case 'task_started':
+        this.updateTaskStatus(event.metadata?.taskId || event.message, {
+          id: event.metadata?.taskId || event.message,
+          status: 'active',
+          assignedAgent: event.metadata?.agentId,
+        });
+        if (event.metadata?.agentId) {
+          this.updateAgentStatus(event.metadata.agentId, {
+            id: event.metadata.agentId,
+            type: event.metadata.agentType ?? 'backend',
+            status: 'active',
+            currentTask: event.metadata.taskId || event.message,
+          });
+        }
+        break;
+      case 'task_completed':
+        this.updateTaskStatus(event.metadata?.taskId || event.message, {
+          id: event.metadata?.taskId || event.message,
+          status: 'complete',
+          progress: 100,
+        });
+        if (event.metadata?.agentId) {
+          this.updateAgentStatus(event.metadata.agentId, {
+            id: event.metadata.agentId,
+            status: 'complete',
+            currentTask: undefined,
+          });
+        }
+        break;
+      case 'task_failed':
+        this.updateTaskStatus(event.metadata?.taskId || event.message, {
+          id: event.metadata?.taskId || event.message,
+          status: 'error',
+          errorMessage: event.metadata?.error,
+        });
+        if (event.metadata?.agentId) {
+          this.updateAgentStatus(event.metadata.agentId, {
+            id: event.metadata.agentId,
+            status: 'error',
+            currentTask: undefined,
+          });
+        }
+        break;
+      case 'deepwiki_ingest':
+        this.knowledgeStats.entries += 1;
+        this.knowledgeStats.lastIngested = new Date(event.eventTime ?? new Date());
+        break;
+      default:
+        if (event.source === 'sqlite') {
+          const latency = event.metadata?.durationMs ?? event.metadata?.duration ?? null;
+          if (typeof latency === 'number') {
+            this.dbLatencySamples.push(latency);
+            if (this.dbLatencySamples.length > this.maxLatencySamples) {
+              this.dbLatencySamples.shift();
+            }
+          }
+        }
+        break;
+    }
+  }
+
+  private getAverageLatency(): number {
+    if (this.dbLatencySamples.length === 0) {
+      return 0;
+    }
+    const total = this.dbLatencySamples.reduce((sum, value) => sum + value, 0);
+    return Math.round(total / this.dbLatencySamples.length);
+  }
+
+  private renderDashboard(): void {
+    if (!this.active) {
+      return;
+    }
+
+    // Rendering is handled by downstream subscribers. This method intentionally keeps
+    // side effects minimal while providing a hook for future dashboard integrations.
+  }
+
+  private inferAgentType(agentId: string): AgentStatus['type'] {
+    if (agentId.includes('frontend')) return 'frontend';
+    if (agentId.includes('security')) return 'security';
+    if (agentId.includes('test')) return 'test';
+    if (agentId.includes('figma')) return 'figma';
+    if (agentId.includes('devops')) return 'devops';
+    return 'backend';
   }
 }

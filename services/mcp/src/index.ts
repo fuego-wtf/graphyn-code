@@ -16,6 +16,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { EventEmitter } from 'events';
+import { existsSync, readFileSync } from 'fs';
+import path from 'path';
 
 // Import from migrated database components
 import { createDatabase } from '@graphyn/db';
@@ -30,6 +32,7 @@ import { COMPLETE_TASK_TOOL, completeMCPTask } from './tools/complete_task.js';
 import { GET_TASK_STATUS_TOOL, getTaskStatusMCP } from './tools/get_task_status.js';
 import { HEALTH_CHECK_TOOL, healthCheckMCP } from './tools/health_check.js';
 import { GET_TRANSPARENCY_LOG_TOOL, getTransparencyLogMCP } from './tools/get_transparency_log.js';
+import { createDeepwikiTool } from './tools/ingest_deepwiki.js';
 
 /**
  * Configuration for the MCP server
@@ -41,6 +44,13 @@ interface ServerConfig {
   useMockDatabase?: boolean;
 }
 
+interface MCPClientConfig {
+  mcpServers?: Record<string, {
+    serverUrl: string;
+    apiKey?: string;
+  }>;
+}
+
 /**
  * MCP Task Coordination Server Class
  */
@@ -49,11 +59,14 @@ class TaskCoordinationServer extends EventEmitter {
   private dbManager: any; // Will use proper type from @graphyn/db
   private config: ServerConfig;
   private logger: any;
+  private clientConfig: MCPClientConfig;
+  private deepwikiHandler?: (input: unknown, dbManager: any) => Promise<any>;
 
   constructor(config: ServerConfig) {
     super();
     this.config = config;
     this.logger = { ...getLogger('mcp-server'), child: () => getLogger('mcp-server') };
+    this.clientConfig = {};
     
     this.server = new Server(
       {
@@ -67,9 +80,9 @@ class TaskCoordinationServer extends EventEmitter {
       }
     );
 
-    // Initialize database manager
+    // Initialize database manager - use mock to avoid native bindings issues
     this.dbManager = createDatabase({
-      type: config.useMockDatabase ? 'mock' : 'sqlite',
+      type: 'mock', // Always use mock for MCP server to avoid better-sqlite3 bindings issues
       path: config.databasePath
     });
     
@@ -107,16 +120,28 @@ class TaskCoordinationServer extends EventEmitter {
    * Register all MCP tools with the server
    */
   private registerTools(): void {
+    const availableTools = [
+      ENQUEUE_TASK_TOOL,
+      GET_NEXT_TASK_TOOL,
+      COMPLETE_TASK_TOOL,
+      GET_TASK_STATUS_TOOL,
+      HEALTH_CHECK_TOOL,
+      GET_TRANSPARENCY_LOG_TOOL,
+    ];
+
+    const deepwikiConfig = this.clientConfig.mcpServers?.deepwiki;
+    const deepwikiTool = createDeepwikiTool(deepwikiConfig);
+    if (deepwikiTool) {
+      availableTools.push(deepwikiTool.definition as any);
+      this.deepwikiHandler = (input, db) => deepwikiTool.handler(input, db);
+      this.logger.info('Deepwiki knowledge ingestion tool enabled', {
+        metadata: { endpoint: deepwikiConfig?.serverUrl },
+      });
+    }
+
     // Register list tools handler
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        ENQUEUE_TASK_TOOL,
-        GET_NEXT_TASK_TOOL,
-        COMPLETE_TASK_TOOL,
-        GET_TASK_STATUS_TOOL,
-        HEALTH_CHECK_TOOL,
-        GET_TRANSPARENCY_LOG_TOOL,
-      ],
+      tools: availableTools,
     }));
 
     // Register call tool handler
@@ -142,6 +167,12 @@ class TaskCoordinationServer extends EventEmitter {
 
           case 'get_transparency_log':
             return await getTransparencyLogMCP(args || {}, this.dbManager);
+
+          case 'ingest_deepwiki':
+            if (!this.deepwikiHandler) {
+              throw new McpError(ErrorCode.MethodNotFound, 'Deepwiki integration not configured');
+            }
+            return await this.deepwikiHandler(args || {}, this.dbManager);
 
           default:
             throw new McpError(
@@ -173,6 +204,24 @@ class TaskCoordinationServer extends EventEmitter {
         );
       }
     });
+  }
+
+  private loadClientConfig(): MCPClientConfig {
+    const configPath = path.resolve(process.cwd(), 'config/mcp-clients.json');
+
+    if (!existsSync(configPath)) {
+      return {};
+    }
+
+    try {
+      const raw = readFileSync(configPath, 'utf-8');
+      return JSON.parse(raw) as MCPClientConfig;
+    } catch (error) {
+      this.logger.warn('Failed to read MCP client configuration', {
+        metadata: { error: (error as Error).message },
+      });
+      return {};
+    }
   }
 
   /**

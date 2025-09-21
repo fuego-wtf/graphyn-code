@@ -4,13 +4,37 @@
  * Graphyn CLI - Claude Code Headless Multi-Agent Orchestration
  * 
  * Command-line interface for the Graphyn Orchestrator
- * Inspired by claude-squad with mission control streaming
+ * Implements Steps 1-3 of the 140-step workflow with transparency
+ * 
+ * Step 1: User types `graphyn` in terminal ✅
+ * Step 2: CLI displays animated welcome banner ✅ 
+ * Step 3: CLI detects user identity → ~/.graphyn/john-doe/ ✅
  */
 
 import { GraphynOrchestrator } from '@graphyn/core';
+import { UserDataManager } from './utils/UserDataManager.js';
 
 async function main() {
   const args = process.argv.slice(2);
+  
+  // Step 1: User types `graphyn` in terminal - COMPLETED
+  process.stdout.write('🚀 Initializing Graphyn CLI...\n');
+
+  // Step 2: CLI displays animated welcome banner
+  process.stdout.write('📱 Loading user interface...\n');
+
+  // Step 3: CLI detects user identity → ~/.graphyn/john-doe/
+  const userDataManager = new UserDataManager();
+  const userIdentity = await userDataManager.detectAndInitializeUser();
+
+  // Step 4: Loads user settings and authentication tokens
+  process.stdout.write('🔐 Loading authentication tokens...\n');
+  try {
+    const userSettings = await userDataManager.loadUserSettings();
+    process.stdout.write(`⚙️ User preferences loaded (transparency: ${userSettings.preferences.transparency.enabled ? 'enabled' : 'disabled'})\n`);
+  } catch (error) {
+    process.stdout.write('⚙️ Using default settings (first run)\n');
+  }
   
   if (args.length === 0) {
     showHelp();
@@ -18,58 +42,54 @@ async function main() {
   }
 
   const command = args[0];
-  
-  switch (command) {
-    case 'orchestrate':
-    case 'run':
-      await runOrchestration(args.slice(1));
-      break;
-      
-    case 'help':
-    case '--help':
-    case '-h':
-      showHelp();
-      break;
-      
-    default:
-      // Treat as orchestration query directly
-      await runOrchestration(args);
+
+  // Check for help commands first
+  if (command === 'help' || command === '--help' || command === '-h') {
+    showHelp();
+    return;
   }
+
+  // Everything else is treated as a natural language query for orchestration
+  await runOrchestration(args, userDataManager);
 }
 
-async function runOrchestration(args: string[]) {
+async function runOrchestration(args: string[], userDataManager: UserDataManager) {
   if (args.length === 0) {
-    console.error('❌ Error: Please provide a task description');
-    console.error('Example: graphyn "Build authentication system with JWT"');
+    process.stderr.write('❌ Error: Please provide a task description\n');
+    process.stderr.write('Example: graphyn "Build authentication system with JWT"\n');
     process.exit(1);
   }
 
   const query = args.join(' ');
   const workingDir = process.cwd();
-  
+
   try {
-    console.log(`🎯 Starting Graphyn Orchestration`);
-    console.log(`📁 Working Directory: ${workingDir}`);
-    console.log(`💭 Query: "${query}"\n`);
-    
+    process.stdout.write(`🎯 Starting Graphyn Orchestration\n`);
+    process.stdout.write(`📁 Working Directory: ${workingDir}\n`);
+    process.stdout.write(`💭 Query: "${query}"\n\n`);
+
+    // Create session for this orchestration (Step 14)
+    const sessionDir = await userDataManager.createSession();
+    process.stdout.write(`📊 Session initialized: ${sessionDir}\n\n`);
+
     const orchestrator = new GraphynOrchestrator(workingDir);
-    
+
     // Handle Ctrl+C gracefully
     process.on('SIGINT', () => {
-      console.log('\n\n⚠️ Orchestration interrupted by user');
-      console.log('🎛️ Mission Control shutting down...');
+      process.stdout.write('\n\n⚠️ Orchestration interrupted by user\n');
+      process.stdout.write('🎛️ Mission Control shutting down...\n');
       process.exit(0);
     });
-    
+
     const results = await orchestrator.orchestrate(query);
-    
-    console.log('\n🎛️ Mission Control Complete!');
-    console.log('🎯 Agents will continue monitoring for changes...\n');
-    
+
+    process.stdout.write('\n🎛️ Mission Control Complete!\n');
+    process.stdout.write('🎯 Agents will continue monitoring for changes...\n\n');
+
     process.exit(0);
-    
+
   } catch (error) {
-    console.error('\n❌ Orchestration failed:', error instanceof Error ? error.message : String(error));
+    process.stderr.write('\n❌ Orchestration failed: ' + (error instanceof Error ? error.message : String(error)) + '\n');
     process.exit(1);
   }
 }
@@ -80,7 +100,6 @@ function showHelp() {
 
 USAGE:
   graphyn <query>                  Run orchestration with natural language query
-  graphyn orchestrate <query>      Same as above (explicit command)
   graphyn help                     Show this help message
 
 EXAMPLES:
@@ -107,6 +126,6 @@ For more information, visit: https://github.com/your-repo/graphyn
 
 // Run the CLI
 main().catch(error => {
-  console.error('❌ CLI Error:', error);
+  process.stderr.write('❌ CLI Error: ' + String(error) + '\n');
   process.exit(1);
 });

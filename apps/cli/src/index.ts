@@ -8,7 +8,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { createOrchestrateCommand } from './commands/orchestrate.js';
+import { createOrchestrateCommand, OrchestrateCommand } from './commands/orchestrate.js';
+import { createTransparencyCommands } from './commands/transparency.js';
+import { exportCommand } from './commands/export.js';
+import createMCPAgentsCommand from './commands/mcp-agents.js';
+import createFigmaAnalyzeCommand from './commands/figma-analyze.js';
+import { classifyQuery } from '@graphyn/core';
+import { createInteractiveSession } from './commands/interactive-session.js';
 
 const program = new Command();
 
@@ -21,11 +27,23 @@ function showBanner() {
 // Main orchestration command with real agent integration
 program.addCommand(createOrchestrateCommand());
 
+// Add transparency monitoring commands
+program.addCommand(createTransparencyCommands());
+
+// Add session export and analytics commands
+program.addCommand(exportCommand);
+
+// Add MCP agents coordination
+program.addCommand(createMCPAgentsCommand());
+
+// Add Figma design-to-code workflow suite
+program.addCommand(createFigmaAnalyzeCommand());
+
 // Direct query execution (for backward compatibility)
 program
   .arguments('<query...>')
   .action(async (queryParts: string[]) => {
-    await runOrchestration(queryParts);
+    await handleDirectQuery(queryParts);
   });
 
 // Initialize command
@@ -44,15 +62,6 @@ program
   .action(async () => {
     console.log('📋 Session management - Coming soon');
     // TODO: Implement session management using @graphyn/session
-  });
-
-// Agent management
-program
-  .command('agents')
-  .description('Manage and deploy specialized agents')
-  .action(async () => {
-    console.log('🤖 Agent management - Coming soon');
-    // TODO: Implement agent management using @graphyn/agents
   });
 
 // Flow execution
@@ -84,45 +93,48 @@ program
   });
 
 // Orchestration execution function (migrated from original)
-async function runOrchestration(queryParts: string[]) {
+async function handleDirectQuery(queryParts: string[]): Promise<void> {
   if (queryParts.length === 0) {
-    console.error('❌ Error: Please provide a task description');
-    console.error('Example: graphyn "Build authentication system with JWT"');
+    showBanner();
+    showHelp();
     process.exit(1);
+    return;
   }
 
-  const query = queryParts.join(' ');
-  const workingDir = process.cwd();
-  
-  try {
-    console.log(`🎯 Starting Graphyn Orchestration`);
-    console.log(`📁 Working Directory: ${workingDir}`);
-    console.log(`💭 Query: "${query}"\n`);
-    
-    // TODO: Initialize orchestrator from @graphyn/core
-    console.log('⚠️ Orchestrator implementation migrated to @graphyn/core package');
-    console.log('🚧 Integration with new architecture in progress...\n');
-    
-    // const { GraphynOrchestrator } = await import('@graphyn/core');
-    // const orchestrator = new GraphynOrchestrator(workingDir);
-    
-    // Handle Ctrl+C gracefully
-    process.on('SIGINT', () => {
-      console.log('\n\n⚠️ Orchestration interrupted by user');
-      console.log('🎛️ Mission Control shutting down...');
+  const rawQuery = queryParts.join(' ');
+  const classification = classifyQuery(rawQuery);
+
+  switch (classification.intent) {
+    case 'help': {
+      showBanner();
+      showHelp();
       process.exit(0);
-    });
-    
-    // const results = await orchestrator.orchestrate(query);
-    
-    console.log('\n🎛️ Mission Control Complete!');
-    console.log('🎯 Agents will continue monitoring for changes...\n');
-    
-    process.exit(0);
-    
-  } catch (error) {
-    console.error('\n❌ Orchestration failed:', error instanceof Error ? error.message : String(error));
-    process.exit(1);
+      return;
+    }
+    case 'version': {
+      console.log(program.version());
+      process.exit(0);
+      return;
+    }
+    case 'orchestrate': {
+      showBanner();
+      const interactiveSession = createInteractiveSession();
+      try {
+        await interactiveSession.handleDirectQuery(classification.query);
+        // Interactive mode handles its own lifecycle - no process.exit needed
+      } catch (error) {
+        console.error('\n❌ Interactive session failed:', error instanceof Error ? error.message : String(error));
+        interactiveSession.cleanup();
+        process.exit(1);
+      }
+      return;
+    }
+    default: {
+      showBanner();
+      console.error('❌ Unable to understand the requested action.');
+      showHelp();
+      process.exit(1);
+    }
   }
 }
 
@@ -133,6 +145,9 @@ function showHelp() {
 USAGE:
   graphyn <query>                  Run orchestration with natural language query
   graphyn orchestrate <query>      Same as above (explicit command)
+  graphyn transparency <cmd>       Monitor agent execution and logs
+  graphyn export <session-id>      Export session with analytics
+  graphyn figma <cmd>              Figma design-to-code workflow suite
   graphyn init                     Initialize workspace
   graphyn agents                   Manage agents
   graphyn flow <query>             Execute task flow
@@ -143,9 +158,14 @@ USAGE:
 EXAMPLES:
   graphyn "Build authentication system with JWT"
   graphyn "Create REST API with user management"
-  graphyn "Add security scanning to existing codebase"
-  graphyn "Implement comprehensive test suite"
-  
+  graphyn transparency tail -f       # Follow live transparency events
+  graphyn transparency tree          # Show process execution tree
+  graphyn export session-123 --format zip  # Export session as ZIP with analytics
+  graphyn figma auth login           # Authenticate with Figma
+  graphyn figma extract <url>        # Extract components from Figma
+  graphyn figma export <path>        # Export components to various formats
+  graphyn figma workflow <url>       # Complete auth → extract → export workflow
+
 FEATURES:
   ✨ Natural language task understanding
   🤖 Specialized agent deployment (Backend, Security, Testing, etc.)
@@ -153,6 +173,11 @@ FEATURES:
   ⚡ Parallel execution with dependency management
   💬 Human-in-the-loop feedback system
   📊 Efficiency metrics and progress tracking
+  🎨 Figma design-to-code automation
+
+FIGMA INTEGRATION:
+  Complete design-to-code workflow with OAuth authentication,
+  component extraction, i18n support, and multiple export formats.
 
 MISSION CONTROL:
   The interface shows live agent execution with streaming updates.
@@ -171,14 +196,19 @@ program
   .hook('preAction', () => {
     // Only show banner for specific commands, not for direct queries
     const command = process.argv[2];
-    const isDirectCommand = ['init', 'agents', 'flow', 'dashboard', 'doctor', 'session'].includes(command);
+    const isDirectCommand = ['init', 'agents', 'flow', 'dashboard', 'doctor', 'session', 'transparency', 'export'].includes(command);
     if (isDirectCommand) {
       showBanner();
     }
   });
 
-// Handle help and no arguments
-if (process.argv.length <= 2 || process.argv.includes('--help') || process.argv.includes('-h')) {
+// Handle help and no arguments for main CLI only
+if (process.argv.length <= 2) {
+  showBanner();
+  showHelp();
+  process.exit(0);
+} else if ((process.argv.includes('--help') || process.argv.includes('-h')) && process.argv.length === 3) {
+  // Only show main help if --help is the only argument
   showBanner();
   showHelp();
   process.exit(0);

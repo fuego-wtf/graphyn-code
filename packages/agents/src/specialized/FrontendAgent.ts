@@ -1,11 +1,15 @@
-import { ClaudeCodeAgent } from '../base/ClaudeCodeAgent';
+import { ClaudeCodeAgent } from '../base/ClaudeCodeAgent.js';
 import type { Task } from '@graphyn/core';
 
 export class FrontendAgent extends ClaudeCodeAgent {
   constructor(id: string, workingDirectory: string, config = {}) {
-    super(id, workingDirectory, {
-      ...config,
-      agentType: 'frontend'
+    super({
+      id,
+      type: 'frontend',
+      specialization: 'Frontend Development',
+      capabilities: ['react', 'vue', 'css', 'typescript', 'responsive-design'],
+      workspaceDir: workingDirectory,
+      ...config
     });
   }
 
@@ -50,53 +54,68 @@ Focus Areas:
 Always consider the user experience impact of your implementations and prioritize clean, maintainable, and performant code.`;
   }
 
-  protected async prepareWorkspace(): Promise<void> {
-    await super.prepareWorkspace();
+  async initialize(): Promise<void> {
+    await super.initialize();
     
     // Check for frontend-specific dependencies and tooling
-    const packageJsonPath = this.path.join(this.workingDirectory, 'package.json');
-    if (await this.fs.pathExists(packageJsonPath)) {
-      const packageJson = await this.fs.readJson(packageJsonPath);
-      
-      // Log frontend framework detection
-      const frameworks = [];
-      if (packageJson.dependencies?.react || packageJson.devDependencies?.react) {
-        frameworks.push('React');
-      }
-      if (packageJson.dependencies?.vue || packageJson.devDependencies?.vue) {
-        frameworks.push('Vue');
-      }
-      if (packageJson.dependencies?.['@angular/core'] || packageJson.devDependencies?.['@angular/core']) {
-        frameworks.push('Angular');
-      }
-      
-      if (frameworks.length > 0) {
-        this.logger.info(`Frontend Agent detected frameworks: ${frameworks.join(', ')}`);
-      }
+    if (this.config.workspaceDir) {
+      await this.detectFrontendEnvironment();
     }
-
-    // Check for common frontend build tools
-    const buildTools = [];
-    const files = await this.fs.readdir(this.workingDirectory).catch(() => []);
+  }
+  
+  private async detectFrontendEnvironment(): Promise<void> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
     
-    if (files.includes('vite.config.js') || files.includes('vite.config.ts')) {
-      buildTools.push('Vite');
-    }
-    if (files.includes('webpack.config.js') || files.includes('webpack.config.ts')) {
-      buildTools.push('Webpack');
-    }
-    if (files.includes('rollup.config.js') || files.includes('rollup.config.mjs')) {
-      buildTools.push('Rollup');
-    }
-    if (files.includes('next.config.js') || files.includes('next.config.mjs')) {
-      buildTools.push('Next.js');
-    }
-    if (files.includes('nuxt.config.js') || files.includes('nuxt.config.ts')) {
-      buildTools.push('Nuxt.js');
-    }
+    try {
+      const packageJsonPath = path.join(this.config.workspaceDir!, 'package.json');
+      const packageJsonExists = await fs.access(packageJsonPath).then(() => true).catch(() => false);
+      
+      if (packageJsonExists) {
+        const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+        
+        // Log frontend framework detection
+        const frameworks = [];
+        if (packageJson.dependencies?.react || packageJson.devDependencies?.react) {
+          frameworks.push('React');
+        }
+        if (packageJson.dependencies?.vue || packageJson.devDependencies?.vue) {
+          frameworks.push('Vue');
+        }
+        if (packageJson.dependencies?.['@angular/core'] || packageJson.devDependencies?.['@angular/core']) {
+          frameworks.push('Angular');
+        }
+        
+        if (frameworks.length > 0) {
+          this.emit('log', { level: 'info', message: `Frontend Agent detected frameworks: ${frameworks.join(', ')}` });
+        }
+      }
 
-    if (buildTools.length > 0) {
-      this.logger.info(`Frontend Agent detected build tools: ${buildTools.join(', ')}`);
+      // Check for common frontend build tools
+      const buildTools = [];
+      const files: string[] = await fs.readdir(this.config.workspaceDir!).catch(() => []);
+      
+      if (files.includes('vite.config.js') || files.includes('vite.config.ts')) {
+        buildTools.push('Vite');
+      }
+      if (files.includes('webpack.config.js') || files.includes('webpack.config.ts')) {
+        buildTools.push('Webpack');
+      }
+      if (files.includes('rollup.config.js') || files.includes('rollup.config.mjs')) {
+        buildTools.push('Rollup');
+      }
+      if (files.includes('next.config.js') || files.includes('next.config.mjs')) {
+        buildTools.push('Next.js');
+      }
+      if (files.includes('nuxt.config.js') || files.includes('nuxt.config.ts')) {
+        buildTools.push('Nuxt.js');
+      }
+
+      if (buildTools.length > 0) {
+        this.emit('log', { level: 'info', message: `Frontend Agent detected build tools: ${buildTools.join(', ')}` });
+      }
+    } catch (error) {
+      this.emit('log', { level: 'warn', message: `Failed to detect frontend environment: ${error}` });
     }
   }
 
@@ -125,8 +144,8 @@ Always consider the user experience impact of your implementations and prioritiz
     return hasKeyword || isCorrectType || hasFrontendFiles;
   }
 
-  protected getTaskSpecificContext(task: Task): string {
-    const context = super.getTaskSpecificContext(task);
+  protected buildTaskPrompt(task: Task): string {
+    const context = super.buildTaskPrompt(task);
     
     return `${context}
 

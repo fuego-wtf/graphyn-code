@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { MockSQLiteManager as SQLiteManager } from '../../packages/db/src/index';
+import { MockSQLiteManager as SQLiteManager } from '../../packages/db/dist/index.js';
 import { enqueueMCPTask as _enqueueMCPTask, ENQUEUE_TASK_TOOL } from '../../services/mcp/src/tools/enqueue_task';
 import { getNextMCPTask as _getNextMCPTask, GET_NEXT_TASK_TOOL } from '../../services/mcp/src/tools/get_next_task';
 import { completeMCPTask as _completeMCPTask, COMPLETE_TASK_TOOL } from '../../services/mcp/src/tools/complete_task';

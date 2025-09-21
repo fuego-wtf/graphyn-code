@@ -1,0 +1,14 @@
+{
+  "osx-arm64": {
+    "binaryPath": "/opt/homebrew/bin/claude"
+  },
+  "osx-x64": {
+    "binaryPath": "/usr/local/bin/claude"
+  },
+  "linux-x64": {
+    "binaryPath": "/usr/bin/claude"
+  },
+  "windows-x64": {
+    "binaryPath": "C:/Program Files/Claude/bin/claude.exe"
+  }
+}

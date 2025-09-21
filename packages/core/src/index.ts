@@ -187,6 +187,9 @@ export function validateConfig(config: unknown): GraphynConfig {
   return GraphynConfigSchema.parse(config);
 }
 
+export { ClaudeProcessManager } from './agents/ClaudeProcessManager.js';
+export type { ClaudeRunOptions, ClaudeRunResult, ClaudeToolCall } from './agents/ClaudeProcessManager.js';
+
 // Task status utilities (commented out - need to be adapted to new Task interface)
 // export function isTaskComplete(task: Task): boolean {
 //   return task.status === 'completed' || task.status === 'failed';
@@ -375,6 +378,16 @@ export * from './planning/TaskDecomposer.js';
 export type { TaskDecomposition, DecompositionContext } from './planning/TaskDecomposer.js';
 
 // Export monitoring and mission control
-export { MissionControlStream } from './monitoring/MissionControlStream';
-export type { AgentStatus, TaskStatus, SessionMetrics, MissionControlEvent } from './monitoring/MissionControlStream';
+export { MissionControlStream } from './monitoring/MissionControlStream.js';
+export type { AgentStatus, TaskStatus, SessionMetrics, MissionControlEvent } from './monitoring/MissionControlStream.js';
 export { TransparencyEngine } from './monitoring/TransparencyEngine.js';
+export { ProcessTreeVisualizer } from './monitoring/ProcessTreeVisualizer.js';
+export type { TaskEnvelope, TaskEnvelopeList, TaskConfig } from './types/TaskEnvelope.js';
+
+// Export system health and diagnostics
+export { HealthChecker } from './utils/HealthChecker.js';
+export type { HealthCheckResult, SystemHealth } from './utils/HealthChecker.js';
+export { classifyQuery } from './utils/QueryClassifier.js';
+export type { QueryIntent, QueryClassification } from './utils/QueryClassifier.js';
+export { loadAgentSpecializations } from './utils/AgentSpecializationConfig.js';
+export type { AgentSpecialization, AgentSpecializationMap, AgentSpecializationLoadResult } from './utils/AgentSpecializationConfig.js';

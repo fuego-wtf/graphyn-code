@@ -34,6 +34,12 @@ export interface Task {
   startedAt?: Date;
   completedAt?: Date;
   error?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  lastError?: string;
+  lastErrorAt?: Date;
+  metadata?: Record<string, any>;
+  tags?: string[];
 }
 
 export interface TaskQueue {
@@ -137,6 +143,10 @@ export class SQLiteManager implements TaskQueue, SessionManager, TransparencySto
         workspace TEXT,
         config TEXT, -- JSON
         result TEXT, -- JSON
+        retry_count INTEGER DEFAULT 0,
+        max_retries INTEGER DEFAULT 0,
+        last_error TEXT,
+        last_error_at INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         started_at INTEGER,
@@ -203,16 +213,27 @@ export class SQLiteManager implements TaskQueue, SessionManager, TransparencySto
     `);
 
     this.initialized = true;
+    this.ensureTaskSchema();
   }
 
   // Task Queue Implementation
   async enqueueTask(taskId: string, config: Omit<Task, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<void> {
+    const start = Date.now();
     const now = Date.now();
+    const existingConfig = config.config || {};
+    const maxRetries = config.maxRetries ?? existingConfig.maxRetries ?? 0;
+    const taskConfig = {
+      ...existingConfig,
+      tools: existingConfig.tools || [],
+      timeoutSeconds: existingConfig.timeoutSeconds ?? existingConfig.timeout_seconds,
+      maxRetries,
+    };
+
     const stmt = this.db.prepare(`
       INSERT INTO tasks (
-        id, agent_type, description, priority, dependencies, 
-        workspace, config, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, agent_type, description, priority, dependencies,
+        workspace, config, retry_count, max_retries, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -222,13 +243,22 @@ export class SQLiteManager implements TaskQueue, SessionManager, TransparencySto
       config.priority || 5,
       JSON.stringify(config.dependencies || []),
       config.workspace,
-      config.config ? JSON.stringify(config.config) : null,
+      JSON.stringify(taskConfig),
+      0,
+      maxRetries,
       now,
-      now
+      now,
     );
+
+    await this.recordSqlMetric('sqlite_enqueue', {
+      taskId,
+      agentType: config.agentType,
+      durationMs: Date.now() - start,
+    });
   }
 
   async getNextTask(agentType?: string): Promise<Task | null> {
+    const start = Date.now();
     let query = `
       SELECT * FROM tasks 
       WHERE status = 'pending'
@@ -255,25 +285,94 @@ export class SQLiteManager implements TaskQueue, SessionManager, TransparencySto
     const now = Date.now();
     updateStmt.run(now, now, row.id);
 
-    return this.mapRowToTask(row);
+    const task = this.mapRowToTask(row);
+
+    await this.recordSqlMetric('sqlite_get_next', {
+      taskId: task.id,
+      agentType: task.agentType,
+      durationMs: Date.now() - start,
+    });
+
+    return task;
   }
 
   async completeTask(taskId: string, result: { success: boolean; result?: any; error?: string }): Promise<void> {
-    const now = Date.now();
-    const stmt = this.db.prepare(`
-      UPDATE tasks 
-      SET status = ?, result = ?, error = ?, completed_at = ?, updated_at = ?
-      WHERE id = ?
-    `);
+    const start = Date.now();
+    const row = this.db
+      .prepare('SELECT retry_count, max_retries, config FROM tasks WHERE id = ?')
+      .get(taskId) as any;
 
-    stmt.run(
-      result.success ? 'completed' : 'failed',
-      result.result ? JSON.stringify(result.result) : null,
-      result.error || null,
-      now,
-      now,
-      taskId
-    );
+    if (!row) {
+      throw new Error(`Task ${taskId} not found`);
+    }
+
+    const now = Date.now();
+    const config = row.config ? JSON.parse(row.config) : {};
+    const currentRetry = row.retry_count ?? 0;
+    const maxRetries = row.max_retries ?? config.maxRetries ?? 0;
+
+    if (result.success) {
+      this.db.prepare(
+        `UPDATE tasks SET status = 'completed', result = ?, error = NULL, last_error = NULL,
+          last_error_at = NULL, completed_at = ?, updated_at = ? WHERE id = ?`
+      ).run(
+        result.result ? JSON.stringify(result.result) : null,
+        now,
+        now,
+        taskId,
+      );
+
+      await this.recordSqlMetric('sqlite_complete', {
+        taskId,
+        status: 'completed',
+        durationMs: Date.now() - start,
+      });
+      return;
+    }
+
+    const nextRetry = currentRetry + 1;
+    const shouldRetry = nextRetry <= maxRetries;
+
+    if (shouldRetry) {
+      this.db.prepare(
+        `UPDATE tasks SET status = 'pending', retry_count = ?, error = ?, last_error = ?, last_error_at = ?, updated_at = ?
+         WHERE id = ?`
+      ).run(
+        nextRetry,
+        result.error || null,
+        result.error || null,
+        now,
+        now,
+        taskId,
+      );
+
+      await this.recordSqlMetric('sqlite_retry', {
+        taskId,
+        retryCount: nextRetry,
+        maxRetries,
+        durationMs: Date.now() - start,
+      });
+    } else {
+      this.db.prepare(
+        `UPDATE tasks SET status = 'failed', retry_count = ?, error = ?, last_error = ?, last_error_at = ?,
+          completed_at = ?, updated_at = ? WHERE id = ?`
+      ).run(
+        nextRetry,
+        result.error || null,
+        result.error || null,
+        now,
+        now,
+        now,
+        taskId,
+      );
+
+      await this.recordSqlMetric('sqlite_complete', {
+        taskId,
+        status: 'failed',
+        retriesExhausted: true,
+        durationMs: Date.now() - start,
+      });
+    }
   }
 
   async getTaskStatus(options: any = {}): Promise<any> {
@@ -419,7 +518,11 @@ export class SQLiteManager implements TaskQueue, SessionManager, TransparencySto
       updatedAt: new Date(row.updated_at),
       startedAt: row.started_at ? new Date(row.started_at) : undefined,
       completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
-      error: row.error
+      error: row.error,
+      retryCount: row.retry_count ?? 0,
+      maxRetries: row.max_retries ?? (row.config ? JSON.parse(row.config).maxRetries : undefined),
+      lastError: row.last_error || undefined,
+      lastErrorAt: row.last_error_at ? new Date(row.last_error_at) : undefined,
     };
   }
 
@@ -642,6 +745,42 @@ export class SQLiteManager implements TaskQueue, SessionManager, TransparencySto
     } satisfies KnowledgeEntry));
   }
 
+  private ensureTaskSchema(): void {
+    const columns = this.db
+      .prepare('PRAGMA table_info(tasks)')
+      .all() as Array<{ name: string }>;
+    const names = new Set(columns.map((col) => col.name));
+
+    const addColumn = (name: string, definition: string) => {
+      if (!names.has(name)) {
+        try {
+          this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
+        } catch (error) {
+          console.warn(`Failed to add column ${name}:`, error);
+        }
+      }
+    };
+
+    addColumn('retry_count', 'INTEGER DEFAULT 0');
+    addColumn('max_retries', 'INTEGER DEFAULT 0');
+    addColumn('last_error', 'TEXT');
+    addColumn('last_error_at', 'INTEGER');
+  }
+
+  private async recordSqlMetric(eventType: string, metadata: Record<string, any>): Promise<void> {
+    try {
+      await this.recordTransparencyEvent({
+        source: 'sqlite',
+        level: 'info',
+        eventType,
+        message: metadata.taskId ? `Task ${metadata.taskId}` : eventType,
+        metadata,
+      });
+    } catch (error) {
+      console.warn('Failed to record SQLite metric', error);
+    }
+  }
+
   close(): void {
     this.db.close();
   }
@@ -659,13 +798,19 @@ export class MockDatabaseManager implements TaskQueue, SessionManager, Transpare
   private knowledgeEntries: KnowledgeEntry[] = [];
 
   async enqueueTask(taskId: string, config: Omit<Task, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<void> {
+    const now = new Date();
+    const existingConfig = config.config || {};
+    const maxRetries = config.maxRetries ?? existingConfig.maxRetries ?? 0;
+
     const task: Task = {
       id: taskId,
       ...config,
       dependencies: config.dependencies || [],
       status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      retryCount: 0,
+      maxRetries,
+      createdAt: now,
+      updatedAt: now
     };
     this.tasks.set(taskId, task);
     console.log(`📤 Mock: Enqueued task ${taskId}`);
@@ -673,13 +818,29 @@ export class MockDatabaseManager implements TaskQueue, SessionManager, Transpare
 
   async getNextTask(agentType?: string): Promise<Task | null> {
     for (const [id, task] of this.tasks.entries()) {
-      if (task.status === 'pending' && (!agentType || task.agentType === agentType)) {
-        task.status = 'running';
-        task.startedAt = new Date();
-        task.updatedAt = new Date();
-        console.log(`📥 Mock: Getting task ${id} for ${agentType || 'any'} agent`);
-        return task;
+      if (task.status !== 'pending') {
+        continue;
       }
+
+      if (agentType && task.agentType !== agentType) {
+        continue;
+      }
+
+      const dependencies = task.dependencies || [];
+      const depsSatisfied = dependencies.every((depId) => {
+        const depTask = this.tasks.get(depId);
+        return depTask && depTask.status === 'completed';
+      });
+
+      if (!depsSatisfied) {
+        continue;
+      }
+
+      task.status = 'running';
+      task.startedAt = new Date();
+      task.updatedAt = new Date();
+      console.log(`📥 Mock: Getting task ${id} for ${agentType || 'any'} agent`);
+      return task;
     }
     return null;
   }
@@ -687,12 +848,41 @@ export class MockDatabaseManager implements TaskQueue, SessionManager, Transpare
   async completeTask(taskId: string, result: { success: boolean; result?: any; error?: string }): Promise<void> {
     const task = this.tasks.get(taskId);
     if (task) {
-      task.status = result.success ? 'completed' : 'failed';
-      task.result = result.result;
-      task.error = result.error;
-      task.completedAt = new Date();
-      task.updatedAt = new Date();
-      console.log(`✅ Mock: Completed task ${taskId}`);
+      const now = new Date();
+
+      if (result.success) {
+        task.status = 'completed';
+        task.result = result.result;
+        task.error = undefined;
+        task.lastError = undefined;
+        task.completedAt = now;
+        task.updatedAt = now;
+        console.log(`✅ Mock: Completed task ${taskId}`);
+        return;
+      }
+
+      const currentRetry = task.retryCount ?? 0;
+      const maxRetries = task.maxRetries ?? 0;
+      const nextRetry = currentRetry + 1;
+
+      if (nextRetry <= maxRetries) {
+        task.retryCount = nextRetry;
+        task.status = 'pending';
+        task.error = result.error;
+        task.lastError = result.error;
+        task.lastErrorAt = now;
+        task.updatedAt = now;
+        console.warn(`♻️ Mock: Requeueing task ${taskId} (retry ${nextRetry}/${maxRetries})`);
+      } else {
+        task.retryCount = nextRetry;
+        task.status = 'failed';
+        task.error = result.error;
+        task.lastError = result.error;
+        task.lastErrorAt = now;
+        task.completedAt = now;
+        task.updatedAt = now;
+        console.error(`❌ Mock: Task ${taskId} failed after ${nextRetry} attempt(s)`);
+      }
     }
   }
 
@@ -839,10 +1029,10 @@ export function createDatabase(options?: {
 export default createDatabase;
 
 // Re-export mock SQLite manager types and classes
-export { MockSQLiteManager } from './mock-sqlite-manager';
+export { MockSQLiteManager } from './mock-sqlite-manager.js';
 export type {
   Task as MockTask,
   TaskParams as MockTaskParams, 
   TaskMetrics as MockTaskMetrics,
   SystemStatus as MockSystemStatus
-} from './mock-sqlite-manager';
+} from './mock-sqlite-manager.js';

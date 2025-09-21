@@ -1,0 +1,123 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-09-19T17:35:00Z",
+  "agentTypes": {
+    "backend": {
+      "name": "Backend Implementor",
+      "description": "Designs and implements server-side features, APIs, database integrations, and platform glue code.",
+      "capabilities": ["api_development", "database_design", "authentication", "server_configuration"],
+      "defaultTools": ["write_file", "read_file", "bash", "edit_file"],
+      "tags": ["typescript", "node", "express", "api", "database"],
+      "prompt": "templates/agent-prompts/backend.md",
+      "timeout": 300000,
+      "maxRetries": 2,
+      "priority": 8,
+      "dependencies": ["repository-analysis"],
+      "outputs": ["api-endpoints", "database-schemas", "middleware", "tests"]
+    },
+    "frontend": {
+      "name": "Frontend Builder",
+      "description": "Creates modern UI components, hooks, and styling systems aligned with the design language.",
+      "capabilities": ["react_development", "ui_components", "state_management", "styling"],
+      "defaultTools": ["write_file", "read_file", "bash", "edit_file"],
+      "tags": ["react", "nextjs", "tailwind", "components", "ui"],
+      "prompt": "templates/agent-prompts/frontend.md",
+      "timeout": 300000,
+      "maxRetries": 2,
+      "priority": 7,
+      "dependencies": ["figma-extraction", "backend-api"],
+      "outputs": ["components", "pages", "styles", "tests"]
+    },
+    "security": {
+      "name": "Security Auditor",
+      "description": "Performs threat modeling, dependency audits, and hardening for new or existing features.",
+      "capabilities": ["security_audit", "vulnerability_scan", "auth_review", "owasp_compliance"],
+      "defaultTools": ["read_file", "bash", "write_file"],
+      "tags": ["owasp", "audit", "security", "vulnerability"],
+      "prompt": "templates/agent-prompts/security.md",
+      "timeout": 600000,
+      "maxRetries": 1,
+      "priority": 9,
+      "dependencies": ["backend-api", "frontend-components"],
+      "outputs": ["security-report", "vulnerability-fixes", "recommendations"]
+    },
+    "test": {
+      "name": "Quality Engineer",
+      "description": "Builds automated tests, configures CI assertions, and verifies acceptance criteria.",
+      "capabilities": ["unit_testing", "integration_testing", "e2e_testing", "coverage_analysis"],
+      "defaultTools": ["write_file", "read_file", "bash", "edit_file"],
+      "tags": ["testing", "jest", "playwright", "qa", "coverage"],
+      "prompt": "templates/agent-prompts/test.md",
+      "timeout": 450000,
+      "maxRetries": 2,
+      "priority": 6,
+      "dependencies": ["backend-api", "frontend-components", "security-audit"],
+      "outputs": ["test-suites", "coverage-reports", "test-automation"]
+    },
+    "figma": {
+      "name": "Design Systems Integrator",
+      "description": "Pulls Figma designs, extracts tokens, and generates coded components.",
+      "capabilities": ["figma_extraction", "component_generation", "design_tokens", "i18n_mapping"],
+      "defaultTools": ["write_file", "read_file", "create_directory"],
+      "tags": ["figma", "design-system", "components", "tokens"],
+      "prompt": "templates/agent-prompts/figma.md",
+      "timeout": 300000,
+      "maxRetries": 2,
+      "priority": 9,
+      "dependencies": ["figma-oauth"],
+      "outputs": ["components", "design-tokens", "assets", "i18n-keys"]
+    },
+    "devops": {
+      "name": "DevOps Engineer",
+      "description": "Automates deployment pipelines, infrastructure setup, and operational tooling.",
+      "capabilities": ["docker_config", "cicd_setup", "infrastructure", "monitoring"],
+      "defaultTools": ["bash", "write_file", "read_file", "create_directory"],
+      "tags": ["devops", "infrastructure", "ci", "docker", "deployment"],
+      "prompt": "templates/agent-prompts/devops.md",
+      "timeout": 600000,
+      "maxRetries": 1,
+      "priority": 5,
+      "dependencies": ["security-audit", "testing-complete"],
+      "outputs": ["docker-config", "cicd-pipeline", "deployment-scripts"]
+    }
+  },
+  "workflows": {
+    "full-stack-development": {
+      "description": "Complete full-stack application development workflow",
+      "steps": [
+        { "agent": "figma", "parallel": false, "condition": "figma_url_provided" },
+        { "agent": "backend", "parallel": true },
+        { "agent": "frontend", "parallel": false, "waitFor": ["figma", "backend"] },
+        { "agent": "security", "parallel": true, "waitFor": ["backend"] },
+        { "agent": "test", "parallel": false, "waitFor": ["frontend", "security"] },
+        { "agent": "devops", "parallel": false, "waitFor": ["test"] }
+      ]
+    },
+    "api-development": {
+      "description": "Backend API development and testing workflow",
+      "steps": [
+        { "agent": "backend", "parallel": false },
+        { "agent": "security", "parallel": true },
+        { "agent": "test", "parallel": false, "waitFor": ["backend", "security"] }
+      ]
+    },
+    "ui-implementation": {
+      "description": "Frontend UI development from Figma designs",
+      "steps": [
+        { "agent": "figma", "parallel": false, "condition": "figma_url_provided" },
+        { "agent": "frontend", "parallel": false, "waitFor": ["figma"] },
+        { "agent": "test", "parallel": false, "waitFor": ["frontend"] }
+      ]
+    }
+  },
+  "mcpIntegration": {
+    "enabled": true,
+    "coordinationTools": ["enqueue_task", "get_next_task", "complete_task", "get_task_status"],
+    "transparencyTools": ["get_transparency_log"]
+  },
+  "figmaIntegration": {
+    "enabled": true,
+    "oauthRequired": true,
+    "extractionTools": ["add_figma_file", "get_metadata", "get_code", "get_variable_defs", "get_screenshot"]
+  }
+}

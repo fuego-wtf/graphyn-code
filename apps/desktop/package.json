@@ -1,0 +1,52 @@
+{
+  "name": "graphyn-desktop",
+  "version": "1.0.0",
+  "description": "Graphyn AI Agent Orchestrator - Desktop Application",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc && npm run build:renderer",
+    "build:renderer": "webpack --mode production",
+    "dev": "concurrently \"tsc -w\" \"webpack --mode development --watch\" \"wait-on dist/main.js && electron .\"",
+    "start": "electron .",
+    "package": "electron-builder",
+    "clean": "rm -rf dist"
+  },
+  "author": "Graphyn Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "concurrently": "^8.2.0",
+    "css-loader": "^6.8.1",
+    "electron": "^25.0.0",
+    "electron-builder": "^24.6.3",
+    "html-webpack-plugin": "^5.5.3",
+    "style-loader": "^3.3.3",
+    "ts-loader": "^9.4.4",
+    "typescript": "^5.0.0",
+    "wait-on": "^7.0.1",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "ws": "^8.13.0",
+    "@graphyn/core": "workspace:*"
+  },
+  "build": {
+    "appId": "com.graphyn.desktop",
+    "productName": "Graphyn AI Orchestrator",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": "dmg"
+    }
+  }
+}

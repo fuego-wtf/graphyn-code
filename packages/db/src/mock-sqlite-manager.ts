@@ -267,6 +267,43 @@ export class MockSQLiteManager {
     }
   }
 
+  // Enhanced methods for MCP tools
+  async getNextReadyTaskWithFilters(agentType?: string, minPriority?: number, maxPriority?: number): Promise<Task | null> {
+    const readyTasks = await this.getReadyTasks();
+    
+    let filteredTasks = readyTasks;
+    
+    if (agentType) {
+      filteredTasks = filteredTasks.filter(t => t.agent_type === agentType);
+    }
+    
+    if (minPriority !== undefined) {
+      filteredTasks = filteredTasks.filter(t => t.priority >= minPriority);
+    }
+    
+    if (maxPriority !== undefined) {
+      filteredTasks = filteredTasks.filter(t => t.priority <= maxPriority);
+    }
+    
+    return filteredTasks.length > 0 ? filteredTasks[0] : null;
+  }
+  
+  async getDependentTasks(completedTaskId: string): Promise<string[]> {
+    const dependentTaskIds: string[] = [];
+    
+    for (const task of this.tasks.values()) {
+      if (task.status === 'pending' && task.dependencies.includes(completedTaskId)) {
+        // Check if all dependencies are now satisfied
+        const allDepsSatisfied = await this.checkDependencies(task.dependencies);
+        if (allDepsSatisfied) {
+          dependentTaskIds.push(task.id);
+        }
+      }
+    }
+    
+    return dependentTaskIds;
+  }
+
   // Test helper methods
   async getAllTasks(): Promise<Task[]> {
     return Array.from(this.tasks.values()).sort((a, b) => a.created_at - b.created_at);

@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "@graphyn/code",
-  "version": "0.1.70",
+  "version": "0.1.71",
   "description": "AI-powered CLI that orchestrates context-aware development agents for Claude Code",
   "main": "dist/cli/main.js",
   "bin": {

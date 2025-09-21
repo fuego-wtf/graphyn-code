@@ -9,6 +9,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
 import type { Agent, Task } from '@graphyn/core';
+import { bootstrapWorkspace } from '../utils/WorkspaceBootstrap.js';
+import type { WorkspaceBootstrapOptions } from '../utils/WorkspaceBootstrap.js';
 
 export interface AgentConfig {
   id: string;
@@ -62,6 +64,8 @@ export class ClaudeCodeAgent extends EventEmitter {
   private messageHistory: ClaudeMessage[] = [];
   private sessionId: string;
   private workspaceReady = false;
+  private timeoutHandle: NodeJS.Timeout | null = null;
+  private executionTimer: NodeJS.Timeout | null = null;
 
   constructor(config: AgentConfig) {
     super();
@@ -72,16 +76,17 @@ export class ClaudeCodeAgent extends EventEmitter {
   /**
    * Initialize the agent workspace and prepare for task execution
    */
-  async initialize(): Promise<void> {
+  async initialize(options?: Partial<WorkspaceBootstrapOptions>): Promise<void> {
     try {
-      // Create isolated workspace directory
       if (this.config.workspaceDir) {
-        await fs.mkdir(this.config.workspaceDir, { recursive: true });
-        
-        // Create agent context file
-        const contextPath = path.join(this.config.workspaceDir, 'CLAUDE.md');
-        const contextContent = this.generateAgentContext();
-        await fs.writeFile(contextPath, contextContent);
+        await bootstrapWorkspace({
+          agentId: this.config.id,
+          agentType: this.config.type,
+          sessionId: options?.sessionId || 'unknown-session',
+          baseDir: path.dirname(this.config.workspaceDir),
+          taskDescription: options?.taskDescription || 'Unspecified task',
+          dependencies: options?.dependencies || [],
+        });
       }
 
       this.workspaceReady = true;
@@ -100,16 +105,23 @@ export class ClaudeCodeAgent extends EventEmitter {
   /**
    * Execute a task using Claude Code CLI
    */
-  async executeTask(task: Task): Promise<TaskExecution> {
+  async executeTask(
+    task: Task,
+    bootstrapOptions: Partial<WorkspaceBootstrapOptions> = {},
+  ): Promise<TaskExecution> {
     if (!this.workspaceReady) {
-      await this.initialize();
+      await this.initialize({
+        sessionId: bootstrapOptions.sessionId,
+        taskDescription: bootstrapOptions.taskDescription || task.description,
+        dependencies: bootstrapOptions.dependencies || task.dependencies,
+      });
     }
 
     const execution: TaskExecution = {
       taskId: task.id,
       agentId: this.config.id,
       status: 'pending',
-      startTime: new Date()
+      startTime: new Date(),
     };
 
     this.currentTask = execution;
@@ -119,30 +131,30 @@ export class ClaudeCodeAgent extends EventEmitter {
       execution.status = 'running';
       this.emit('taskProgress', { ...execution, status: 'running' });
 
-      // Prepare Claude prompt with agent specialization context
       const prompt = this.buildTaskPrompt(task);
-      
-      // Execute with Claude CLI
-      const response = await this.executeWithClaudeCLI(prompt, task.config?.tools || this.config.tools);
-      
+      const response = await this.invokeClaude(prompt, task.config?.tools || this.config.tools || []);
+
       if (response.success) {
         execution.status = 'completed';
         execution.output = response.content;
         execution.metrics = {
           tokensUsed: response.tokensUsed,
           duration: response.duration,
-          toolsUsed: response.toolsUsed
+          toolsUsed: response.toolsUsed,
         };
       } else {
         execution.status = 'failed';
         execution.error = response.error;
+        this.emit('error', {
+          agentId: this.config.id,
+          taskId: task.id,
+          error: response.error,
+        });
       }
-
     } catch (error) {
       execution.status = 'failed';
       execution.error = error instanceof Error ? error.message : String(error);
       this.emit('error', { agentId: this.config.id, taskId: task.id, error: execution.error });
-      
     } finally {
       execution.endTime = new Date();
       this.currentTask = null;
@@ -195,146 +207,166 @@ export class ClaudeCodeAgent extends EventEmitter {
   /**
    * Execute prompt with Claude CLI using single-shot mode
    */
-  private async executeWithClaudeCLI(prompt: string, tools: string[] = []): Promise<ClaudeResponse> {
+  private async invokeClaude(prompt: string, tools: string[]): Promise<ClaudeResponse> {
+    const process = spawn(this.getClaudeBinary(), this.buildClaudeArgs(prompt, tools, 'json'), {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: this.buildProcessEnv(),
+    });
+
+    this.claudeProcess = process;
+    this.emit('process', {
+      type: 'spawn',
+      agentId: this.config.id,
+      pid: process.pid,
+      format: 'json',
+    });
+
     const startTime = Date.now();
-    
-    return new Promise((resolve, reject) => {
-      const args = [
-        '-p', prompt,
-        '--output-format', 'json'
-      ];
+    let stdout = '';
+    let stderr = '';
 
-      // Add tools if specified
-      if (tools.length > 0) {
-        args.push('--allowedTools', tools.join(','));
-      }
+    process.stdout?.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdout += text;
+      this.emit('log', { level: 'debug', agentId: this.config.id, message: text });
+    });
 
-      // Add workspace directory if available
-      if (this.config.workspaceDir) {
-        args.push('--cwd', this.config.workspaceDir);
-      }
+    process.stderr?.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      this.emit('log', { level: 'debug', agentId: this.config.id, message: text });
+    });
 
-      const claudeProcess = spawn('claude', args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: { 
-          ...process.env,
-          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
-        }
-      });
+    return await new Promise<ClaudeResponse>((resolve) => {
+      const finalize = (response: ClaudeResponse) => {
+        this.clearExecutionTimeout();
+        this.claudeProcess = null;
+        resolve(response);
+      };
 
-      let output = '';
-      let errorOutput = '';
-
-      claudeProcess.stdout?.on('data', (data) => {
-        output += data.toString();
-      });
-
-      claudeProcess.stderr?.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      claudeProcess.on('close', (code) => {
-        const duration = Date.now() - startTime;
-        
-        if (code === 0) {
-          try {
-            // Parse JSON output from Claude CLI
-            const result = JSON.parse(output.trim());
-            resolve({
-              success: true,
-              content: result.content || result.response || output,
-              tokensUsed: result.usage?.total_tokens || 0,
-              duration,
-              toolsUsed: result.tools_used || []
-            });
-          } catch (parseError) {
-            // Fallback to raw output if JSON parsing fails
-            resolve({
-              success: true,
-              content: output,
-              duration,
-              tokensUsed: 0
-            });
-          }
-        } else {
-          resolve({
-            success: false,
-            error: errorOutput || `Claude CLI exited with code ${code}`,
-            duration
-          });
-        }
-      });
-
-      claudeProcess.on('error', (error) => {
-        resolve({
+      process.on('error', (error) => {
+        finalize({
           success: false,
           error: `Failed to spawn Claude CLI: ${error.message}`,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         });
       });
 
-      // Handle timeout
-      const timeout = this.config.timeout || 60000; // 60 seconds default
-      setTimeout(() => {
-        if (claudeProcess.pid) {
-          claudeProcess.kill();
-          resolve({
+      process.on('close', (code) => {
+        const duration = Date.now() - startTime;
+        this.emit('process', {
+          type: 'exit',
+          agentId: this.config.id,
+          code,
+        });
+
+        if (code === 0) {
+          finalize(this.parseClaudeJson(stdout, duration));
+        } else {
+          finalize({
             success: false,
-            error: `Claude CLI timed out after ${timeout}ms`,
-            duration: Date.now() - startTime
+            error: stderr || `Claude CLI exited with code ${code}`,
+            duration,
           });
         }
-      }, timeout);
+      });
+
+      this.setExecutionTimeout(() => {
+        process.kill('SIGTERM');
+        finalize({
+          success: false,
+          error: `Claude CLI timed out after ${this.getExecutionTimeout()}ms`,
+          duration: Date.now() - startTime,
+        });
+      });
     });
   }
 
   /**
    * Execute streaming Claude CLI with real-time output
    */
-  private async *executeStreamingClaudeCLI(prompt: string, tools: string[] = []): AsyncGenerator<string> {
-    const args = [
-      '-p', prompt,
-      '--output-format', 'stream-json',
-      '--verbose'
-    ];
+  private async *executeStreamingClaudeCLI(
+    prompt: string,
+    tools: string[] = [],
+  ): AsyncGenerator<string> {
+    const claudeProcess = spawn(
+      this.getClaudeBinary(),
+      this.buildClaudeArgs(prompt, tools, 'stream-json'),
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: this.buildProcessEnv(),
+      },
+    );
 
-    if (tools.length > 0) {
-      args.push('--allowedTools', tools.join(','));
-    }
-
-    if (this.config.workspaceDir) {
-      args.push('--cwd', this.config.workspaceDir);
-    }
-
-    const claudeProcess = spawn('claude', args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { 
-        ...process.env,
-        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
-      }
+    this.claudeProcess = claudeProcess;
+    this.emit('process', {
+      type: 'spawn',
+      agentId: this.config.id,
+      pid: claudeProcess.pid,
+      format: 'stream-json',
     });
 
     let buffer = '';
 
+    const closePromise = new Promise<void>((resolve, reject) => {
+      claudeProcess.on('close', (code) => {
+        this.clearExecutionTimeout();
+        this.emit('process', {
+          type: 'exit',
+          agentId: this.config.id,
+          code,
+        });
+        resolve();
+      });
+
+      claudeProcess.on('error', (error) => {
+        this.clearExecutionTimeout();
+        reject(error);
+      });
+    });
+
+    claudeProcess.stderr?.on('data', (chunk) => {
+      this.emit('log', { level: 'debug', agentId: this.config.id, message: chunk.toString() });
+    });
+
+    this.setExecutionTimeout(() => {
+      claudeProcess.kill('SIGTERM');
+      this.emit('process', {
+        type: 'timeout',
+        agentId: this.config.id,
+      });
+    });
+
     for await (const chunk of claudeProcess.stdout!) {
       buffer += chunk.toString();
-      
-      // Process complete JSON lines
       const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
-      
+      buffer = lines.pop() || '';
+
       for (const line of lines) {
         if (line.trim()) {
           try {
             const data = JSON.parse(line);
             if (data.content) {
+              this.emit('taskProgress', {
+                taskId: this.currentTask?.taskId,
+                agentId: this.config.id,
+                status: 'running',
+                output: data.content,
+              });
               yield data.content;
             }
           } catch {
-            // Skip malformed JSON lines
+            // ignore malformed segments
           }
         }
       }
+    }
+
+    await closePromise;
+    this.claudeProcess = null;
+
+    if (buffer.trim()) {
+      yield buffer;
     }
   }
 
@@ -413,6 +445,7 @@ You are a specialized AI agent with expertise in ${this.config.specialization}. 
     if (this.claudeProcess && !this.claudeProcess.killed) {
       this.claudeProcess.kill();
     }
+    this.clearExecutionTimeout();
     
     this.messageHistory = [];
     this.currentTask = null;
@@ -458,5 +491,89 @@ You are a specialized AI agent with expertise in ${this.config.specialization}. 
 
     // Additional capability matching could be added here
     return true;
+  }
+
+  /**
+   * Get Claude CLI binary path
+   */
+  private getClaudeBinary(): string {
+    return process.env.CLAUDE_CLI_PATH || 'claude';
+  }
+
+  /**
+   * Build Claude CLI arguments
+   */
+  private buildClaudeArgs(prompt: string, tools: string[], format: string): string[] {
+    const args = [
+      '-p', prompt,
+      '--output-format', format,
+      '--verbose'
+    ];
+
+    if (tools.length > 0) {
+      args.push('--allowedTools', tools.join(','));
+    }
+
+    if (this.config.workspaceDir) {
+      args.push('--cwd', this.config.workspaceDir);
+    }
+
+    return args;
+  }
+
+  /**
+   * Build process environment
+   */
+  private buildProcessEnv(): NodeJS.ProcessEnv {
+    return {
+      ...process.env,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || ''
+    };
+  }
+
+  /**
+   * Parse Claude JSON response
+   */
+  private parseClaudeJson(stdout: string, duration: number): ClaudeResponse {
+    try {
+      const parsed = JSON.parse(stdout);
+      return {
+        success: true,
+        content: parsed.content || stdout,
+        tokensUsed: parsed.tokensUsed || 0,
+        toolsUsed: parsed.toolsUsed || [],
+        duration
+      };
+    } catch {
+      return {
+        success: true,
+        content: stdout,
+        duration
+      };
+    }
+  }
+
+  /**
+   * Set execution timeout
+   */
+  private setExecutionTimeout(callback: () => void): void {
+    this.executionTimer = setTimeout(callback, this.config.timeout || 300000);
+  }
+
+  /**
+   * Clear execution timeout
+   */
+  private clearExecutionTimeout(): void {
+    if (this.executionTimer) {
+      clearTimeout(this.executionTimer);
+      this.executionTimer = null;
+    }
+  }
+
+  /**
+   * Get execution timeout value
+   */
+  private getExecutionTimeout(): number {
+    return this.config.timeout || 300000;
   }
 }

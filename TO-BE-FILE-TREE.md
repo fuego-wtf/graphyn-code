@@ -15,9 +15,9 @@ graphyn-workspace/code/
 │   │   ├── cli/                           # ✅ MIGRATED - CLI Interface
 │   │   │   ├── package.json
 │   │   │   ├── src/
-│   │   │   │   ├── index.ts               # ✅ Commander-based CLI entry point
-│   │   │   │   ├── commands/              # [next] Add command implementations
-│   │   │   │   │   ├── orchestrate.ts     # [next] Migrate from src/commands/
+│   │   │   │   ├── index.ts               # ✅ Commander CLI + single-command query router
+│   │   │   │   ├── commands/              # ✅ Orchestration + session commands
+│   │   │   │   │   ├── orchestrate.ts     # ✅ MCP-backed pipeline & session management
 │   │   │   │   │   ├── analyze.ts         # [next] Migrate project analysis
 │   │   │   │   │   ├── figma.ts           # [next] Migrate Figma integration
 │   │   │   │   │   └── mcp.ts             # [next] MCP server management
@@ -45,10 +45,12 @@ graphyn-workspace/code/
 │   │   │   ├── src/
 │   │   │   │   ├── index.ts               # ✅ MCP server with stdio transport
 │   │   │   │   ├── tools/                 # ✅ All MCP tools implemented
-│   │   │   │   │   ├── enqueue_task.ts    # ✅ Task enqueuing with dependencies
-│   │   │   │   │   ├── get_next_task.ts   # ✅ Dependency-aware task fetching
-│   │   │   │   │   ├── complete_task.ts   # ✅ Task completion with metrics
-│   │   │   │   │   └── get_task_status.ts # ✅ System status for dashboard
+│   │   │   │   │   ├── enqueue_task.ts        # ✅ Task enqueuing with dependencies
+│   │   │   │   │   ├── get_next_task.ts       # ✅ Dependency-aware task fetching
+│   │   │   │   │   ├── complete_task.ts       # ✅ Task completion with metrics
+│   │   │   │   │   ├── get_task_status.ts     # ✅ System status for dashboard
+│   │   │   │   │   ├── health_check.ts        # ✅ MCP health probe + WAL2 check
+│   │   │   │   │   └── get_transparency_log.ts# ✅ Transparency event retrieval
 │   │   │   │   └── database/              # ✅ Task persistence layer
 │   │   │   │       ├── schema.sql         # ✅ SQLite schema with dependencies
 │   │   │   │       └── sqlite-manager.ts  # ✅ WAL2 concurrent access
@@ -76,14 +78,20 @@ graphyn-workspace/code/
 │   │   │   │   ├── orchestrator/          # ✅ MIGRATED - Orchestration logic
 │   │   │   │   │   ├── GraphynOrchestrator.ts    # ✅ Main orchestrator with MCP
 │   │   │   │   │   └── MultiAgentOrchestrator.ts # ✅ Multi-agent coordination
-│   │   │   │   └── utils/                 # [next] Migrate remaining utilities
+│   │   │   │   ├── monitoring/            # ✅ Transparency + mission control
+│   │   │   │   │   ├── MissionControlStream.ts   # ✅ Live telemetry publisher (500ms snapshots)
+│   │   │   │   │   ├── TransparencyEngine.ts     # ✅ SQLite + log writer
+│   │   │   │   │   └── ProcessTreeVisualizer.ts  # ✅ ASCII process tree display
+│   │   │   │   └── utils/                 # ✅ Utilities for agents & query detection
+│   │   │   │       ├── WorkspaceBootstrap.ts     # ✅ Standardized agent sandboxes
+│   │   │   │       └── QueryClassifier.ts        # ✅ Intent detection for CLI routing
 │   │   │   └── dist/                      # ✅ Built package for consumption
 │   │   │
 │   │   ├── db/                            # ✅ MIGRATED - Database layer
 │   │   │   ├── package.json               # ✅ SQLite and testing deps
 │   │   │   ├── src/
 │   │   │   │   ├── index.ts               # ✅ Database exports
-│   │   │   │   ├── sqlite-manager.ts      # ✅ Production SQLite with WAL2
+│   │   │   │   ├── sqlite-manager.ts      # ✅ Retry metadata + performance metrics
 │   │   │   │   └── mock-sqlite-manager.ts # ✅ In-memory testing database
 │   │   │   └── migrations/                # [next] Database schema migrations
 │   │   │
@@ -95,16 +103,17 @@ graphyn-workspace/code/
 │   │   │   │   │   ├── ClaudeCodeAgent.ts # [next] Base Claude Code agent
 │   │   │   │   │   ├── AgentSession.ts    # [next] Session management
 │   │   │   │   │   └── AgentWorkspace.ts  # [next] Isolated workspace management
-│   │   │   │   ├── specialized/           # [next] Domain-specific agents
-│   │   │   │   │   ├── BackendAgent.ts    # [next] Migrate from src/agents/
-│   │   │   │   │   ├── SecurityAgent.ts   # [next] Migrate security specialist
-│   │   │   │   │   ├── FigmaAgent.ts      # [next] Design system integration
-│   │   │   │   │   ├── TestAgent.ts       # [next] Automated testing specialist
-│   │   │   │   │   └── DevOpsAgent.ts     # [next] Deployment and infrastructure
+│   │   │   │   ├── specialized/           # ✅ Domain-specific agents
+│   │   │   │   │   ├── BackendAgent.ts    # ✅ Backend Claude agent
+│   │   │   │   │   ├── SecurityAgent.ts   # ✅ Security analysis agent
+│   │   │   │   │   ├── FigmaAgent.ts      # ✅ Design system integration agent
+│   │   │   │   │   ├── FrontendAgent.ts   # ✅ Frontend implementation agent
+│   │   │   │   │   ├── TestAgent.ts       # ✅ Automated testing specialist
+│   │   │   │   │   └── DevOpsAgent.ts     # ✅ Deployment and infrastructure agent
 │   │   │   │   ├── launchers/             # [next] Agent process management
 │   │   │   │   │   ├── ClaudeCodeLauncher.ts  # [next] Claude CLI spawning
 │   │   │   │   │   ├── ProcessPool.ts     # [next] Warm process pooling
-│   │   │   │   │   └── SessionManager.ts  # [next] Multi-session coordination
+│   │   │   │   │   └── SessionManager.ts  # ✅ Session lifecycle + audit bundles
 │   │   │   │   └── registry/              # [next] Agent discovery and matching
 │   │   │   │       ├── AgentRegistry.ts   # [next] Agent capability database
 │   │   │   │       ├── CapabilityMatcher.ts# [next] Task-to-agent matching
@@ -190,8 +199,10 @@ graphyn-workspace/code/
 │   │   ├── unit/                          # ✅ Unit tests for core components
 │   │   │   ├── sqlite-manager.test.ts     # ✅ Database layer tests (26 tests pass)
 │   │   │   ├── mcp-tools.test.ts          # ✅ MCP tool tests (30 tests pass)
-│   │   │   └── mcp-server.test.ts         # ✅ MCP server integration (12 tests pass)
-│   │   ├── integration/                   # [next] End-to-end testing
+│   │   │   ├── mcp-server.test.ts         # ✅ MCP server integration (12 tests pass)
+│   │   │   └── transparency-store.test.ts # ✅ Transparency & knowledge store coverage
+│   │   ├── integration/                   # ✅ Integration harness
+│   │   │   ├── real-agent.test.ts         # ✅ Mock MCP + Claude CLI pipeline
 │   │   │   ├── agent-coordination.test.ts # [next] Multi-agent orchestration tests
 │   │   │   ├── mcp-claude-integration.test.ts # [next] MCP + Claude Code tests
 │   │   │   └── figma-sync.test.ts         # [next] Design system sync tests
@@ -230,6 +241,10 @@ graphyn-workspace/code/
 │       ├── agent-templates/               # [next] Agent configuration templates
 │       ├── mcp-client-configs/            # [next] Claude MCP client configurations
 │       └── deployment/                    # [next] Environment-specific configs
+│
+├── config/                                # ✅ Runtime configuration
+│   ├── mcp-clients.json                   # ✅ Deepwiki MCP server binding
+│   └── agent-specializations.json         # ✅ Agent role definitions loaded by CLI
 │
 ├── 📂 LEGACY (TO BE CLEANED)
 │   ├── src/                               # [next] CLEAN UP - Legacy code to be removed

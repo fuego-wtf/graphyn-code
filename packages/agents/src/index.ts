@@ -14,16 +14,47 @@ export type {
   ClaudeResponse 
 } from './base/ClaudeCodeAgent.js';
 
+// MCP Integration
+export { MCPAgentAdapter } from './adapters/MCPAgentAdapter.js';
+export { MCPAgentManager } from './managers/MCPAgentManager.js';
+export { MCPClient } from './clients/MCPClient.js';
+export { FigmaPrototypeAnalyzer } from './analyzers/FigmaPrototypeAnalyzer.js';
+export type {
+  MCPAgentConfig,
+  MCPTask,
+  MCPTaskResult
+} from './adapters/MCPAgentAdapter.js';
+export type {
+  MCPManagerConfig,
+  AgentInfo
+} from './managers/MCPAgentManager.js';
+export type {
+  MCPClientConfig,
+  MCPToolCall,
+  MCPToolResult
+} from './clients/MCPClient.js';
+export type {
+  FigmaAnalysisConfig,
+  FigmaAnalysisResult,
+  FigmaDesignToken,
+  FigmaComponent
+} from './analyzers/FigmaPrototypeAnalyzer.js';
+
 // Specialized agents
-export { BackendAgent } from './specialized/BackendAgent';
-export { SecurityAgent } from './specialized/SecurityAgent';
-export { FrontendAgent } from './specialized/FrontendAgent';
-export { TestAgent } from './specialized/TestAgent';
-export { FigmaAgent } from './specialized/FigmaAgent';
+export { BackendAgent } from './specialized/BackendAgent.js';
+export { SecurityAgent } from './specialized/SecurityAgent.js';
+export { FrontendAgent } from './specialized/FrontendAgent.js';
+export { TestAgent } from './specialized/TestAgent.js';
+export { FigmaAgent } from './specialized/FigmaAgent.js';
+export { DevOpsAgent } from './specialized/DevOpsAgent.js';
 
 // Import for internal use
 import { BackendAgent } from './specialized/BackendAgent.js';
 import { SecurityAgent } from './specialized/SecurityAgent.js';
+import { FrontendAgent } from './specialized/FrontendAgent.js';
+import { TestAgent } from './specialized/TestAgent.js';
+import { FigmaAgent } from './specialized/FigmaAgent.js';
+import { DevOpsAgent } from './specialized/DevOpsAgent.js';
 import { ClaudeCodeAgent } from './base/ClaudeCodeAgent.js';
 
 // Agent factory for creating specialized agents
@@ -31,16 +62,25 @@ export class AgentFactory {
   static createAgent(type: string, id: string, workspaceDir?: string) {
     switch (type.toLowerCase()) {
       case 'backend':
-        return new BackendAgent(id, workspaceDir);
+        return new BackendAgent(id, workspaceDir || process.cwd());
       case 'security':
-        return new SecurityAgent(id, workspaceDir);
+        return new SecurityAgent(id, workspaceDir || process.cwd());
+      case 'frontend':
+        return new FrontendAgent(id, workspaceDir || process.cwd());
+      case 'test':
+      case 'testing':
+        return new TestAgent(id, workspaceDir || process.cwd());
+      case 'figma':
+        return new FigmaAgent(id, workspaceDir || process.cwd());
+      case 'devops':
+        return new DevOpsAgent(id, workspaceDir || process.cwd());
       default:
         throw new Error(`Unknown agent type: ${type}`);
     }
   }
 
   static getAvailableTypes(): string[] {
-    return ['backend', 'security'];
+    return ['backend', 'security', 'frontend', 'test', 'figma', 'devops'];
   }
 }
 

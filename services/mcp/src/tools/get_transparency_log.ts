@@ -21,7 +21,7 @@ export async function getTransparencyLogMCP(
   const payload = {
     success: true,
     count: events.length,
-    events: events.map((event) => ({
+    events: events.map((event: any) => ({
       id: event.id,
       sessionId: event.sessionId,
       eventTime: event.eventTime?.toISOString(),

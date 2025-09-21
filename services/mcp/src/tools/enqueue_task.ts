@@ -14,7 +14,11 @@ const EnqueueTaskSchema = z.object({
   priority: z.number().min(1).max(10).optional().default(1),
   workspace_path: z.string().optional(),
   timeout_seconds: z.number().positive().optional().default(300),
-  max_retries: z.number().nonnegative().optional().default(3)
+  max_retries: z.number().nonnegative().optional().default(3),
+  tools: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  tags: z.array(z.string()).optional(),
+  environment: z.record(z.string(), z.string()).optional(),
 });
 
 export type EnqueueTaskInput = z.infer<typeof EnqueueTaskSchema>;
@@ -42,24 +46,23 @@ export async function enqueueMCPTask(
     // Validate input using Zod schema
     const validatedInput = EnqueueTaskSchema.parse(input);
 
-    // Enqueue the task using the new database interface
-    await dbManager.enqueueTask(validatedInput.task_id, {
-      agentType: validatedInput.agent_type,
+    // Enqueue the task using the database interface
+    await dbManager.enqueueTask({
+      task_id: validatedInput.task_id,
       description: validatedInput.description,
-      priority: validatedInput.priority,
+      agent_type: validatedInput.agent_type,
       dependencies: validatedInput.dependencies,
-      workspace: validatedInput.workspace_path,
-      config: {
-        timeout_seconds: validatedInput.timeout_seconds,
-        max_retries: validatedInput.max_retries
-      }
+      priority: validatedInput.priority,
+      workspace_path: validatedInput.workspace_path,
+      timeout_seconds: validatedInput.timeout_seconds,
+      max_retries: validatedInput.max_retries
     });
 
     const result: EnqueueTaskResult = {
       success: true,
       task_id: validatedInput.task_id,
       message: `Task ${validatedInput.task_id} enqueued successfully`,
-      workspace_path: validatedInput.workspace_path
+      workspace_path: validatedInput.workspace_path || `./workspaces/${validatedInput.task_id}`
     };
 
     return {
@@ -146,6 +149,11 @@ export const ENQUEUE_TASK_TOOL = {
       workspace_path: {
         type: 'string',
         description: 'Custom workspace directory path (optional)',
+      },
+      tools: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional list of tool identifiers the agent should prefer',
       },
       timeout_seconds: {
         type: 'integer',

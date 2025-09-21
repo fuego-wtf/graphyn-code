@@ -60,6 +60,8 @@ Desktop.ini
 *.temp
 .tmp/
 .temp/
+data/
+.temp/
 
 # Build artifacts
 dist/
