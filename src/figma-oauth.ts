@@ -16,8 +16,8 @@ export interface FigmaOAuthTokens {
 
 export class FigmaOAuthManager {
   private config: ConfigManager;
-  private readonly clientId = 'YbqfPAJUb1ro4HEUVuiwhj';
-  private readonly clientSecret = '4ZXEVoSX0VcINAIMgRKnvi1d38eS39';
+  private readonly clientId = '8COZ0Cw8yS5JsjgzwDIdCo';
+  private readonly clientSecret = 'gYCm2NZWq14d8lr5xu0MmRBDG18qqK';
   private readonly redirectUri = 'http://localhost:3456/callback';
   private readonly scopes = 'file_content:read,file_metadata:read';
 
