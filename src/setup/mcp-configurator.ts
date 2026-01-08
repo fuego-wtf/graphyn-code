@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import { colors } from '../ui';
 
 interface MCPConfig {
@@ -100,10 +101,6 @@ async function findMCPProxy(): Promise<string | null> {
     path.join(process.cwd(), 'node_modules', '.bin', 'mcp-proxy')
   ];
   
-  // Add platform-specific executable extension
-  const isWindows = process.platform === 'win32';
-  const executableName = isWindows ? 'mcp-proxy.cmd' : 'mcp-proxy';
-  
   // Check each possible path
   for (const proxyPath of possiblePaths) {
     if (fs.existsSync(proxyPath)) {
@@ -116,11 +113,14 @@ async function findMCPProxy(): Promise<string | null> {
     }
   }
   
-  // Try to find in PATH
+  // Try to find in PATH using 'which' (Unix) or 'where' (Windows)
   try {
-    const { commandExists } = require('command-exists');
-    await commandExists('mcp-proxy');
-    return executableName; // Found in PATH
+    const isWindows = process.platform === 'win32';
+    const command = isWindows ? 'where mcp-proxy' : 'which mcp-proxy';
+    const foundPath = execSync(command, { encoding: 'utf8', timeout: 5000 }).trim().split('\n')[0];
+    if (foundPath && fs.existsSync(foundPath)) {
+      return foundPath;
+    }
   } catch {
     // Not in PATH
   }

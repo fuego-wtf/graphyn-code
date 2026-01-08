@@ -1,7 +1,7 @@
-import { commandExists } from 'command-exists';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+import { execSync } from 'child_process';
 
 export interface ClaudeDetectionResult {
   found: boolean;
@@ -14,16 +14,18 @@ export interface ClaudeDetectionResult {
  * Detect Claude Code installation across different platforms
  */
 export async function findClaude(): Promise<ClaudeDetectionResult> {
-  // First, check if 'claude' is available in PATH
+  // First, check if 'claude' is available in PATH using 'which' command
   try {
-    await commandExists('claude');
-    return { 
-      found: true, 
-      path: 'claude',
-      method: 'PATH' 
-    };
+    const claudePath = execSync('which claude', { encoding: 'utf8', timeout: 5000 }).trim();
+    if (claudePath && fs.existsSync(claudePath)) {
+      return { 
+        found: true, 
+        path: claudePath,
+        method: 'PATH' 
+      };
+    }
   } catch {
-    // Not in PATH, check known installation locations
+    // Not in PATH, continue to check known installation locations
   }
 
   // Platform-specific known locations
@@ -63,11 +65,10 @@ function getKnownClaudeLocations(): string[] {
   
   switch (platform) {
     case 'darwin': // macOS
+      // Note: Claude.app is the Desktop app, NOT Claude Code CLI - don't include it
       locations.push(
         '/usr/local/bin/claude',
-        '/opt/homebrew/bin/claude',
-        path.join(homeDir, 'Applications', 'Claude.app', 'Contents', 'MacOS', 'claude'),
-        '/Applications/Claude.app/Contents/MacOS/claude'
+        '/opt/homebrew/bin/claude'
       );
       break;
       
