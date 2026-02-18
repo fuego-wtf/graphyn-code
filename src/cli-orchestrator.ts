@@ -12,9 +12,6 @@ import { AgentOrchestrator } from './orchestrator/AgentOrchestrator.js';
 import { ConsoleOutput } from './console/ConsoleOutput.js';
 import { StreamingConsoleOutput } from './console/StreamingConsoleOutput.js';
 import { InteractiveInput } from './console/InteractiveInput.js';
-import { FigmaExtractor } from './figma/FigmaExtractor.js';
-import { FigmaAuthManager } from './figma/FigmaAuthManager.js';
-
 // Import project-agnostic orchestration commands
 import {
   handleInitCommand,
@@ -41,8 +38,6 @@ export async function main(): Promise<void> {
     const consoleOutput = new ConsoleOutput();
     const streamingOutput = new StreamingConsoleOutput();
     const interactiveInput = new InteractiveInput();
-    const figmaAuth = new FigmaAuthManager();
-    
     // Create agent orchestrator for multi-agent coordination
     const agentOrchestrator = new AgentOrchestrator();
     
@@ -115,12 +110,6 @@ export async function main(): Promise<void> {
     } else if (command === '--simple' || command === '-s') {
       // Simple interactive mode: graphyn --simple (original style)
       await handleInteractiveMode(interactiveInput, realTimeExecutor, streamingOutput);
-    } else if (command === 'design' && queryParts.length > 0) {
-      // Figma design extraction: graphyn design <figma-url>
-      await handleFigmaCommand(queryParts.join(' '), consoleOutput, figmaAuth);
-    } else if (command === 'design' && queryParts[0] === 'auth') {
-      // Figma authentication: graphyn design auth
-      await handleFigmaAuth(figmaAuth, consoleOutput);
     } else if (command === 'help' || command === '--help' || command === '-h') {
       // Help: graphyn help
       handleHelpCommand();
@@ -565,63 +554,6 @@ export async function handleInteractiveMode(
 
 
 /**
- * Handle Figma design extraction commands
- */
-async function handleFigmaCommand(
-  figmaUrl: string, 
-  consoleOutput: ConsoleOutput, 
-  figmaAuth: FigmaAuthManager
-): Promise<void> {
-  try {
-    consoleOutput.showLogStream('Figma', '🎨 Extracting Figma design...', 'info');
-
-    // Check authentication
-    const isAuthenticated = await figmaAuth.isAuthenticated();
-    if (!isAuthenticated) {
-      consoleOutput.showError(new Error('Not authenticated with Figma'), 'Run: graphyn design auth');
-      return;
-    }
-
-    // Extract design
-    const accessToken = await figmaAuth.getValidAccessToken();
-    if (!accessToken) {
-      throw new Error('Failed to get valid access token');
-    }
-    
-    const figmaExtractor = new FigmaExtractor(accessToken);
-    // TODO: Update FigmaExtractor to have extractDesign method
-    consoleOutput.showLogStream('Figma', `📋 Processing Figma URL: ${figmaUrl}`, 'info');
-    consoleOutput.showSuccess('Figma extraction completed');
-
-  } catch (error) {
-    consoleOutput.showError(error instanceof Error ? error : new Error(String(error)), 'Figma extraction');
-    throw error;
-  }
-}
-
-/**
- * Handle Figma OAuth authentication
- */
-async function handleFigmaAuth(figmaAuth: FigmaAuthManager, consoleOutput: ConsoleOutput): Promise<void> {
-  try {
-    consoleOutput.showLogStream('Figma Auth', '🔐 Starting Figma OAuth authentication...', 'info');
-    
-    const result = await figmaAuth.authenticateOAuth();
-    
-    // FigmaTokens should have accessToken property to indicate success
-    if (result.accessToken) {
-      consoleOutput.showSuccess('Successfully authenticated with Figma');
-    } else {
-      consoleOutput.showError(new Error('Authentication failed'), 'OAuth flow incomplete');
-    }
-
-  } catch (error) {
-    consoleOutput.showError(error instanceof Error ? error : new Error(String(error)), 'Figma authentication');
-    throw error;
-  }
-}
-
-/**
  * Get value for a command line argument
  */
 function getArgValue(args: string[], argName: string): string | undefined {
@@ -692,8 +624,6 @@ Orchestration Commands:
 Legacy Commands:
   graphyn --simple               Simple interactive chat mode
   graphyn "your query"           Direct query with immediate execution
-  graphyn design <figma-url>     Extract Figma design to code
-  graphyn design auth            Authenticate with Figma
 
 Project-Agnostic Features:
   🎯 Context7-style deep project analysis

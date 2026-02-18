@@ -10,7 +10,7 @@ export const AGENT_TYPES = [
   'cli',
   'security',
   'researcher',
-  'figma-extractor',
+  'figma-extractor', // Agent type retained for orchestration routing; Figma OAuth now via plugin OAuthBroker
   'production-architect',
   'task-dispatcher',
   'pr-merger',

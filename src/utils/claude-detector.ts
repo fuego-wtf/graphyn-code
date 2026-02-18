@@ -122,6 +122,9 @@ export async function isClaudeConfigured(): Promise<boolean> {
 /**
  * Get installation instructions for current platform
  */
+// Alias for backwards compatibility
+export const detectClaude = findClaude;
+
 export function getInstallInstructions(): string {
   const platform = process.platform;
   

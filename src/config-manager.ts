@@ -14,10 +14,6 @@ interface GraphynConfig {
     };
     // squad removed
   };
-  figma?: {
-    accessToken?: string;
-    connected?: boolean;
-  };
   github?: {
     connected?: boolean;
   };

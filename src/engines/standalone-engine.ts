@@ -458,7 +458,7 @@ How can I help you in this thread?`;
         const result = await Task({
           description: `Clyde AI: ${description}`,
           prompt: enhancedPrompt,
-          subagent_type: agentType
+          subagent_type: agentType as any
         });
         
         console.log(chalk.green('✅ Claude Code execution completed'));
