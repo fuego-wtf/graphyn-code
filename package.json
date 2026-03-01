@@ -1,6 +1,7 @@
 {
   "name": "@graphyn/code",
   "version": "0.1.32",
+  "type": "module",
   "description": "Free AI Development Tool for Claude Code Users",
   "main": "dist/index.js",
   "bin": {
@@ -18,11 +19,19 @@
     "cli",
     "claude-code",
     "graphyn",
-    "assistant",
-    "backend",
-    "frontend",
-    "architect"
+    "multi-agent",
+    "orchestration",
+    "figma",
+    "mcp",
+    "code-generation",
+    "developer-tools"
   ],
+  "claudeCode": {
+    "commands": ["graphyn"],
+    "category": "development",
+    "features": ["multi-agent", "orchestration", "figma", "mcp-integration"],
+    "tagline": "Your AI development team, one command away"
+  },
   "author": "Graphyn Team",
   "license": "MIT",
   "homepage": "https://graphyn.xyz/code",
@@ -37,6 +46,7 @@
     "node": ">=16.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@types/chokidar": "^1.7.5",
     "@types/eventsource": "^1.1.15",
     "axios": "^1.6.0",
@@ -48,8 +58,13 @@
     "eventsource": "^4.0.0",
     "figlet": "^1.8.1",
     "gradient-string": "^3.0.0",
+    "gray-matter": "^4.0.3",
     "inquirer": "^9.2.0",
-    "ora": "^7.0.1"
+    "lru-cache": "^11.2.4",
+    "open": "^11.0.0",
+    "ora": "^7.0.1",
+    "simple-git": "^3.30.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/figlet": "^1.7.0",
@@ -64,6 +79,7 @@
     "bin",
     "prompts",
     "templates",
+    "marketplace",
     "scripts/postinstall.js",
     "README.md",
     "LICENSE"
