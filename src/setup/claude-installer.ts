@@ -221,7 +221,7 @@ async function installFromSource(): Promise<ClaudeInstallResult> {
   
   console.log('Prerequisites:');
   console.log('- Git');
-  console.log('- Node.js 18+');
+  console.log('- Node.js 22+');
   console.log('- npm or yarn\n');
   
   console.log('Steps:');

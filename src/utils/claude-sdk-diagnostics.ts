@@ -69,13 +69,13 @@ async function checkNodeVersion(results: SDKDiagnosticResult[]): Promise<void> {
     const version = process.version;
     const major = parseInt(version.slice(1).split('.')[0]);
     
-    if (major >= 18) {
+    if (major >= 22) {
       results.push({
         category: 'Environment',
         test: 'Node.js Version',
         status: 'pass',
         message: `Node.js ${version} is compatible`,
-        details: 'Claude Code SDK requires Node.js 18 or higher'
+        details: 'Claude Code SDK requires Node.js 22 or higher'
       });
     } else {
       results.push({
@@ -83,8 +83,8 @@ async function checkNodeVersion(results: SDKDiagnosticResult[]): Promise<void> {
         test: 'Node.js Version',
         status: 'fail',
         message: `Node.js ${version} is too old`,
-        details: 'Claude Code SDK requires Node.js 18 or higher',
-        fix: 'Upgrade Node.js to version 18 or higher'
+        details: 'Claude Code SDK requires Node.js 22 or higher',
+        fix: 'Upgrade Node.js to version 22 or higher'
       });
     }
   } catch (error) {
