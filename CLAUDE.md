@@ -368,3 +368,34 @@ git checkout -b feature-branch   # DON'T DO THIS
 ---
 
 Last updated: 2025-08-31 - Mission Control Interface Implemented - Ready for Phase 1 Task Approval
+
+---
+
+## Agent Collaboration Policy
+
+Agents working in this CLI tool must follow the **Backbone Plan v1** doctrine.
+
+### Wiring-First / No Mock Success
+
+- No fake success states in core interaction loops
+- Real backend APIs required
+- Fail fast with clear error messages
+
+### Source-Anchored Planning
+
+- Plans reference actual files and code
+- No speculative architecture
+- Documentation should be alive, not static files
+
+### Execution Reporting Format
+
+All progress updates must include:
+1. **Backbone phase** (e.g., Phase 3A)
+2. **Current step(s)**
+3. **What was completed**
+4. **What remains in this phase**
+5. **Any blocker** (or "none")
+
+### Reference
+
+- **Source**: `docs/desktop/backbone-plan-v1.md`

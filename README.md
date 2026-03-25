@@ -431,3 +431,22 @@ graphyn doctor -v  # Detailed diagnostics
 ---
 
 **Built for developers who ship fast and dream big.**
+
+---
+
+## Backbone Go-Live Alignment
+
+This CLI tool follows the **Backbone Plan v1** doctrine for V1 launch readiness.
+
+### Core Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Wiring-First** | No mock success states. Real backend paths only. Fail fast with clear errors. |
+| **Source-Anchored Planning** | Plans reference actual files and code. No speculative architecture. |
+| **Phase/Reporting Conventions** | All updates include: phase, current step, completed, remaining, blockers. |
+
+### Reference
+
+- **Source**: `docs/desktop/backbone-plan-v1.md`
+- **Status**: Frozen baseline — changes require explicit approval
