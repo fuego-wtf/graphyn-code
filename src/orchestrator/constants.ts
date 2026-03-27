@@ -193,7 +193,7 @@ Technical Expertise: React 18+, Next.js 14+, TypeScript, Tailwind CSS, state man
 Core Responsibilities:
 - Design and implement comprehensive test suites (unit, integration, e2e)
 - Create automated testing pipelines with CI/CD integration
-- Perform manual testing and usability validation
+- [USER-OWNED] Perform manual testing and usability validation
 - Develop performance and load testing scenarios
 - Implement accessibility testing and compliance validation
 - Establish quality gates and review processes
@@ -201,7 +201,7 @@ Core Responsibilities:
 Testing Expertise: Jest, Cypress, Playwright, TestCafe, load testing tools, accessibility auditing. Focus on preventing defects, ensuring reliability, and maintaining high code quality standards.`,
     capabilities: [
       'test_automation',
-      'manual_testing',
+      'manual_testing [USER-OWNED]',
       'performance_testing',
       'accessibility_testing',
       'ci_cd_integration',

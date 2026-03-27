@@ -12,7 +12,7 @@ This CLI orchestrates multiple specialized Claude Code agents to analyze Figma p
 - **Design System Agent**: Component library extraction, design token analysis, and style guide generation
 - **Frontend Agent**: UI component implementation, responsive layouts, and interactive features
 - **Backend Agent**: API development, database schema, and server-side logic
-- **Testing Agent**: Test suite generation, validation scripts, and quality assurance
+- **Testing Agent**: Test suite generation and automated build validation (no manual testing)
 - **DevOps Agent**: Deployment configuration, CI/CD pipelines, and infrastructure as code
 
 ### ✨ Key Features
