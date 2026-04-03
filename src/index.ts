@@ -7,6 +7,8 @@
  */
 
 import chalk from 'chalk';
+import { fileURLToPath } from 'url';
+import { pathToFileURL } from 'url';
 
 const colors = {
   success: chalk.green,
@@ -17,17 +19,19 @@ const colors = {
   bold: chalk.bold
 };
 
-interface CLIOptions {
+export interface CLIOptions {
   dev?: boolean;
   debug?: boolean;
   nonInteractive?: boolean;
   new?: boolean;
+  agentUuid?: string;
+  machine?: string;
 }
 
 /**
  * Parse command line arguments into options and query
  */
-function parseArgs(args: string[]): { options: CLIOptions; query: string } {
+export function parseArgs(args: string[]): { options: CLIOptions; query: string } {
   const options: CLIOptions = {};
   const queryParts: string[] = [];
   
@@ -42,6 +46,14 @@ function parseArgs(args: string[]): { options: CLIOptions; query: string } {
       options.nonInteractive = true;
     } else if (arg === '--new') {
       options.new = true;
+    } else if (arg === '--agent-uuid') {
+      const value = args[i + 1];
+      options.agentUuid = value && !value.startsWith('--') ? value : '';
+      if (options.agentUuid) i++;
+    } else if (arg === '--machine') {
+      const value = args[i + 1];
+      options.machine = value && !value.startsWith('--') ? value : '';
+      if (options.machine) i++;
     } else {
       // Everything else is part of the query
       queryParts.push(...args.slice(i));
@@ -112,6 +124,35 @@ ${colors.highlight('MCP Integration:')}
  * Route specific commands to appropriate handlers
  */
 async function routeCommand(query: string, options: CLIOptions): Promise<boolean> {
+  if (options.agentUuid || options.machine) {
+    const hasBothFlags = Boolean(options.agentUuid && options.machine);
+    if (!hasBothFlags || !query) {
+      console.error(colors.error('❌ Invalid consult command usage'));
+      console.log(colors.info('Usage: graphyn --agent-uuid <uuid> --machine <tag> "question"'));
+      process.exitCode = 1;
+      return true;
+    }
+
+    const { runConsultCommand } = await import('./commands/consult.js');
+    const result = await runConsultCommand({
+      agentUuid: options.agentUuid as string,
+      machine: options.machine as string,
+      question: query,
+    });
+
+    if (!result.ok) {
+      console.error(colors.error('❌ Consult failed'));
+      console.error(JSON.stringify(result, null, 2));
+      process.exitCode = 1;
+      return true;
+    }
+
+    if (result.response) {
+      console.log(result.response);
+    }
+    return true;
+  }
+
   // Version and help
   if (query === '--version' || query === '-v') {
     showVersion();
@@ -330,8 +371,10 @@ async function main(): Promise<void> {
   await startInteractiveMode();
 }
 
-// Execute CLI with error handling
-main().catch(error => {
-  console.error(colors.error('CLI Error:'), error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  // Execute CLI with error handling
+  main().catch(error => {
+    console.error(colors.error('CLI Error:'), error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

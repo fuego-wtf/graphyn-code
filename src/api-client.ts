@@ -16,6 +16,35 @@ export interface Thread {
   status?: 'active' | 'archived' | 'closed';
 }
 
+export interface MachineResolution {
+  id: string;
+  tag: string;
+  user_id?: string;
+  org_id?: string;
+}
+
+export interface MachineRuntimeStatus {
+  connected: boolean;
+  machine_id?: string;
+  session_id?: string;
+  device_id?: string;
+}
+
+export interface ConsultDispatchRequest {
+  agent_uuid: string;
+  machine_id: string;
+  machine_tag: string;
+  question: string;
+  transform_receipt: Record<string, unknown>;
+  transformed_input: string;
+}
+
+export interface ConsultDispatchResponse {
+  ok: boolean;
+  response?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface ThreadsResponse {
   threads: Thread[];
 }
@@ -131,6 +160,28 @@ export class GraphynAPIClient {
   // Getter for token (read-only)
   get currentToken(): string | undefined {
     return this.token;
+  }
+
+  async resolveMachineByTag(tag: string): Promise<MachineResolution | null> {
+    const response = await this.request<{ machine: MachineResolution | null }>(
+      `/api/consult/machines/resolve?tag=${encodeURIComponent(tag)}`,
+      { method: 'GET' },
+    );
+    return response.machine ?? null;
+  }
+
+  async getMachineRuntimeStatus(machineId: string): Promise<MachineRuntimeStatus> {
+    return this.request<MachineRuntimeStatus>('/realtime/status', {
+      method: 'POST',
+      body: JSON.stringify({ machine_id: machineId }),
+    });
+  }
+
+  async dispatchConsult(payload: ConsultDispatchRequest): Promise<ConsultDispatchResponse> {
+    return this.request<ConsultDispatchResponse>('/api/consult/dispatch', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   constructor(baseUrl?: string) {
