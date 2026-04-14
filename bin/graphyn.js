@@ -13,10 +13,34 @@ const __dirname = dirname(__filename);
 
 // Check for built UltimateOrchestrator
 const builtPath = join(__dirname, '..', 'dist', 'orchestrator', 'UltimateOrchestrator.js');
+const unifiedCliPath = join(__dirname, '..', 'dist', 'index.js');
 const srcPath = join(__dirname, '..', 'src', 'orchestrator', 'UltimateOrchestrator.ts');
 
 async function main() {
   const query = process.argv.slice(2).join(' ');
+  const firstToken = process.argv[2];
+
+  // Route deterministic `base` command through the unified CLI router.
+  if (firstToken === 'base') {
+    if (!existsSync(unifiedCliPath)) {
+      console.error('❌ Graphyn CLI not built. Run: npm run build');
+      process.exit(1);
+    }
+
+    try {
+      const module = await import(unifiedCliPath);
+      if (typeof module.main !== 'function') {
+        console.error('❌ Unified CLI entrypoint missing exported main()');
+        process.exit(1);
+      }
+
+      await module.main();
+      return;
+    } catch (error) {
+      console.error('❌ Failed to execute base command:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
 
   try {
     let UltimateOrchestrator;

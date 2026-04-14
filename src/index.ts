@@ -89,10 +89,12 @@ ${colors.highlight('Usage:')}
 ${colors.highlight('Examples:')}
   graphyn "create a todo app with auth"
   graphyn "help me understand this repo"
+  graphyn base "plan billing refactor"
   graphyn backend "add user authentication"
   graphyn analyze --mode summary
   
 ${colors.highlight('Commands:')}
+  base <task>         Deterministic local KB retrieval (JSON output)
   analyze [options]    Analyze repository
   doctor              Check system requirements
   init [options]      Initialize project
@@ -161,6 +163,12 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
   
   if (query === '--help' || query === '-h' || query === 'help') {
     showHelp();
+    return true;
+  }
+
+  if (query === 'base' || query.startsWith('base ')) {
+    const { runBaseCommand } = await import('./commands/base.js');
+    await runBaseCommand(query);
     return true;
   }
   
@@ -244,6 +252,7 @@ function isNaturalLanguage(query: string): boolean {
   // Known specific commands
   const knownCommands = [
     'backend', 'frontend', 'architect', 'design', 'cli',
+    'base',
     'analyze', 'doctor', 'init', 'auth', 'logout', 
     'mcp', 'mcp-server', 'mcp config',
     '--version', '-v', '--help', '-h', 'help'
@@ -339,7 +348,7 @@ async function startInteractiveMode(): Promise<void> {
 /**
  * Main CLI entry point
  */
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
   const { options, query } = parseArgs(rawArgs);
   
