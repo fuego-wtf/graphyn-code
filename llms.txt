@@ -1,0 +1,49 @@
+# @graphyn/code llms.txt
+
+## Repository Identity
+- Project: `@graphyn/code`
+- Type: multi-agent developer CLI (Mission Control + orchestration)
+- Primary role: natural-language dev workflows, agent orchestration, and runtime integrations
+
+## Backbone Operating Line
+- Wiring-first: keep real backend/runtime pathways; no fake orchestration success.
+- Source-anchored planning: map claims to concrete files/commands.
+- Reporting format: phase, current step, completed, remaining, blockers.
+
+## Stack
+- Node.js CLI package (`graphyn` binary)
+- TypeScript build pipeline (`tsc`)
+- Commander/inquirer/chalk/ora terminal UX
+- Multi-agent orchestration modules + streaming clients
+
+## Critical Paths
+- Entry points: `src/index.ts`, `src/cli.ts`, `src/unified-cli.ts`
+- Orchestration: `src/orchestrator/*`, `src/coordinator/*`
+- Engine/service layers: `src/engines/*`, `src/services/*`
+- Agent/rules/config: `src/agents/*`, `src/config/*`
+- Runtime interfaces: `src/console/*`, `src/streaming/*`, `src/sdk/*`
+
+## Local Commands
+- Install: `pnpm install` (or npm per local workflow)
+- Build: `npm run build`
+- Dev: `npm run dev`
+- Package validation: `npm run test:package`
+
+## Agent Workflow Checklist
+1. Scope target command path before editing (`init`, `thread`, `agent`, orchestration commands).
+2. Keep CLI contract stable (`graphyn` executable + flags/subcommands).
+3. Run `npm run build` after changes; run package test when touching release paths.
+4. Include verification output excerpts before completion claims.
+
+## Dependency Docs (Reference)
+- Commander docs: https://github.com/tj/commander.js#readme
+- Inquirer docs: https://github.com/SBoudrias/Inquirer.js#readme
+- Chalk docs: https://github.com/chalk/chalk#readme
+- Ora docs: https://github.com/sindresorhus/ora#readme
+- EventSource spec/docs: https://developer.mozilla.org/docs/Web/API/EventSource
+- Node.js docs: https://nodejs.org/docs/latest-v22.x/api/
+
+## Execution Guardrails
+- Preserve non-interactive and CI-safe command behavior where supported.
+- Avoid regressions in stream/orchestrator error handling paths.
+- Keep public package surface aligned with README usage examples.
