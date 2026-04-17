@@ -1,24 +1,27 @@
 # Graphyn Code (@graphyn/code)
 
-## What This Repo Is
-`@graphyn/code` is Graphyn's developer CLI for coordinating AI work across specialized agents.
-It is the execution cockpit for command-driven, multi-agent software delivery.
+## TL;DR
+`@graphyn/code` is Graphyn's developer CLI for agent-assisted software delivery.
+It coordinates planning and execution across specialized agents so engineering work moves from request to shipped change faster.
 
-## Core Message
-One command should move work forward across architecture, backend, frontend, and review.
-Graphyn Code is built to make that real in day-to-day engineering workflows.
+## Who Needs This
+- Developers who want execution support, not just chat output.
+- Teams standardizing AI-assisted delivery workflows.
+- Technical leads orchestrating architecture, backend, frontend, and review lanes.
+- Agents integrating with Graphyn's CLI execution contract.
 
-## Who This Is For
-- developers who want agent-assisted execution, not just chat answers
-- teams standardizing AI-assisted delivery in codebases
-- operators running mission-control style orchestration
-- contributors improving CLI, streaming, and orchestration layers
+## What This Surface Delivers
+- `graphyn` CLI entrypoints and interaction flows.
+- Mission-control style orchestration and streaming interaction.
+- Coordination modules for multi-agent execution across codebases.
 
-## Product Surface In This Repo
-- `graphyn` CLI entrypoints
-- mission control and interactive flows
-- orchestration and coordination modules
-- agent service/runtime integration layers
+## Why This Matters For Graphyn
+Graphyn is built around command-native execution.
+This repo is where that execution model becomes a daily engineering workflow.
+
+## Runtime Truth Boundaries
+- Reliability claims require build/test receipts.
+- Orchestration and streaming error paths are production-critical and must stay explicit.
 
 ## Quickstart
 ```bash
@@ -27,17 +30,6 @@ npm run build
 npm run dev
 npm run test:package
 ```
-
-## Backbone Principles Applied Here
-- Wiring-first: real orchestration paths, no fake success overlays.
-- Evidence-before-assertion: build/test receipts before completion claims.
-- Goal-first: prioritize command reliability and agent throughput.
-
-## For Agents
-1. Preserve CLI contract and subcommand stability.
-2. Keep orchestrator and streaming error handling explicit.
-3. Avoid regressions in automation-critical paths.
-4. Validate with `npm run build` before claiming readiness.
 
 ## Public Links
 - Product: https://graphyn.xyz/code
@@ -49,3 +41,9 @@ npm run test:package
 - Chalk: https://github.com/chalk/chalk#readme
 - Ora: https://github.com/sindresorhus/ora#readme
 - Node.js APIs: https://nodejs.org/docs/latest-v22.x/api/
+
+## For Agents
+1. Preserve CLI contract and subcommand stability.
+2. Keep orchestration failures explicit and observable.
+3. Avoid regressions in automation-critical flows.
+4. Provide build/test command receipts before closure claims.
