@@ -11,7 +11,7 @@ import { ContextSynchronizer, ProgressUpdate } from './ContextSynchronizer';
 import { TaskDependencyGraph } from './TaskDependencyGraph';
 import { QueryProcessor } from './QueryProcessor';
 import { EventStream, createTaskEvent, createAgentEvent, createSystemEvent } from './EventStream';
-// Removed InteractiveFeedbackLoop import - functionality consolidated
+
 export interface UserFeedback {
   type: 'approval' | 'modification' | 'rejection';
   message?: string;
@@ -78,7 +78,6 @@ export class MultiAgentSessionManager extends EventEmitter {
   
   // PROCESS-008 & PROCESS-013: Real-time streaming and interaction
   private readonly eventStream: EventStream;
-  // Removed feedbackLoop - functionality simplified
   private readonly consoleOutput: ConsoleOutput;
   
   private readonly activeSessions = new Map<string, SessionExecution>();
@@ -96,7 +95,6 @@ export class MultiAgentSessionManager extends EventEmitter {
     
     // Initialize streaming and interaction components
     this.eventStream = new EventStream();
-    // Removed feedbackLoop initialization - functionality simplified
     this.consoleOutput = new ConsoleOutput();
 
     // Setup event handlers

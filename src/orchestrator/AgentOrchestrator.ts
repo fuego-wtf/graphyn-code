@@ -148,16 +148,10 @@ export class AgentOrchestrator extends EventEmitter {
                           (keywordAnalysis.confidence < 70 && query.length > 20)
                           );
     
-    // FIXED: Claude routing enabled with proper timeout handling
-    const BYPASS_CLAUDE_ROUTING = false; // Emergency bypass removed
-    
-    if (!isComplexQuery || BYPASS_CLAUDE_ROUTING) {
-      // Fast path: Use keyword analysis only to prevent hangs
+    if (!isComplexQuery) {
       this.consoleOutput.streamAgentActivity(
         'orchestrator',
-        BYPASS_CLAUDE_ROUTING ? 
-          `🚨 Emergency mode: Bypassing Claude routing (${keywordAnalysis.primaryAgent}, ${keywordAnalysis.confidence}% confidence)` :
-          `Fast routing: ${keywordAnalysis.primaryAgent} (${keywordAnalysis.confidence}% confidence)`,
+        `Fast routing: ${keywordAnalysis.primaryAgent} (${keywordAnalysis.confidence}% confidence)`,
         'progress'
       );
       return keywordAnalysis;
@@ -356,10 +350,7 @@ export class AgentOrchestrator extends EventEmitter {
     repositoryContext?: any
   ): AsyncGenerator<any> {
     let agentConfig = this.agentConfigs.get(agentName);
-    
-    // FIXED: Claude Code SDK enabled with proper error handling
-    const EMERGENCY_MODE = false; // Emergency bypass removed
-    
+
     // IMMEDIATE FEEDBACK: Let user know we're starting
     yield {
       type: 'assistant',
@@ -389,41 +380,6 @@ export class AgentOrchestrator extends EventEmitter {
       };
       
       agentName = fallbackAgentName; // Update for logging
-    }
-
-    if (EMERGENCY_MODE) {
-      // EMERGENCY FALLBACK: Provide detailed emergency response using getEmergencyResponse
-      const emergencyContent = this.getEmergencyResponse(agentName, query, repositoryContext);
-      
-      yield {
-        type: 'assistant',
-        message: {
-          type: 'assistant',
-          message: { content: `🚨 Emergency mode: Claude Code SDK is currently experiencing connection issues.` },
-          timestamp: Date.now()
-        }
-      };
-
-      yield {
-        type: 'message',
-        data: {
-          type: 'result',
-          message: {
-            type: 'result',
-            result: emergencyContent
-          },
-          agent: agentName
-        }
-      };
-
-      // Yield success result with correct structure to match CLI expectations
-      yield {
-        type: 'result',
-        subtype: 'success',
-        result: emergencyContent
-      };
-      
-      return;
     }
 
     // IMMEDIATE FEEDBACK: Building specialized prompt
@@ -480,10 +436,7 @@ export class AgentOrchestrator extends EventEmitter {
     repositoryContext?: any
   ): Promise<{ result: string; metrics?: any }> {
     let agentConfig = this.agentConfigs.get(agentName);
-    
-    // FIXED: Claude Code SDK enabled with proper error handling
-    const EMERGENCY_MODE = false; // Emergency bypass removed
-    
+
     // Fallback mechanism for unknown agents
     if (!agentConfig) {
       // Try to find any available agent as fallback
@@ -512,30 +465,6 @@ export class AgentOrchestrator extends EventEmitter {
       'progress'
     );
 
-    if (EMERGENCY_MODE) {
-      // EMERGENCY FALLBACK: Provide helpful static response instead of calling Claude Code SDK
-      const staticResult = `🚨 Emergency mode: ${agentName} agent analysis (static mode)
-
-Query: "${query}"
-
-As your ${agentConfig.role}, I can help with:
-${agentConfig.responsibilities.slice(0, 3).map(r => `• ${r}`).join('\n')}
-
-Specialized knowledge: ${agentConfig.specializedKnowledge.slice(0, 3).join(', ')}
-
-⚠️ Note: This is a static response while we resolve Claude Code SDK connection issues. For full AI-powered analysis, please try again later.`;
-
-      this.consoleOutput.streamAgentActivity(
-        agentName,
-        staticResult,
-        'progress'
-      );
-
-      return { 
-        result: staticResult,
-        metrics: { emergency_mode: true, duration_ms: 100 }
-      };
-    }
 
     // Build specialized prompt for the agent
     const agentPrompt = await this.buildAgentPrompt(agentConfig, query, repositoryContext);
