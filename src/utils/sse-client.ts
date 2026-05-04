@@ -1,4 +1,4 @@
-import EventSource from 'eventsource';
+import { EventSource } from 'eventsource';
 import { EventEmitter } from 'events';
 import chalk from 'chalk';
 
@@ -63,7 +63,7 @@ export class SSEClient extends EventEmitter {
       const headers: Record<string, string> = { ...this.headers };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      this.eventSource = new EventSource(this.url, { headers });
+      this.eventSource = new EventSource(this.url, { headers } as any);
 
       this.eventSource.onopen = () => {
         this.isConnecting = false;
@@ -260,7 +260,6 @@ export class SSEClient extends EventEmitter {
     this.emit('disconnect');
   }
 
-  // Legacy method for backward compatibility
   close(): void {
     this.disconnect();
   }
@@ -287,15 +286,3 @@ export function createThreadSSEClient(threadId: string, baseUrl?: string): SSECl
   });
 }
 
-// Legacy method for backward compatibility
-export async function connectToStream(streamUrl: string, token: string): Promise<SSEClient> {
-  const client = new SSEClient({
-    url: streamUrl,
-    maxRetries: 5,
-    retryDelay: 1000,
-    backoffMultiplier: 2
-  });
-  
-  await client.connect();
-  return client;
-}
