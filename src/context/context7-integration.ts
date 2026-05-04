@@ -175,7 +175,7 @@ export class Context7Analyzer {
     
     // Detect build systems
     if (await this.fileExists(path.join(rootPath, 'package.json'))) {
-      buildSystems.push('npm/yarn');
+      buildSystems.push('bun');
     }
     if (await this.fileExists(path.join(rootPath, 'Dockerfile'))) {
       buildSystems.push('docker');

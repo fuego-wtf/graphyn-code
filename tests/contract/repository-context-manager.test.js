@@ -53,7 +53,7 @@ describe('RepositoryContextManager Contract', () => {
             const result = await contextManager.analyzeRepository(mockRepoPath);
             expect(result.repository.techStack).toContain('typescript');
             expect(result.repository.frameworks).toContain('react');
-            expect(result.repository.packageManagers).toContain('npm');
+            expect(result.repository.packageManagers).toContain('bun');
         });
         it('should detect tech stack from Cargo.toml', async () => {
             const mockRepoPath = '/test/rust-repo';
@@ -93,7 +93,7 @@ serde = "1.0"
                 path: '/test/repo',
                 name: 'test-app',
                 techStack: ['typescript', 'react'],
-                packageManagers: ['npm'],
+                packageManagers: ['bun'],
                 frameworks: ['next.js'],
                 scale: 'medium',
                 complexity: 'moderate'
@@ -111,7 +111,7 @@ serde = "1.0"
                 path: '/test/simple',
                 name: 'simple-app',
                 techStack: ['javascript'],
-                packageManagers: ['npm'],
+                packageManagers: ['bun'],
                 frameworks: [],
                 scale: 'small',
                 complexity: 'simple'
@@ -120,7 +120,7 @@ serde = "1.0"
                 path: '/test/complex',
                 name: 'enterprise-app',
                 techStack: ['typescript', 'rust', 'python'],
-                packageManagers: ['npm', 'cargo', 'pip'],
+                packageManagers: ['bun', 'cargo', 'pip'],
                 frameworks: ['next.js', 'fastapi', 'tokio'],
                 scale: 'large',
                 complexity: 'complex'
@@ -136,14 +136,14 @@ serde = "1.0"
                 path: '/test/conventions',
                 name: 'convention-app',
                 techStack: ['typescript'],
-                packageManagers: ['pnpm'],
+                packageManagers: ['bun'],
                 frameworks: ['next.js'],
                 scale: 'medium',
                 complexity: 'moderate'
             };
             const prompts = await contextManager.generateAgentPrompts(repoWithConventions);
-            expect(prompts.backend).toContain('pnpm');
-            expect(prompts.frontend).toContain('pnpm');
+            expect(prompts.backend).toContain('bun');
+            expect(prompts.frontend).toContain('bun');
         });
     });
     describe('Context Caching', () => {

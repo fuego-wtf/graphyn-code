@@ -20,6 +20,14 @@ export interface ConsultFailureEnvelope {
   timestamp: string;
 }
 
+export interface ConsultSuccessEnvelope {
+  ok: true;
+  response: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type ConsultCommandResult = ConsultSuccessEnvelope | ConsultFailureEnvelope;
+
 const ERROR_DETAILS: Record<ConsultErrorCode, { message: string; actionable: string }> = {
   AUTH_REQUIRED: {
     message: 'Authentication is required for consult.',
@@ -59,6 +67,8 @@ export function failureEnvelope(code: ConsultErrorCode): ConsultFailureEnvelope 
     timestamp: new Date().toISOString(),
   };
 }
+
+export const createConsultFailureEnvelope = failureEnvelope;
 
 export function isConsultFailureEnvelope(value: unknown): value is ConsultFailureEnvelope {
   if (typeof value !== 'object' || value === null) return false;

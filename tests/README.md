@@ -40,17 +40,17 @@ This directory contains all tests for the Graphyn CLI Platform Orchestration eng
 
 ```bash
 # Run all tests
-npm test
+bun run test
 
 # Run specific test categories
-npm run test:unit
-npm run test:watch       # Watch mode for development
-npm run test:coverage    # Generate coverage report
+bun run test:unit
+bun run test:watch       # Watch mode for development
+bun run test:coverage    # Generate coverage report
 
 # Run tests for specific components
-npx vitest run tests/unit/orchestrator/
-npx vitest run tests/integration/
-npx vitest run tests/contract/
+bun run vitest run tests/unit/orchestrator/
+bun run vitest run tests/integration/
+bun run vitest run tests/contract/
 ```
 
 ## Testing Standards

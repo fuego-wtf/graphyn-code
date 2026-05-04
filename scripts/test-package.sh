@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Enhanced test for npm package installation
-# Comprehensive validation to prevent NPM installation issues
+# Enhanced test for package installation
+# Comprehensive validation to prevent installation issues
 
 set -e
 
-echo "🧪 Testing npm package installation (Enhanced)..."
+echo "🧪 Testing package installation (Enhanced)..."
 
 # Colors
 GREEN='\033[0;32m'
@@ -34,7 +34,7 @@ fi
 
 # 2. Create a test package
 echo "📦 Creating test package..."
-npm pack
+bun pm pack
 
 # Get the package filename
 PACKAGE_FILE=$(ls -t *.tgz | head -1)
@@ -47,15 +47,15 @@ cd "$TEST_DIR"
 
 echo "🔧 Testing in isolated environment: $TEST_DIR"
 
-# 4. Initialize fresh npm project
-npm init -y --silent
+# 4. Initialize fresh Bun project
+bun init -y >/dev/null
 
 # 5. Test installation with various scenarios
 echo "📥 Testing package installation..."
 
 # Test 5a: Normal installation
 echo -e "${BLUE}  → Testing normal install...${NC}"
-if npm install "$PACKAGE_PATH" --loglevel=error; then
+if bun add "$PACKAGE_PATH"; then
     echo -e "${GREEN}    ✅ Normal install passed${NC}"
 else
     echo -e "${RED}    ❌ Normal install failed${NC}"
@@ -64,8 +64,8 @@ fi
 
 # Test 5b: Installation with CI flag (should skip postinstall)
 echo -e "${BLUE}  → Testing CI install...${NC}"
-rm -rf node_modules package-lock.json
-CI=true npm install "$PACKAGE_PATH" --loglevel=error
+rm -rf node_modules bun.lock
+CI=true bun add "$PACKAGE_PATH"
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}    ✅ CI install passed${NC}"
 else
@@ -75,8 +75,8 @@ fi
 
 # Test 5c: Installation with minimal flag
 echo -e "${BLUE}  → Testing minimal install...${NC}"
-rm -rf node_modules package-lock.json
-GRAPHYN_MINIMAL_INSTALL=true npm install "$PACKAGE_PATH" --loglevel=error
+rm -rf node_modules bun.lock
+GRAPHYN_MINIMAL_INSTALL=true bun add "$PACKAGE_PATH"
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}    ✅ Minimal install passed${NC}"
 else
@@ -86,7 +86,7 @@ fi
 
 # 6. Test that graphyn command exists
 echo "🔍 Checking graphyn command..."
-if npx graphyn --version; then
+if ./node_modules/.bin/graphyn --version; then
     echo -e "${GREEN}✅ CLI command works${NC}"
 else
     echo -e "${RED}❌ CLI command not found${NC}"
@@ -97,7 +97,7 @@ fi
 echo "🚀 Testing CLI commands..."
 
 # Test help
-if npx graphyn --help > /dev/null 2>&1; then
+if ./node_modules/.bin/graphyn --help > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Help command works${NC}"
 else
     echo -e "${RED}❌ Help command failed${NC}"
@@ -107,7 +107,7 @@ fi
 # Init command removed in v0.1.60 - CLI is now zero-config
 
 # Test design command availability
-if npx graphyn --help | grep -q "graphyn design"; then
+if ./node_modules/.bin/graphyn --help | grep -q "graphyn design"; then
     echo -e "${GREEN}✅ Design command documented${NC}"
 else
     echo -e "${RED}❌ Design command not found in help${NC}"
@@ -141,8 +141,8 @@ echo "🔐 Testing package integrity..."
 
 # Check if all required files are accessible
 REQUIRED_COMMANDS=(
-    "npx graphyn --version"
-    "npx graphyn --help"
+    "./node_modules/.bin/graphyn --version"
+    "./node_modules/.bin/graphyn --help"
 )
 
 for cmd in "${REQUIRED_COMMANDS[@]}"; do
@@ -166,10 +166,10 @@ if [ $ERRORS -eq 0 ]; then
     echo -e "${GREEN}✨ All tests passed!${NC}"
     echo ""
     echo "Package is ready for publishing:"
-    echo "  npm publish"
+    echo "  bun publish"
     echo ""
     echo "Or test locally with:"
-    echo "  npm link"
+    echo "  bun link"
     echo "  graphyn init"
     exit 0
 else
@@ -178,7 +178,7 @@ else
     echo "Please fix the errors before publishing."
     echo "Run individual tests with:"
     echo "  node scripts/validate-package.js"
-    echo "  npm run build"
-    echo "  npm pack --dry-run"
+    echo "  bun run build"
+    echo "  bun pm pack --dry-run"
     exit 1
 fi

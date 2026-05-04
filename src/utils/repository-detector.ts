@@ -94,7 +94,6 @@ export class RepositoryDetector {
     const monorepoIndicators = [
       'lerna.json',
       'rush.json',
-      'pnpm-workspace.yaml',
       'nx.json',
     ];
 

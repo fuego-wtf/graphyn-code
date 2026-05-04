@@ -57,7 +57,7 @@ git checkout -b cli-fastlane-orchestrator
 claude --version && git --version
 
 # 3) Node/Deps
-node -v && npm -v && npm i
+node -v && bun -v && bun i
 ```
 
 ## Fastlane Contract (User Interface)

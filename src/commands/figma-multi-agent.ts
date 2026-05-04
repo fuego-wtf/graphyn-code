@@ -352,22 +352,22 @@ async function displaySuccessMessage(result: MultiAgentResult): Promise<void> {
     
     if (hasPackageJson) {
       console.log(colors.highlight('1. Install dependencies:'));
-      console.log(colors.dim('   cd ./figma-generated && npm install'));
+      console.log(colors.dim('   cd ./figma-generated && bun install'));
       console.log();
       
       console.log(colors.highlight('2. Start development server:'));
-      console.log(colors.dim('   npm run dev'));
+      console.log(colors.dim('   bun run dev'));
       console.log();
       
       if (result.testResults) {
         console.log(colors.highlight('3. Run tests:'));
-        console.log(colors.dim('   npm test'));
+        console.log(colors.dim('   bun run test'));
         console.log();
       }
       
       if (result.deploymentInfo) {
         console.log(colors.highlight('4. Deploy to production:'));
-        console.log(colors.dim('   npm run deploy'));
+        console.log(colors.dim('   bun run deploy'));
         console.log();
       }
     }

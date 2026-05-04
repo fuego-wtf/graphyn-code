@@ -761,9 +761,8 @@ export class SpecializationEngine {
   private detectPackageManagers(files: string[]): string[] {
     const managers: string[] = [];
     
-    if (files.some(f => f === 'package-lock.json')) managers.push('npm');
+    if (files.some(f => f === 'bun.lock')) managers.push('bun');
     if (files.some(f => f === 'yarn.lock')) managers.push('yarn');
-    if (files.some(f => f === 'pnpm-lock.yaml')) managers.push('pnpm');
     if (files.some(f => f === 'requirements.txt')) managers.push('pip');
     if (files.some(f => f === 'Cargo.toml')) managers.push('cargo');
     
@@ -886,8 +885,8 @@ export class SpecializationEngine {
       // Always provide fallback - at minimum filesystem access
       agent.mcp_servers = {
         filesystem: {
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-filesystem', process.cwd()],
+          command: 'bunx',
+          args: ['--bun', '@modelcontextprotocol/server-filesystem', process.cwd()],
           env: {}
         }
       };

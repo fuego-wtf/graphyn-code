@@ -76,7 +76,7 @@ describe('RepositoryContextManager Contract', () => {
       
       expect(result.repository.techStack).toContain('typescript');
       expect(result.repository.frameworks).toContain('react');
-      expect(result.repository.packageManagers).toContain('npm');
+      expect(result.repository.packageManagers).toContain('bun');
     });
 
     it('should detect tech stack from Cargo.toml', async () => {
@@ -127,7 +127,7 @@ serde = "1.0"
         path: '/test/repo',
         name: 'test-app',
         techStack: ['typescript', 'react'],
-        packageManagers: ['npm'],
+        packageManagers: ['bun'],
         frameworks: ['next.js'],
         scale: 'medium',
         complexity: 'moderate'
@@ -150,7 +150,7 @@ serde = "1.0"
         path: '/test/simple',
         name: 'simple-app',
         techStack: ['javascript'],
-        packageManagers: ['npm'],
+        packageManagers: ['bun'],
         frameworks: [],
         scale: 'small',
         complexity: 'simple'
@@ -160,7 +160,7 @@ serde = "1.0"
         path: '/test/complex',
         name: 'enterprise-app',
         techStack: ['typescript', 'rust', 'python'],
-        packageManagers: ['npm', 'cargo', 'pip'],
+        packageManagers: ['bun', 'cargo', 'pip'],
         frameworks: ['next.js', 'fastapi', 'tokio'],
         scale: 'large',
         complexity: 'complex'
@@ -180,7 +180,7 @@ serde = "1.0"
         path: '/test/conventions',
         name: 'convention-app',
         techStack: ['typescript'],
-        packageManagers: ['pnpm'],
+        packageManagers: ['bun'],
         frameworks: ['next.js'],
         scale: 'medium',
         complexity: 'moderate'
@@ -188,9 +188,9 @@ serde = "1.0"
 
       const prompts = await contextManager.generateAgentPrompts(repoWithConventions);
       
-      // Should include pnpm-specific instructions
-      expect(prompts.backend).toContain('pnpm');
-      expect(prompts.frontend).toContain('pnpm');
+      // Should include Bun-specific instructions
+      expect(prompts.backend).toContain('bun');
+      expect(prompts.frontend).toContain('bun');
     });
   });
 

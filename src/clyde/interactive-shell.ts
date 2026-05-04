@@ -241,7 +241,7 @@ export class InteractiveShell {
     } else {
       console.log(chalk.yellow('⚠️  Claude Code Task tool not available'));
       console.log(chalk.gray('   For full functionality, run within Claude Code environment'));
-      console.log(chalk.blue('   💡 Install: npm install -g @anthropic/claude-code'));
+      console.log(chalk.blue('   💡 Install: bun add --global @anthropic/claude-code'));
     }
     
     console.log('');

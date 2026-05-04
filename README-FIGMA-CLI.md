@@ -41,23 +41,23 @@ This CLI orchestrates multiple specialized Claude Code agents to analyze Figma p
 cd /path/to/graphyn-workspace/code
 
 # Install dependencies
-npm install
+bun install
 
 # Setup Figma integration
-npm run figma:setup
+bun run figma:setup
 ```
 
 ### Basic Usage
 
 ```bash
 # Quick start with React + Tailwind
-npm run cli figma quick "https://www.figma.com/proto/your-prototype-url"
+bun run cli figma quick "https://www.figma.com/proto/your-prototype-url"
 
 # Interactive setup with custom options
-npm run cli figma generate "https://www.figma.com/proto/your-prototype-url"
+bun run cli figma generate "https://www.figma.com/proto/your-prototype-url"
 
 # Automated generation with CLI flags
-npm run cli figma generate "https://www.figma.com/proto/your-prototype-url" \
+bun run cli figma generate "https://www.figma.com/proto/your-prototype-url" \
   --framework react \
   --styling tailwind \
   --backend node \
@@ -72,26 +72,26 @@ npm run cli figma generate "https://www.figma.com/proto/your-prototype-url" \
 
 ```bash
 # Configure Figma MCP integration
-npm run figma:setup
+bun run figma:setup
 
 # Check system status
-npm run figma:status
+bun run figma:status
 
 # List active agent sessions
-npm run figma:agents
+bun run figma:agents
 ```
 
 ### Generation Commands
 
 ```bash
 # Interactive workflow (recommended for first-time users)
-npm run cli figma generate <figma-url>
+bun run cli figma generate <figma-url>
 
 # Quick start with sensible defaults
-npm run cli figma quick <figma-url>
+bun run cli figma quick <figma-url>
 
 # Automated generation with options
-npm run cli figma generate <figma-url> [options]
+bun run cli figma generate <figma-url> [options]
 ```
 
 #### CLI Options
@@ -153,13 +153,13 @@ export ENABLE_DETAILED_LOGGING=true
 
 ```bash
 # 1. Setup (one-time)
-npm run figma:setup
+bun run figma:setup
 
 # 2. Verify everything is working
-npm run figma:status
+bun run figma:status
 
 # 3. Generate from Figma prototype
-npm run cli figma generate "https://www.figma.com/proto/abc123/my-app"
+bun run cli figma generate "https://www.figma.com/proto/abc123/my-app"
 
 # The CLI will:
 # - Parse the Figma URL and fetch prototype data
@@ -176,8 +176,8 @@ npm run cli figma generate "https://www.figma.com/proto/abc123/my-app"
 cd ./figma-generated
 
 # 5. Install dependencies and run
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ## 📊 Agent Coordination
@@ -226,7 +226,7 @@ The system automatically breaks down the Figma prototype generation into special
 
 ```bash
 # Watch agent progress in real-time
-npm run figma:agents
+bun run figma:agents
 
 # View detailed logs
 tail -f /tmp/claude-agents/*/session.log
@@ -284,7 +284,7 @@ export async function customPostProcessing(result: MultiAgentResult) {
 2. **Claude CLI Not Found**
    ```bash
    # Install Claude CLI
-   npm install -g @anthropic-ai/claude-code
+   bun add --global @anthropic-ai/claude-code
    
    # Verify installation
    claude --version
@@ -315,20 +315,20 @@ export async function customPostProcessing(result: MultiAgentResult) {
 export ENABLE_DETAILED_LOGGING=true
 
 # Run with debug output
-npm run cli figma generate <url> --verbose
+bun run cli figma generate <url> --verbose
 ```
 
 ### Performance Optimization
 
 ```bash
 # Reduce concurrent agents for limited resources
-npm run cli figma generate <url> --agents 3
+bun run cli figma generate <url> --agents 3
 
 # Skip testing for faster generation
-npm run cli figma generate <url> --no-testing
+bun run cli figma generate <url> --no-testing
 
 # Use local development database
-npm run cli figma generate <url> --database sqlite
+bun run cli figma generate <url> --database sqlite
 ```
 
 ## 📈 Metrics and Analytics
@@ -375,16 +375,16 @@ figma-generated/
 # Clone and setup
 git clone <repo-url>
 cd code
-npm install
+bun install
 
 # Run in development mode
-npm run dev
+bun run dev
 
 # Run tests
-npm test
+bun test
 
 # Build for production
-npm run build
+bun run build
 ```
 
 ### Adding New Agent Types

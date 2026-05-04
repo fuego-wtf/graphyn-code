@@ -5,9 +5,30 @@
  * streaming support, and session management for multi-turn conversations.
  */
 
-import { query, type SDKMessage, type PermissionMode } from "@anthropic-ai/claude-code";
 import { z } from "zod";
 import { EventEmitter } from 'events';
+
+export type SDKMessage = {
+  type: string;
+  message?: any;
+  subtype?: string;
+  error?: unknown;
+  [key: string]: any;
+};
+export type PermissionMode = string;
+
+interface ClaudeCodeSdk {
+  query(input: unknown): AsyncIterable<SDKMessage>;
+}
+
+async function loadClaudeCodeSdk(): Promise<ClaudeCodeSdk> {
+  const packageName = '@anthropic-ai/claude-code';
+  const sdk = await import(packageName);
+  if (typeof (sdk as { query?: unknown }).query !== 'function') {
+    throw new Error('@anthropic-ai/claude-code does not expose the query SDK API in this installed version.');
+  }
+  return sdk as ClaudeCodeSdk;
+}
 
 export interface ClaudeCodeOptions {
   maxTurns?: number;
@@ -76,6 +97,7 @@ export class ClaudeCodeClient extends EventEmitter {
       
       // CRITICAL DEBUG: Add connection check before query
       this.emit('debug', `[${Date.now() - startTime}ms] Initializing Claude Code SDK query...`);
+      const { query } = await loadClaudeCodeSdk();
       
       let messageCount = 0;
       let hasReceivedFirstMessage = false;

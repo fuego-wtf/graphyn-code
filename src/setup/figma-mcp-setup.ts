@@ -74,8 +74,8 @@ async function configureFigmaMCP(): Promise<boolean> {
     
     // Add Figma MCP configuration
     config.mcpServers['figma-mcp'] = {
-      command: 'npx',
-      args: ['-y', '@figma/mcp'],
+      command: 'bunx',
+      args: ['--bun', '@figma/mcp'],
       env: {
         FIGMA_PERSONAL_ACCESS_TOKEN: '${FIGMA_PERSONAL_ACCESS_TOKEN}'
       }
@@ -166,7 +166,7 @@ async function testFigmaMCP(): Promise<boolean> {
   
   try {
     // Try to run the MCP server
-    const { stdout, stderr } = await execAsync('npx -y @figma/mcp list-tools', {
+    const { stdout, stderr } = await execAsync('bunx --bun @figma/mcp list-tools', {
       env: {
         ...process.env,
         FIGMA_PERSONAL_ACCESS_TOKEN: process.env.FIGMA_PERSONAL_ACCESS_TOKEN

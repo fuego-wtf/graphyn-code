@@ -127,7 +127,6 @@ export class RepositoryAnalyzer {
     // Check for common monorepo indicators
     const indicators = [
       'lerna.json',
-      'pnpm-workspace.yaml',
       'rush.json',
       'nx.json',
       '.yarn/workspaces',

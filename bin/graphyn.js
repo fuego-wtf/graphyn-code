@@ -23,7 +23,7 @@ async function main() {
   // Route deterministic `base` command through the unified CLI router.
   if (firstToken === 'base') {
     if (!existsSync(unifiedCliPath)) {
-      console.error('❌ Graphyn CLI not built. Run: npm run build');
+      console.error('❌ Graphyn CLI not built. Run: bun run build');
       process.exit(1);
     }
 
@@ -50,7 +50,7 @@ async function main() {
       const module = await import(builtPath);
       UltimateOrchestrator = module.UltimateOrchestrator;
     } else {
-      console.error('❌ Ultimate Orchestrator not built. Run: npm run build');
+      console.error('❌ Ultimate Orchestrator not built. Run: bun run build');
       process.exit(1);
     }
 

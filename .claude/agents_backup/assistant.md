@@ -214,13 +214,13 @@ ${project.description}
 
 \`\`\`bash
 # Install dependencies
-npm install
+bun install
 
 # Start development server
-npm run dev
+bun run dev
 
 # Run tests
-npm test
+bun test
 \`\`\`
 
 ## Project Structure

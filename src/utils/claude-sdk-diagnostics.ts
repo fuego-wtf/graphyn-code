@@ -104,7 +104,7 @@ async function checkNodeVersion(results: SDKDiagnosticResult[]): Promise<void> {
 async function checkSDKInstallation(results: SDKDiagnosticResult[]): Promise<void> {
   try {
     // Check if package is installed
-    const { stdout } = await execAsync('npm list @anthropic-ai/claude-code', { cwd: process.cwd() });
+    const { stdout } = await execAsync('bun pm why @anthropic-ai/claude-code', { cwd: process.cwd() });
     
     if (stdout.includes('@anthropic-ai/claude-code')) {
       const versionMatch = stdout.match(/@anthropic-ai\/claude-code@([^\s]+)/);
@@ -123,7 +123,7 @@ async function checkSDKInstallation(results: SDKDiagnosticResult[]): Promise<voi
         test: 'Package Installation',
         status: 'fail',
         message: '@anthropic-ai/claude-code is not installed',
-        fix: 'Run: npm install @anthropic-ai/claude-code'
+        fix: 'Run: bun add @anthropic-ai/claude-code'
       });
     }
   } catch (error) {
@@ -133,7 +133,7 @@ async function checkSDKInstallation(results: SDKDiagnosticResult[]): Promise<voi
       status: 'fail',
       message: 'Failed to check SDK installation',
       details: error instanceof Error ? error.message : String(error),
-      fix: 'Run: npm install @anthropic-ai/claude-code'
+      fix: 'Run: bun add @anthropic-ai/claude-code'
     });
   }
 }

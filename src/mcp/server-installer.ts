@@ -1,7 +1,7 @@
 /**
  * MCP Server Auto-Installer with Validation
  * 
- * Automatically installs missing MCP servers using NPX and validates
+ * Automatically installs missing MCP servers using BUNX and validates
  * they can start properly before being passed to Claude Code SDK.
  */
 
@@ -38,26 +38,26 @@ export async function checkMCPServerInstalled(serverName: string): Promise<boole
   if (!config) return false;
 
   try {
-    // Method 1: Check in node_modules/.bin for npx-installed servers
-    const npmPath = path.join(process.cwd(), 'node_modules', '.bin', config.package);
+    // Method 1: Check in node_modules/.bin for locally installed servers
+    const packageBinPath = path.join(process.cwd(), 'node_modules', '.bin', config.package);
     try {
-      await fs.access(npmPath);
+      await fs.access(packageBinPath);
       return true;
     } catch {
       // Continue to next check
     }
 
-    // Method 2: Check global npm packages
+    // Method 2: Check global command path
     try {
-      const { stdout } = await execAsync(`npm list -g ${config.package} --depth=0`);
+      const { stdout } = await execAsync(`which ${config.package}`);
       return stdout.includes(config.package);
     } catch {
       // Continue to next check
     }
 
-    // Method 3: Try npx dry-run to see if package exists
+    // Method 3: Try Bun package runner to see if package exists
     try {
-      const { stdout } = await execAsync(`npx --dry-run ${config.package} --help`, {
+      const { stdout } = await execAsync(`bunx --bun ${config.package} --help`, {
         timeout: 5000
       });
       return !stdout.includes('not found') && !stdout.includes('Unable to resolve');
@@ -71,7 +71,7 @@ export async function checkMCPServerInstalled(serverName: string): Promise<boole
 }
 
 /**
- * Auto-install MCP server if missing using NPX
+ * Auto-install MCP server if missing using BUNX
  */
 export async function autoInstallMCPServer(
   serverName: string,
@@ -113,8 +113,8 @@ export async function autoInstallMCPServer(
       };
     }
 
-    // Use npx with -y flag for automatic installation without prompts
-    const installCommand = `npx -y ${config.package} --version`;
+    // Use Bun package runner for automatic installation without prompts
+    const installCommand = `bunx --bun ${config.package} --version`;
     
     const { stdout, stderr } = await execAsync(installCommand, {
       timeout: options.timeout || 30000, // 30 second timeout
@@ -142,10 +142,10 @@ export async function autoInstallMCPServer(
     
     if (!options.silent) {
       console.warn(`⚠️ Could not auto-install ${config.package}: ${errorMessage}`);
-      console.warn('Will attempt runtime installation with npx -y');
+      console.warn('Will attempt runtime installation with Bun package runner');
     }
 
-    // This isn't a hard failure - NPX will try to install at runtime
+    // This isn't a hard failure - BUNX will try to install at runtime
     return {
       success: false,
       serverName,

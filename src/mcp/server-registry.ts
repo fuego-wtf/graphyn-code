@@ -1,7 +1,7 @@
 /**
- * MCP Server Registry - NPM Package Mappings for Auto-Installation
+ * MCP Server Registry - BUN Package Mappings for Auto-Installation
  * 
- * Maintains a registry of available MCP servers with their NPM packages,
+ * Maintains a registry of available MCP servers with their BUN packages,
  * tool capabilities, and environment requirements for automatic installation.
  */
 
@@ -25,7 +25,7 @@ export interface MCPServer {
 
 /**
  * Official MCP Server Registry
- * Maps server names to their NPM packages and configurations
+ * Maps server names to their BUN packages and configurations
  */
 export const MCP_SERVER_REGISTRY: Record<string, MCPServerConfig> = {
   // CORE SERVERS (Always Available)
@@ -146,14 +146,6 @@ export const MCP_SERVER_REGISTRY: Record<string, MCPServerConfig> = {
     auto_install: true // Always useful for development
   },
 
-  'npm': {
-    package: '@modelcontextprotocol/server-npm',
-    description: 'NPM package management',
-    tools: ['Install', 'Update', 'Search', 'Info', 'Scripts'],
-    required_env: [],
-    auto_install: false // Only if package.json detected
-  },
-
   'webpack': {
     package: '@modelcontextprotocol/server-webpack',
     description: 'Webpack build operations',
@@ -237,7 +229,7 @@ export function getMCPServersByCategory(category: string): string[] {
     'database': ['postgres', 'mongodb', 'redis', 'sqlite'],
     'devops': ['docker', 'kubernetes', 'aws'],
     'integration': ['slack', 'jira', 'figma', 'notion'],
-    'development': ['git', 'npm', 'webpack'],
+    'development': ['git', 'webpack'],
     'testing': ['jest', 'cypress', 'postman'],
     'monitoring': ['datadog', 'newrelic'],
     'core': getCoreMCPServers()
@@ -247,7 +239,7 @@ export function getMCPServersByCategory(category: string): string[] {
 }
 
 /**
- * Build NPX command for MCP server
+ * Build BUNX command for MCP server
  */
 export function buildMCPServerCommand(
   serverName: string, 
@@ -263,8 +255,8 @@ export function buildMCPServerCommand(
   }
 
   return {
-    command: 'npx',
-    args: ['-y', config.package, ...(config.startup_args || [])],
+    command: 'bunx',
+    args: ['--bun', config.package, ...(config.startup_args || [])],
     env: serverEnv,
     working_directory: config.working_directory
   };

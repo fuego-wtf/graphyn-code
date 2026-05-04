@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 
 export interface TransformReceipt {
+  [key: string]: unknown;
   original_input: string;
   input_transform_chain: [
     'resolveSessionWhoHowWhat',
@@ -32,5 +33,16 @@ export function applyTransformChain(input: string): { output: string; receipt: T
       input_hash_before: sha256hex(input),
       input_hash_after: sha256hex(output),
     },
+  };
+}
+
+export function applyConsultTransformPolicy(input: string): {
+  transformedInput: string;
+  receipt: TransformReceipt;
+} {
+  const { output, receipt } = applyTransformChain(input);
+  return {
+    transformedInput: output,
+    receipt,
   };
 }

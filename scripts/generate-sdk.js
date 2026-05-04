@@ -97,7 +97,7 @@ function generateTypes(openApiDir) {
     
     if (fs.existsSync(inputPath)) {
       try {
-        execSync(`npx openapi-typescript "${inputPath}" --output "${outputPath}"`, {
+        execSync(`bunx --bun openapi-typescript "${inputPath}" --output "${outputPath}"`, {
           stdio: 'inherit'
         });
         log(`Generated types: ${output}`);
@@ -125,11 +125,11 @@ function generateSDKClient(openApiDir) {
   try {
     // Generate TypeScript SDK with axios
     execSync([
-      'npx @openapitools/openapi-generator-cli generate',
+      'bunx --bun @openapitools/openapi-generator-cli generate',
       `-i "${specPath}"`,
       `-g typescript-axios`,
       `-o "${SDK_OUTPUT_DIR}/generated"`,
-      '--additional-properties=npmName=@graphyn/sdk,supportsES6=true,withSeparateModelsAndApi=true,modelPackage=models,apiPackage=api'
+      '--additional-properties=' + 'npmName=@graphyn/sdk,supportsES6=true,withSeparateModelsAndApi=true,modelPackage=models,apiPackage=api'
     ].join(' '), {
       stdio: 'inherit'
     });

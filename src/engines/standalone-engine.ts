@@ -38,7 +38,7 @@ export class StandaloneEngine {
     
     if (!this.claudeCodePath) {
       console.log(chalk.yellow('⚠️  Claude Code not found in PATH'));
-      console.log(chalk.gray('   Install with: npm install -g @anthropic/claude-code'));
+      console.log(chalk.gray('   Install with: bun add --global @anthropic/claude-code'));
     }
     
     console.log(chalk.blue('🏠 Standalone engine initialized'));
@@ -427,7 +427,7 @@ How can I help you in this thread?`;
    * Detect Claude Code installation
    */
   private async detectClaudeCode(): Promise<string | undefined> {
-    const possiblePaths = ['claude', 'claude-code', 'npx claude-code'];
+    const possiblePaths = ['claude', 'claude-code', 'bunx claude-code'];
     
     for (const cmdPath of possiblePaths) {
       try {
@@ -474,7 +474,7 @@ How can I help you in this thread?`;
         // Not in Claude Code environment
         console.log(chalk.yellow('⚠️  Claude Code Task tool not available'));
         console.log(chalk.gray('For full functionality, run within Claude Code environment'));
-        console.log(chalk.blue('💡 Install: npm install -g @anthropic/claude-code'));
+        console.log(chalk.blue('💡 Install: bun add --global @anthropic/claude-code'));
         
         return {
           success: false,

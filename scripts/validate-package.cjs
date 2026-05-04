@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Validate package integrity to prevent NPM installation issues
+ * Validate package integrity to prevent install issues
  */
 
 const fs = require('fs');
@@ -55,7 +55,7 @@ try {
 
 // 2. Check dist directory
 if (!fs.existsSync('dist')) {
-  errors.push('dist/ directory missing - run npm run build');
+  errors.push('dist/ directory missing - run bun run build');
 } else {
   // Check critical files
   const criticalFiles = [
@@ -108,13 +108,13 @@ const checkProblematicPatterns = () => {
 
 checkProblematicPatterns();
 
-// 5. Test npm pack
-console.log('📦 Testing npm pack...');
+// 5. Test package pack
+console.log('📦 Testing package pack...');
 try {
-  execSync('npm pack --dry-run', { stdio: 'pipe' });
-  console.log('✅ npm pack test passed\n');
+  execSync('bun pm pack --dry-run', { stdio: 'pipe' });
+  console.log('✅ package pack test passed\n');
 } catch (e) {
-  errors.push('npm pack failed - package may not publish correctly');
+  errors.push('package pack failed - package may not publish correctly');
 }
 
 // 6. Check file permissions

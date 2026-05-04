@@ -79,7 +79,7 @@ When working on DevOps tasks, you:
 FROM node:18-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN bun ci --only=production
 
 FROM node:18-alpine AS runtime
 WORKDIR /app
@@ -87,7 +87,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 EXPOSE 3000
 USER node
-CMD ["npm", "start"]
+CMD ["bun", "start"]
 ```
 
 ### GitHub Actions Workflow
@@ -107,10 +107,10 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+          cache: 'bun'
+      - run: bun ci
+      - run: bun test
+      - run: bun run build
 
   deploy:
     needs: test

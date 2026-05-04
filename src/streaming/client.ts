@@ -1,4 +1,4 @@
-import EventSource from 'eventsource';
+import { EventSource } from 'eventsource';
 import { createInterface } from 'readline';
 
 import { config } from '../config.js';

@@ -222,14 +222,14 @@ async function installFromSource(): Promise<ClaudeInstallResult> {
   console.log('Prerequisites:');
   console.log('- Git');
   console.log('- Node.js 22+');
-  console.log('- npm or yarn\n');
+  console.log('- Bun\n');
   
   console.log('Steps:');
   console.log('1. git clone https://github.com/anthropics/claude-code.git');
   console.log('2. cd claude-code');
-  console.log('3. npm install');
-  console.log('4. npm run build');
-  console.log('5. npm link\n');
+  console.log('3. bun install');
+  console.log('4. bun run build');
+  console.log('5. bun link\n');
   
   const { proceed } = await inquirer.prompt([
     {
@@ -257,9 +257,9 @@ async function installFromSource(): Promise<ClaudeInstallResult> {
   const installScript = `
     git clone https://github.com/anthropics/claude-code.git /tmp/claude-code &&
     cd /tmp/claude-code &&
-    npm install &&
-    npm run build &&
-    npm link &&
+    bun install &&
+    bun run build &&
+    bun link &&
     echo "✅ Claude Code installed successfully!" &&
     echo "Press any key to close this window..." &&
     read -n 1

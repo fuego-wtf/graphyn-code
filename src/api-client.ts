@@ -1,4 +1,4 @@
-import EventSource from 'eventsource';
+import { EventSource } from 'eventsource';
 import { ConfigManager } from './config-manager.js';
 import { config } from './config.js';
 

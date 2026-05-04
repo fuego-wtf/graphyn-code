@@ -1,4 +1,4 @@
-import EventSource from 'eventsource';
+import { EventSource } from 'eventsource';
 
 export interface SSEMessage {
   type: string;
@@ -46,7 +46,7 @@ export class ThreadStreamHandler {
       headers: {
         'Authorization': `Bearer ${this.token}`
       }
-    });
+    } as any);
 
     this.eventSource.onopen = () => {
       console.log('SSE connection established');

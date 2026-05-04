@@ -192,20 +192,20 @@ claude -p "Your content with full repo context"
 - Use ESM imports with .js extensions in all TypeScript files
 - Test Ink components in isolation before integration
 - Handle terminal cleanup properly when exiting
-- Always run `npm run test:package` before releasing
+- Always run `bun run test:package` before releasing
 
 ### Testing Strategy
 ```bash
 # Test package installation
-npm run test:package
+bun run test:package
 
 # Build and test locally
-npm run build
+bun run build
 node dist/ink/cli.js
 
 # Full release process
-npm version patch
-npm publish  # auto-runs tests
+bun pm version patch
+bun publish  # auto-runs tests
 ```
 
 ### Error Handling

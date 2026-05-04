@@ -25,15 +25,15 @@ This repo is where that execution model becomes a daily engineering workflow.
 
 ## Quickstart
 ```bash
-npm install
-npm run build
-npm run dev
-npm run test:package
+bun install
+bun run build
+bun run dev
+bun run test:package
 ```
 
 ## Public Links
 - Product: https://graphyn.xyz/code
-- Package: https://www.npmjs.com/package/@graphyn/code
+- Package: @graphyn/code
 
 ## Technical References
 - Commander: https://github.com/tj/commander.js#readme

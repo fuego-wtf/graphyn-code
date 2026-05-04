@@ -379,8 +379,8 @@ export class MCPConfigGenerator {
     
     // 1. Filesystem MCP (always needed)
     servers['filesystem'] = {
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-filesystem', this.workingDir]
+      command: 'bunx',
+      args: ['--bun', '@modelcontextprotocol/server-filesystem', this.workingDir]
     };
     
     // 2. GitHub MCP (if in a git repo)
@@ -389,8 +389,8 @@ export class MCPConfigGenerator {
       const isRepo = await git.checkIsRepo();
       if (isRepo) {
         servers['github'] = {
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-github'],
+          command: 'bunx',
+          args: ['--bun', '@modelcontextprotocol/server-github'],
           env: {
             GITHUB_PERSONAL_ACCESS_TOKEN: '${GITHUB_PERSONAL_ACCESS_TOKEN}'
           }
@@ -414,8 +414,8 @@ export class MCPConfigGenerator {
         detection.frameworks.includes('encore') ||
         context.type === 'backend') {
       servers['postgres-mcp'] = {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-postgres'],
+        command: 'bunx',
+        args: ['--bun', '@modelcontextprotocol/server-postgres'],
         env: {
           POSTGRES_CONNECTION_STRING: '${POSTGRES_CONNECTION_STRING}'
         }
@@ -425,8 +425,8 @@ export class MCPConfigGenerator {
     // Docker MCP
     if (detection.frameworks.includes('docker')) {
       servers['docker-mcp'] = {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-docker']
+        command: 'bunx',
+        args: ['--bun', '@modelcontextprotocol/server-docker']
       };
     }
     
@@ -434,8 +434,8 @@ export class MCPConfigGenerator {
     if (detection.frameworks.includes('figma') || 
         context.type === 'frontend') {
       servers['figma-mcp'] = {
-        command: 'npx',
-        args: ['-y', '@figma/mcp'],
+        command: 'bunx',
+        args: ['--bun', '@figma/mcp'],
         env: {
           FIGMA_PERSONAL_ACCESS_TOKEN: '${FIGMA_PERSONAL_ACCESS_TOKEN}'
         }
@@ -446,8 +446,8 @@ export class MCPConfigGenerator {
     if (detection.frameworks.includes('python') ||
         detection.frameworks.includes('streamlit')) {
       servers['memory'] = {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-memory']
+        command: 'bunx',
+        args: ['--bun', '@modelcontextprotocol/server-memory']
       };
     }
     
@@ -455,16 +455,16 @@ export class MCPConfigGenerator {
     if (detection.frameworks.includes('testing') ||
         context.type === 'frontend') {
       servers['puppeteer'] = {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-puppeteer']
+        command: 'bunx',
+        args: ['--bun', '@modelcontextprotocol/server-puppeteer']
       };
     }
     
     // Brave Search MCP (for research-heavy projects)
     if (context.type === 'general' || detection.frameworks.length === 0) {
       servers['brave-search'] = {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-brave-search'],
+        command: 'bunx',
+        args: ['--bun', '@modelcontextprotocol/server-brave-search'],
         env: {
           BRAVE_API_KEY: '${BRAVE_API_KEY}'
         }
@@ -576,8 +576,8 @@ export class MCPConfigGenerator {
             results.set(name, false);
           }
         } else {
-          // For npx-based servers, we assume they're available
-          // (npx will download them on first run)
+          // For Bun package-runner servers, we assume they're available
+          // (bunx will download them on first run)
           results.set(name, true);
         }
       } catch {

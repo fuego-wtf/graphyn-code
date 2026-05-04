@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Wrap entire script in try-catch to prevent npm install failures
+// Wrap entire script in try-catch to prevent package install failures
 try {
   const fs = require('fs');
   const path = require('path');
@@ -111,6 +111,6 @@ ${c.green}${c.bright}Start with: graphyn init 🚀${c.reset}
   }
 
 } catch (error) {
-  // Silently exit - don't break npm install
+  // Silently exit - don't break package install
   process.exit(0);
 }

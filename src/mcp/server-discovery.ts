@@ -179,17 +179,17 @@ export async function discoverMCPServersForProject(
 function getTechnologyMCPMappings(): Record<string, string[]> {
   return {
     // Frontend Technologies
-    'react': ['npm', 'webpack'],
-    'vue': ['npm', 'webpack'],
-    'angular': ['npm'],
-    'next.js': ['npm', 'webpack'],
-    'nuxt': ['npm'],
-    'svelte': ['npm'],
+    'react': ['webpack'],
+    'vue': ['webpack'],
+    'angular': [],
+    'next.js': ['webpack'],
+    'nuxt': [],
+    'svelte': [],
     
     // Backend Technologies
-    'express.js': ['npm'],
-    'fastify': ['npm'],
-    'nestjs': ['npm'],
+    'express.js': [],
+    'fastify': [],
+    'nestjs': [],
     'django': ['postgres'],
     'flask': ['postgres'],
     'fastapi': ['postgres'],
@@ -218,9 +218,9 @@ function getTechnologyMCPMappings(): Record<string, string[]> {
     
     // Build Tools
     'webpack': ['webpack'],
-    'vite': ['npm'],
-    'rollup': ['npm'],
-    'parcel': ['npm'],
+    'vite': [],
+    'rollup': [],
+    'parcel': [],
     
     // Version Control
     'git': ['git']
@@ -251,13 +251,7 @@ async function addWorkflowServers(
     }
   }
 
-  // Package managers
-  for (const manager of analysis.development_workflow.package_managers) {
-    if (['npm', 'yarn', 'pnpm'].includes(manager)) {
-      await tryAddServer('npm', recommendedServers, skippedServers, options);
-      break; // Only need one npm server
-    }
-  }
+  // Package manager tooling is handled by project scripts and is not mapped to an MCP server.
 }
 
 /**
@@ -349,10 +343,8 @@ export async function discoverMCPServersFromDirectory(
     // Check for common files that indicate technology usage
     const files = await fs.readdir(workingDirectory);
     
-    // Package.json indicates Node.js project
+    // Package.json indicates JS project
     if (files.includes('package.json')) {
-      await tryAddServer('npm', recommendedServers, skippedServers, options);
-      
       // Check package.json contents for more specific technologies
       try {
         const packageJsonPath = path.join(workingDirectory, 'package.json');

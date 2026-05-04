@@ -2,7 +2,7 @@
 
 > **Your AI development team, one command away.**
 
-[![npm version](https://img.shields.io/npm/v/@graphyn/code.svg)](https://www.npmjs.com/package/@graphyn/code)
+[![package version](https://img.shields.io/badge/package-@graphyn/code-blue.svg)](#installation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 🚀 **LATEST**: Mission Control interface with real-time Claude streaming!
@@ -20,7 +20,7 @@ We believe AI assistants should understand your project deeply—not just respon
 ## Install
 
 ```bash
-npm install -g @graphyn/code
+bun add --global @graphyn/code
 ```
 
 Zero configuration needed—it just works.
@@ -303,24 +303,24 @@ Currently shows: Static progress updates only
 # Clone and setup
 git clone https://github.com/graphyn/graphyn-code.git
 cd graphyn-code
-npm install
+bun install
 
 # Build (will show 22 errors currently)
 ./scripts/build-ink.sh
 
 # Or build orchestration engine (newer architecture) 
-npm run build
+bun run build
 ```
 
 ### Build Status
 - **Ink.js Build**: ❌ 22 TypeScript errors 
 - **Orchestration Engine**: ✅ Builds successfully
-- **Runtime Test**: Use `npm run dev` to test new architecture
+- **Runtime Test**: Use `bun run dev` to test new architecture
 
 ### Testing Process Sequence
 ```bash
 # TEST-001: Type system compilation
-npm run build          # Should compile without errors (after fixes)
+bun run build          # Should compile without errors (after fixes)
 
 # TEST-002: CLI entry routing  
 graphyn "test query"    # Should parse and route correctly
