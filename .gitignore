@@ -151,6 +151,7 @@ claude-flow.worktrees/
 
 # Graphyn generated artifacts baseline
 node_modules/
+.pnpm-store/
 .yarn/
 .bun/
 dist/
