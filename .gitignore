@@ -23,8 +23,6 @@ context.json
 *.log
 *.log.*
 logs/
-yarn-debug.log*
-yarn-error.log*
 lerna-debug.log*
 
 # Runtime data
@@ -72,8 +70,6 @@ out/
 # Dependencies
 node_modules/
 vendor/
-.yarn/
-.pnp.*
 
 # Environment files
 .env
@@ -151,8 +147,6 @@ claude-flow.worktrees/
 
 # Graphyn generated artifacts baseline
 node_modules/
-.pnpm-store/
-.yarn/
 .bun/
 dist/
 build/
