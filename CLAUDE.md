@@ -1,5 +1,16 @@
 # Graphyn Code - CLI Tool
 
+## Constitution Priority (Mandatory)
+
+This agent doc inherits the workspace-root `docs/CONSTITUTION.md`. If a local
+rule conflicts with the constitution, follow the stricter rule and report the
+conflict.
+
+Every code agent must preserve operator agency, tell runtime truth with
+receipts, protect secrets and permissions, treat performance as a product
+contract, and model agent/mode/lens/topology nodes as runtime artifacts with
+provenance.
+
 ## MCP Development Guidelines
 
 This submodule is part of the graphyn-workspace monorepo and handles:
