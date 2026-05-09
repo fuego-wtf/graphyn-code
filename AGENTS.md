@@ -13,6 +13,15 @@ receipts, protect secrets and permissions, treat performance as a product
 contract, and model agent/mode/lens/topology nodes as runtime artifacts with
 provenance.
 
+## Workspace policy inheritance (mandatory)
+
+This doc also inherits the workspace Constitution's context stewardship rule:
+load only what the next decision needs, keep active context compact, and move
+durable state into governed docs, receipts, memory, loop files, or runtime
+nodes. Treat gatekeeper/closure, delegated-auth, question-before-plan, retainer
+lifecycle, and certified-vs-reported state as policy gates: do not bypass them
+with local shortcuts, and attach receipts when a gate is satisfied.
+
 ## Core Principles
 
 | Principle | Description |
