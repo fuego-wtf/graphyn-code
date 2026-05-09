@@ -39,6 +39,27 @@ All progress updates must include:
 4. **What remains in this phase**
 5. **Any blocker** (or "none")
 
+## Environment Variable Management
+
+This CLI includes an `env` command for managing `.env` files across all 11 services in the workspace. Run from the workspace root:
+
+```bash
+# Build the CLI first
+cd code && bun install && bun run build && cd ..
+
+# Available commands
+bun code/bin/graphyn.js env setup    # Copy .env.example → .env for all services
+bun code/bin/graphyn.js env check    # Audit .env files for placeholder values
+bun code/bin/graphyn.js env list     # Show which services have env files configured
+bun code/bin/graphyn.js env help     # Full usage guide
+```
+
+After `env setup`, decrypt real secrets from `.skills/fuegolabs-onboarding/secrets/*.env.enc` using the team passphrase (saved as "envault" in Bitwarden). The agent handles decryption automatically.
+
+There is no global install. All commands run via `bun code/bin/graphyn.js` from the workspace root.
+
+Implementation: `src/commands/env.ts`
+
 ## Reference
 
 - **Source**: `docs/desktop/backbone-plan-v1.md`

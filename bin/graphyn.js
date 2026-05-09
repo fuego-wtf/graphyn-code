@@ -20,8 +20,8 @@ async function main() {
   const query = process.argv.slice(2).join(' ');
   const firstToken = process.argv[2];
 
-  // Route deterministic `base` command through the unified CLI router.
-  if (firstToken === 'base') {
+  // Route deterministic `base` and `env` commands through the unified CLI router.
+  if (firstToken === 'base' || firstToken === 'env') {
     if (!existsSync(unifiedCliPath)) {
       console.error('❌ Graphyn CLI not built. Run: bun run build');
       process.exit(1);

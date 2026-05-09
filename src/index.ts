@@ -95,6 +95,7 @@ ${colors.highlight('Examples:')}
   
 ${colors.highlight('Commands:')}
   base <task>         Deterministic local KB retrieval (JSON output)
+  env <subcommand>    Manage environment files (setup, check, list)
   analyze [options]    Analyze repository
   doctor              Check system requirements
   init [options]      Initialize project
@@ -224,6 +225,12 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     return true;
   }
   
+  if (query === 'env' || query.startsWith('env ')) {
+    const { runEnvCommand } = await import('./commands/env.js');
+    await runEnvCommand(query);
+    return true;
+  }
+
   if (query === 'mcp' || query === 'mcp-server') {
     const { runMCPServer } = await import('./commands/mcp-server.js');
     await runMCPServer();
@@ -253,8 +260,8 @@ function isNaturalLanguage(query: string): boolean {
   const knownCommands = [
     'backend', 'frontend', 'architect', 'design', 'cli',
     'base',
-    'analyze', 'doctor', 'init', 'auth', 'logout', 
-    'mcp', 'mcp-server', 'mcp config',
+    'analyze', 'doctor', 'init', 'auth', 'logout',
+    'mcp', 'mcp-server', 'mcp config', 'env',
     '--version', '-v', '--help', '-h', 'help'
   ];
   

@@ -400,6 +400,14 @@ Now every agent knows your project's DNA.
 ## Commands
 
 ```bash
+# Environment variable management (run from workspace root)
+bun code/bin/graphyn.js env setup     # Create .env files from templates
+bun code/bin/graphyn.js env check     # Audit .env files for placeholder values
+bun code/bin/graphyn.js env list      # Show which services have env files
+
+# After env setup, decrypt real secrets from .skills/fuegolabs-onboarding/secrets/*.env.enc
+# The agent asks for the team passphrase (saved as "envault" in Bitwarden)
+
 # Specialized agents
 graphyn backend "create a REST API"
 graphyn frontend "build a dashboard" 
@@ -415,6 +423,8 @@ graphyn auth      # Authenticate with Graphyn
 graphyn chain "complex multi-agent task"
 graphyn history   # View recent interactions
 ```
+
+> **Note:** There is no global install. Run `bun code/bin/graphyn.js` from the `graphyn-workspace` root. Build first with `cd code && bun install && bun run build && cd ..`.
 
 ## Troubleshooting
 
