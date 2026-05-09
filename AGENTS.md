@@ -41,14 +41,14 @@ All progress updates must include:
 
 ## Environment Variable Management
 
-This CLI includes an `env` command for managing `.env` files across all 11 services in the workspace. Run from the workspace root:
+This CLI includes an `env` command for managing registered workspace and compound `.env` files. Run from the workspace root:
 
 ```bash
 # Build the CLI first
 cd code && bun install && bun run build && cd ..
 
 # Available commands
-bun code/bin/graphyn.js env setup    # Copy .env.example → .env for all services
+bun code/bin/graphyn.js env setup    # Copy .env.example → .env for registered env targets
 bun code/bin/graphyn.js env check    # Audit .env files for placeholder values
 bun code/bin/graphyn.js env list     # Show which services have env files configured
 bun code/bin/graphyn.js env help     # Full usage guide

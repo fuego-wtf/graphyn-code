@@ -104,7 +104,7 @@ graphyn status                                # Shows current work progress
 - **Single Command**: `graphyn` with unified interface
 - **Built-in Discovery**: Scans for tools/MCP servers without external scripts
 - **Doctor Command**: `graphyn doctor` provides diagnostic information
-- **Env Command**: `graphyn env` manages .env files across all 11 services (setup, check, list)
+- **Env Command**: `graphyn env` manages registered workspace and compound .env files (setup, check, list)
 - **Auto-Configuration**: Zero-config setup for GitHub, Figma, Docker
 - **MCP Client**: Communicates with graphyn-mcp server
 
@@ -113,7 +113,7 @@ graphyn status                                # Shows current work progress
 There is no global install. Run from the workspace root:
 
 ```bash
-bun code/bin/graphyn.js env setup    # Copy .env.example → .env for all services
+bun code/bin/graphyn.js env setup    # Copy .env.example → .env for registered env targets
 bun code/bin/graphyn.js env check    # Audit .env files for placeholder values
 bun code/bin/graphyn.js env list     # Show which services have env files configured
 bun code/bin/graphyn.js env help     # Full usage guide

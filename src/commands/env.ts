@@ -5,7 +5,7 @@
  * Subcommands:
  *   graphyn env check                     Audit local .env files for validity and placeholders
  *   graphyn env list                      Show which services have env files
- *   graphyn env setup                     Copy .env.example → .env for all services
+ *   graphyn env setup                     Copy .env.example → .env for registered env targets
  *
  * Current secret handoff:
  *   - Encrypted files live in .skills/fuegolabs-onboarding/secrets/
@@ -44,6 +44,7 @@ interface EnvFileAudit {
 }
 
 const SERVICES: Record<string, ServiceDef> = {
+  workspace:   { label: 'workspace',   examplePath: '.env.example',                              envPath: '.env',                              repo: 'WORKSPACE' },
   vault:       { label: 'vault',       examplePath: 'vault/.env.example',                        envPath: 'vault/.env',                        repo: 'WORKSPACE' },
   web:         { label: 'web',         examplePath: 'web/.env.example',                          envPath: 'web/.env',                          repo: 'WORKSPACE' },
   'tbh-md':    { label: 'tbh-md',      examplePath: 'tbh-md/.env.example',                      envPath: 'tbh-md/.env',                       repo: 'WORKSPACE' },
@@ -53,7 +54,10 @@ const SERVICES: Record<string, ServiceDef> = {
   code:        { label: 'code',        examplePath: 'code/.env.example',                        envPath: 'code/.env',                         repo: 'WORKSPACE' },
   mcp:         { label: 'mcp-server',  examplePath: 'backyard/mcp-server/.env.example',         envPath: 'backyard/mcp-server/.env',          repo: 'WORKSPACE' },
   mobile:      { label: 'mobile',      examplePath: 'mobile/.env.example',                      envPath: 'mobile/.env',                       repo: 'WORKSPACE' },
+  state:       { label: 'state',       examplePath: 'state/.env.example',                       envPath: 'state/.env',                        repo: 'WORKSPACE' },
+  compound:    { label: 'compound',    examplePath: '.env.example',                              envPath: '.env',                              repo: 'COMPOUND' },
   buildfridays:{ label: 'buildfridays',examplePath: 'projects/buildfridays/.env.example',       envPath: 'projects/buildfridays/.env',        repo: 'COMPOUND' },
+  prodaktiv:   { label: 'prodaktiv',   examplePath: 'projects/prodaktiv/.env.example',          envPath: 'projects/prodaktiv/.env',           repo: 'COMPOUND' },
   prvt:        { label: 'prvt',        examplePath: 'projects/prvt/scripts/prvt.env.example',   envPath: 'PRVT_HOME_ENV',                     repo: 'COMPOUND' },
 };
 
@@ -144,7 +148,7 @@ function auditEnvFile(filePath: string): EnvFileAudit {
 // ─── Subcommands ───────────────────────────────────────────────────
 
 /**
- * graphyn env setup — Copy .env.example → .env for all services
+ * graphyn env setup — Copy .env.example → .env for registered env targets
  */
 async function setupCommand(serviceFilter?: string): Promise<void> {
   const root = findWorkspaceRoot();
@@ -317,7 +321,7 @@ ${colors.highlight('Usage:')}
   graphyn env <command> [options]
 
 ${colors.highlight('Commands:')}
-  setup [--service <name>]   Copy .env.example → .env for all services
+  setup [--service <name>]   Copy .env.example → .env for registered env targets
   check                      Audit .env files for validity and placeholders
   list                       Show which services have env files configured
 
