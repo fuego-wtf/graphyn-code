@@ -3,7 +3,7 @@
  * graphyn env — Secure environment variable management for Fuego Labs
  *
  * Subcommands:
- *   graphyn env check                     Audit local .env files for placeholder values
+ *   graphyn env check                     Audit local .env files for validity and placeholders
  *   graphyn env list                      Show which services have env files
  *   graphyn env setup                     Copy .env.example → .env for all services
  *
@@ -37,6 +37,12 @@ interface ServiceDef {
   repo: 'WORKSPACE' | 'COMPOUND';
 }
 
+interface EnvFileAudit {
+  assignmentCount: number;
+  placeholderCount: number;
+  invalidReason?: string;
+}
+
 const SERVICES: Record<string, ServiceDef> = {
   vault:       { label: 'vault',       examplePath: 'vault/.env.example',                        envPath: 'vault/.env',                        repo: 'WORKSPACE' },
   web:         { label: 'web',         examplePath: 'web/.env.example',                          envPath: 'web/.env',                          repo: 'WORKSPACE' },
@@ -50,6 +56,9 @@ const SERVICES: Record<string, ServiceDef> = {
   buildfridays:{ label: 'buildfridays',examplePath: 'projects/buildfridays/.env.example',       envPath: 'projects/buildfridays/.env',        repo: 'COMPOUND' },
   prvt:        { label: 'prvt',        examplePath: 'projects/prvt/scripts/prvt.env.example',   envPath: 'PRVT_HOME_ENV',                     repo: 'COMPOUND' },
 };
+
+const ENV_ASSIGNMENT_RE = /^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=/;
+const PLACEHOLDER_RE = /(?:your-|replace_with|REPLACE_|sk_test_your|pk_test_your|whsec_your|gph_sk_your|your_|_here$)/i;
 
 // ─── Path Helpers ──────────────────────────────────────────────────
 
@@ -86,6 +95,50 @@ function resolveEnvPath(service: ServiceDef, repoRoot: string): string {
 
 function resolveExamplePath(service: ServiceDef, repoRoot: string): string {
   return path.join(repoRoot, service.examplePath);
+}
+
+function containsNonTextBytes(content: Buffer): boolean {
+  for (const byte of content) {
+    if (byte === 9 || byte === 10 || byte === 13) continue;
+    if (byte >= 32 && byte <= 126) continue;
+    return true;
+  }
+  return false;
+}
+
+function auditEnvContent(content: Buffer): EnvFileAudit {
+  if (content.length === 0) {
+    return { assignmentCount: 0, placeholderCount: 0, invalidReason: 'empty file' };
+  }
+  if (containsNonTextBytes(content)) {
+    return { assignmentCount: 0, placeholderCount: 0, invalidReason: 'binary or non-text bytes' };
+  }
+
+  const text = content.toString('utf8');
+  if (text.includes('\uFFFD')) {
+    return { assignmentCount: 0, placeholderCount: 0, invalidReason: 'invalid UTF-8' };
+  }
+
+  const lines = text.split(/\r?\n/).filter(line => {
+    const trimmed = line.trim();
+    return trimmed && !trimmed.startsWith('#');
+  });
+  const assignmentLines = lines.filter(line => ENV_ASSIGNMENT_RE.test(line.trim()));
+  const placeholderCount = assignmentLines.filter(line => PLACEHOLDER_RE.test(line)).length;
+
+  if (assignmentLines.length === 0) {
+    return { assignmentCount: 0, placeholderCount, invalidReason: 'no KEY=value assignments' };
+  }
+
+  return { assignmentCount: assignmentLines.length, placeholderCount };
+}
+
+function auditEnvFile(filePath: string): EnvFileAudit {
+  try {
+    return auditEnvContent(fs.readFileSync(filePath));
+  } catch {
+    return { assignmentCount: 0, placeholderCount: 0, invalidReason: 'unreadable file' };
+  }
 }
 
 // ─── Subcommands ───────────────────────────────────────────────────
@@ -155,17 +208,17 @@ async function setupCommand(serviceFilter?: string): Promise<void> {
 }
 
 /**
- * graphyn env check — Audit .env files for placeholder values
+ * graphyn env check — Audit .env files for validity and placeholders
  */
 async function checkCommand(): Promise<void> {
   const root = findWorkspaceRoot();
-  const PLACEHOLDER_RE = /(?:your-|replace_with|REPLACE_|sk_test_your|pk_test_your|whsec_your|gph_sk_your|your_|_here$)/i;
 
   console.log(colors.bold('\n  Fuego Labs — Environment Audit\n'));
 
   let ready = 0;
   let missing = 0;
   let placeholders = 0;
+  let invalid = 0;
 
   for (const [name, svc] of Object.entries(SERVICES)) {
     const repoRoot = resolveRepoRoot(svc, root);
@@ -179,25 +232,27 @@ async function checkCommand(): Promise<void> {
       continue;
     }
 
-    const content = fs.readFileSync(dest, 'utf8');
-    const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-    const placeholderLines = lines.filter(l => PLACEHOLDER_RE.test(l));
+    const audit = auditEnvFile(dest);
 
-    if (placeholderLines.length > 0) {
-      console.log(colors.warning(`  ${placeholderLines.length} placeholder(s)  ${svc.label}`));
+    if (audit.invalidReason) {
+      console.log(colors.error(`  INVALID  ${svc.label} — ${audit.invalidReason}`));
+      invalid++;
+    } else if (audit.placeholderCount > 0) {
+      console.log(colors.warning(`  ${audit.placeholderCount} placeholder(s)  ${svc.label}`));
       placeholders++;
     } else {
-      console.log(colors.success(`  READY  ${svc.label}`));
+      console.log(colors.success(`  READY  ${svc.label} — ${audit.assignmentCount} assignment(s)`));
       ready++;
     }
   }
 
   console.log('');
-  console.log(colors.dim(`  ${ready} ready, ${placeholders} have placeholders, ${missing} missing`));
+  console.log(colors.dim(`  ${ready} ready, ${placeholders} have placeholders, ${missing} missing, ${invalid} invalid`));
 
-  if (missing > 0 || placeholders > 0) {
+  if (missing > 0 || placeholders > 0 || invalid > 0) {
     console.log('');
     console.log(colors.info('  Decrypt the encrypted files from ') + colors.highlight('.skills/fuegolabs-onboarding/secrets/') + colors.info(' or ask the team lead for missing values.'));
+    process.exitCode = 1;
   }
   console.log('');
 }
@@ -223,8 +278,11 @@ async function listCommand(): Promise<void> {
     const hasEnv = fs.existsSync(dest);
     const hasExample = fs.existsSync(example);
 
+    const audit = hasEnv ? auditEnvFile(dest) : undefined;
     const status = hasEnv
-      ? colors.success('exists')
+      ? audit?.invalidReason
+        ? colors.error('invalid')
+        : colors.success('exists')
       : hasExample
         ? colors.warning('example only')
         : colors.dim('none');
@@ -260,7 +318,7 @@ ${colors.highlight('Usage:')}
 
 ${colors.highlight('Commands:')}
   setup [--service <name>]   Copy .env.example → .env for all services
-  check                      Audit .env files for placeholder values
+  check                      Audit .env files for validity and placeholders
   list                       Show which services have env files configured
 
 ${colors.highlight('Unavailable:')}
