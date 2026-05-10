@@ -60,6 +60,26 @@ There is no global install. All commands run via `bun code/bin/graphyn.js` from 
 
 Implementation: `src/commands/env.ts`
 
+### Adding or changing env keys
+
+When the CLI, a workspace service, or a compound service adds a new API key,
+token, webhook secret, model key, or env variable, update teammate onboarding
+in the same change:
+
+1. Add or update the placeholder in the relevant `.env.example`.
+2. Register any new env file target in `src/commands/env.ts`, the workspace
+   `scripts/setup-env.sh`, `scripts/encrypt-to-skill.sh`, and
+   `.skills/fuegolabs-onboarding/SKILL.md`.
+3. Add the variable to
+   `.skills/fuegolabs-onboarding/references/env-reference.md`.
+4. Re-run the workspace `./scripts/encrypt-to-skill.sh` with the Bitwarden
+   `envault` passphrase and commit the updated `.env.enc` artifact.
+5. Run `bun code/bin/graphyn.js env check` and report any missing, invalid, or
+   placeholder values.
+
+Never commit real secret values or claim onboarding is complete if encryption
+skipped the relevant env file.
+
 ## Reference
 
 - **Source**: `docs/desktop/backbone-plan-v1.md`

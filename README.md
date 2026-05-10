@@ -406,8 +406,16 @@ bun code/bin/graphyn.js env check     # Audit .env files for placeholder values
 bun code/bin/graphyn.js env list      # Show which services have env files
 
 # After env setup, decrypt real secrets from .skills/fuegolabs-onboarding/secrets/*.env.enc
-# The agent asks for the team passphrase (saved as "envault" in Bitwarden)
+# Use the Bitwarden "envault" passphrase locally. Do not paste it into chat.
+```
 
+Teammate env onboarding is owned by the workspace
+`.skills/fuegolabs-onboarding/SKILL.md`. When adding a new key, update the
+relevant `.env.example`, onboarding skill/reference, registry/scripts, and
+encrypted `.env.enc` artifact in the same change, then run
+`bun code/bin/graphyn.js env check`.
+
+```bash
 # Specialized agents
 graphyn backend "create a REST API"
 graphyn frontend "build a dashboard" 
