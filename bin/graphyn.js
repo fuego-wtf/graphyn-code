@@ -18,10 +18,10 @@ const srcPath = join(__dirname, '..', 'src', 'orchestrator', 'UltimateOrchestrat
 
 async function main() {
   const query = process.argv.slice(2).join(' ');
-  const firstToken = process.argv[2];
+  const firstToken = firstCommandToken(process.argv.slice(2));
 
-  // Route deterministic `base` and `env` commands through the unified CLI router.
-  if (firstToken === 'base' || firstToken === 'env') {
+  // Route deterministic CLI commands through the unified CLI router.
+  if (isUnifiedCliCommand(firstToken)) {
     if (!existsSync(unifiedCliPath)) {
       console.error('❌ Graphyn CLI not built. Run: bun run build');
       process.exit(1);
@@ -37,7 +37,7 @@ async function main() {
       await module.main();
       return;
     } catch (error) {
-      console.error('❌ Failed to execute base command:', error instanceof Error ? error.message : String(error));
+      console.error('❌ Failed to execute deterministic CLI command:', error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   }
@@ -108,3 +108,23 @@ async function main() {
 }
 
 main().catch(console.error);
+
+function isUnifiedCliCommand(firstToken) {
+  return new Set(['base', 'env', 'fs', '--version', '-v', '--help', '-h', 'help']).has(firstToken);
+}
+
+function firstCommandToken(args) {
+  const flagsWithValue = new Set(['--agent-uuid', '--machine']);
+  const flagsWithoutValue = new Set(['--dev', '--debug', '--non-interactive', '-n', '--new']);
+
+  for (let i = 0; i < args.length; i++) {
+    const token = args[i];
+    if (flagsWithoutValue.has(token)) continue;
+    if (flagsWithValue.has(token)) {
+      i += 1;
+      continue;
+    }
+    return token;
+  }
+  return undefined;
+}

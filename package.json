@@ -1,10 +1,11 @@
 {
   "name": "@graphyn/code",
   "version": "0.1.32",
+  "type": "module",
   "description": "Free AI Development Tool for Claude Code Users",
   "main": "dist/index.js",
   "bin": {
-    "graphyn": "./bin/graphyn"
+    "graphyn": "./bin/graphyn.js"
   },
   "scripts": {
     "build": "tsc",
@@ -79,8 +80,6 @@
   "files": [
     "dist",
     "bin",
-    "prompts",
-    "templates",
     "scripts/postinstall.js",
     "README.md",
     "LICENSE"

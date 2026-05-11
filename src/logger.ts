@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { PACKAGE_VERSION } from './package-version.js';
 
 export class GraphynLogger {
   private logFile: string;
@@ -27,7 +28,7 @@ export class GraphynLogger {
     const entry = {
       ...data,
       timestamp: data.timestamp || new Date(),
-      version: '0.1.70'
+      version: PACKAGE_VERSION
     };
     
     const logLine = JSON.stringify(entry) + '\n';

@@ -1,3 +1,5 @@
+import { graphynUserAgent } from './package-version.js';
+
 // Dynamic configuration getter that re-reads environment variables at runtime
 export function getConfig() {
   // Detect development mode and prefer localhost if available
@@ -33,7 +35,7 @@ export const config = {
   
   // Client configuration
   timeout: 30000,
-  userAgent: 'Graphyn Code CLI v0.1.70',
+  userAgent: graphynUserAgent(),
   
   // OAuth configuration
   oauth: {

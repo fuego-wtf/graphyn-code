@@ -9,6 +9,7 @@
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
 import { pathToFileURL } from 'url';
+import { PACKAGE_VERSION } from './package-version.js';
 
 const colors = {
   success: chalk.green,
@@ -31,13 +32,14 @@ export interface CLIOptions {
 /**
  * Parse command line arguments into options and query
  */
-export function parseArgs(args: string[]): { options: CLIOptions; query: string } {
+export function parseArgs(args: string[]): { options: CLIOptions; query: string; queryArgs: string[] } {
   const options: CLIOptions = {};
   const queryParts: string[] = [];
-  
+  let queryArgs: string[] = [];
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    
+
     if (arg === '--dev') {
       options.dev = true;
     } else if (arg === '--debug') {
@@ -56,14 +58,16 @@ export function parseArgs(args: string[]): { options: CLIOptions; query: string 
       if (options.machine) i++;
     } else {
       // Everything else is part of the query
-      queryParts.push(...args.slice(i));
+      queryArgs = args.slice(i);
+      queryParts.push(...queryArgs);
       break;
     }
   }
-  
+
   return {
     options,
-    query: queryParts.join(' ').trim()
+    query: queryParts.join(' ').trim(),
+    queryArgs,
   };
 }
 
@@ -71,7 +75,7 @@ export function parseArgs(args: string[]): { options: CLIOptions; query: string 
  * Show CLI version
  */
 function showVersion(): void {
-  console.log('0.1.70');
+  console.log(PACKAGE_VERSION);
 }
 
 /**
@@ -90,11 +94,14 @@ ${colors.highlight('Examples:')}
   graphyn "create a todo app with auth"
   graphyn "help me understand this repo"
   graphyn base "plan billing refactor"
+  graphyn fs ls /repo
+  graphyn design "polish the onboarding flow"
   graphyn backend "add user authentication"
   graphyn analyze --mode summary
   
 ${colors.highlight('Commands:')}
   base <task>         Deterministic local KB retrieval (JSON output)
+  fs <subcommand>      ACL-gated local VFS inspection (JSON output)
   env <subcommand>    Manage environment files (setup, check, list)
   analyze [options]    Analyze repository
   doctor              Check system requirements
@@ -126,7 +133,7 @@ ${colors.highlight('MCP Integration:')}
 /**
  * Route specific commands to appropriate handlers
  */
-async function routeCommand(query: string, options: CLIOptions): Promise<boolean> {
+async function routeCommand(query: string, options: CLIOptions, queryArgs: string[] = []): Promise<boolean> {
   if (options.agentUuid || options.machine) {
     const hasBothFlags = Boolean(options.agentUuid && options.machine);
     if (!hasBothFlags || !query) {
@@ -161,7 +168,7 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     showVersion();
     return true;
   }
-  
+
   if (query === '--help' || query === '-h' || query === 'help') {
     showHelp();
     return true;
@@ -172,13 +179,19 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     await runBaseCommand(query);
     return true;
   }
-  
+
+  if (query === 'fs' || query.startsWith('fs ')) {
+    const { runFsCommand } = await import('./commands/fs.js');
+    await runFsCommand(queryArgs.length > 0 ? queryArgs : query);
+    return true;
+  }
+
   // Specific commands
   if (query.startsWith('analyze')) {
     const { analyzeRepository } = await import('./commands/analyze.js');
     const analyzeArgs = query.split(' ').slice(1);
     const analyzeOptions: any = { dev: options.dev };
-    
+
     // Parse analyze-specific options
     for (let i = 0; i < analyzeArgs.length; i++) {
       if (analyzeArgs[i] === '--mode' && analyzeArgs[i + 1]) {
@@ -188,11 +201,11 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
         analyzeOptions.save = true;
       }
     }
-    
+
     await analyzeRepository(analyzeOptions);
     return true;
   }
-  
+
   if (query === 'doctor' || query.startsWith('doctor ')) {
     const { doctor } = await import('./commands/doctor.js');
     const doctorOptions: any = {};
@@ -201,7 +214,7 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     await doctor(doctorOptions);
     return true;
   }
-  
+
   if (query === 'init' || query.startsWith('init ')) {
     const { init } = await import('./commands/init.js');
     const initOptions: any = {};
@@ -212,19 +225,19 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     await init(initOptions);
     return true;
   }
-  
+
   if (query === 'auth' || query.startsWith('auth ')) {
     console.log(colors.warning('⚠️  Authentication disabled - system is fully offline'));
     console.log(colors.info('ℹ️  All features available without authentication'));
     return true;
   }
-  
+
   if (query === 'logout') {
     console.log(colors.warning('⚠️  Authentication disabled - system is fully offline'));
     console.log(colors.info('ℹ️  No logout necessary'));
     return true;
   }
-  
+
   if (query === 'env' || query.startsWith('env ')) {
     const { runEnvCommand } = await import('./commands/env.js');
     await runEnvCommand(query);
@@ -236,7 +249,7 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     await runMCPServer();
     return true;
   }
-  
+
   if (query === 'mcp config' || query.startsWith('mcp config ')) {
     const { mcpConfig } = await import('./commands/mcp-config.js');
     const configOptions: any = {};
@@ -246,7 +259,7 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
     await mcpConfig(configOptions);
     return true;
   }
-  
+
   return false; // Command not handled
 }
 
@@ -255,22 +268,22 @@ async function routeCommand(query: string, options: CLIOptions): Promise<boolean
  */
 function isNaturalLanguage(query: string): boolean {
   if (!query) return false;
-  
+
   // Known specific commands
   const knownCommands = [
     'backend', 'frontend', 'architect', 'design', 'cli',
-    'base',
+    'base', 'fs',
     'analyze', 'doctor', 'init', 'auth', 'logout',
     'mcp', 'mcp-server', 'mcp config', 'env',
     '--version', '-v', '--help', '-h', 'help'
   ];
-  
+
   // Check if it's a known command
   const firstWord = query.split(' ')[0].toLowerCase();
   if (knownCommands.includes(firstWord) || knownCommands.includes(query.toLowerCase())) {
     return false;
   }
-  
+
   // Natural language indicators
   return (
     query.includes(' ') ||
@@ -285,12 +298,12 @@ function isNaturalLanguage(query: string): boolean {
 async function handleLegacyAgentCommand(command: string, args: string[], options: CLIOptions): Promise<void> {
   const agentMap: Record<string, string> = {
     'backend': 'backend development',
-    'frontend': 'frontend development', 
+    'frontend': 'frontend development',
     'architect': 'system architecture',
     'design': 'UI/UX design',
     'cli': 'CLI tool development'
   };
-  
+
   const agentQuery = agentMap[command];
   if (agentQuery && args.length > 0) {
     const fullQuery = `${agentQuery}: ${args.join(' ')}`;
@@ -310,28 +323,28 @@ async function routeToOrchestrator(query: string, options: CLIOptions): Promise<
   try {
     // Import the CLI orchestrator and route the query
     const { main: orchestratorMain } = await import('./cli-orchestrator.js');
-    
+
     // Set up process.argv for the orchestrator
     const originalArgv = process.argv;
     const orchestratorArgs = ['node', 'cli-orchestrator.ts'];
-    
+
     // Add options
     if (options.dev) orchestratorArgs.push('--dev');
     if (options.debug) orchestratorArgs.push('--debug');
     if (options.nonInteractive) orchestratorArgs.push('--non-interactive');
     if (options.new) orchestratorArgs.push('--new');
-    
+
     // Add query
     if (query) orchestratorArgs.push(query);
-    
+
     process.argv = orchestratorArgs;
-    
+
     // Call the orchestrator
     await orchestratorMain();
-    
+
     // Restore original argv
     process.argv = originalArgv;
-    
+
   } catch (error) {
     console.error(colors.error('❌ Orchestration failed:'), error instanceof Error ? error.message : error);
     process.exit(1);
@@ -357,14 +370,14 @@ async function startInteractiveMode(): Promise<void> {
  */
 export async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
-  const { options, query } = parseArgs(rawArgs);
-  
+  const { options, query, queryArgs } = parseArgs(rawArgs);
+
   // Route specific commands first
-  const commandHandled = await routeCommand(query, options);
+  const commandHandled = await routeCommand(query, options, queryArgs);
   if (commandHandled) {
     return;
   }
-  
+
   // Handle legacy agent commands
   const firstWord = query.split(' ')[0].toLowerCase();
   const agentCommands = ['backend', 'frontend', 'architect', 'design', 'cli'];
@@ -373,17 +386,17 @@ export async function main(): Promise<void> {
     await handleLegacyAgentCommand(firstWord, args, options);
     return;
   }
-  
+
   // Handle natural language queries or orchestrator mode
   if (query && (isNaturalLanguage(query) || query.length > 0)) {
     await routeToOrchestrator(query, options);
     return;
   }
-  
+
   // No query provided - start interactive mode
   console.log(colors.highlight('🤖 Graphyn Code - AI Development Orchestrator'));
   console.log(colors.info('Starting interactive mode. Type a query or command. Use --help for more info.\n'));
-  
+
   await startInteractiveMode();
 }
 

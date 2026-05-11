@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 // Wrap entire script in try-catch to prevent package install failures
 try {
-  const fs = require('fs');
-  const path = require('path');
-  const os = require('os');
-
   // Check if running in CI or minimal environment
   const isCI = process.env.CI || process.env.CONTINUOUS_INTEGRATION;
   const isMinimal = process.env.GRAPHYN_MINIMAL_INSTALL;
-  
+
   if (isCI || isMinimal) {
     console.log('Graphyn Code: Skipping postinstall in CI/minimal environment');
     process.exit(0);
@@ -24,7 +27,7 @@ try {
     cyan: '\x1b[36m',
     yellow: '\x1b[33m'
   };
-  
+
   // Check if colors are supported
   const supportsColor = process.stdout.isTTY && process.platform !== 'win32';
 

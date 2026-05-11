@@ -10,13 +10,14 @@ const { execSync } = require('child_process');
 
 const errors = [];
 const warnings = [];
+let pkg = null;
 
 console.log('🔍 Validating Graphyn Code package...\n');
 
 // 1. Check package.json
 try {
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  
+  pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
   // Required fields
   const requiredFields = ['name', 'version', 'main', 'bin', 'engines'];
   requiredFields.forEach(field => {
@@ -24,7 +25,7 @@ try {
       errors.push(`Missing required field: ${field}`);
     }
   });
-  
+
   // Check bin paths exist
   if (pkg.bin) {
     Object.entries(pkg.bin).forEach(([cmd, binPath]) => {
@@ -33,12 +34,12 @@ try {
       }
     });
   }
-  
+
   // Check main file exists
   if (pkg.main && !fs.existsSync(pkg.main)) {
     errors.push(`Main file missing: ${pkg.main}`);
   }
-  
+
   // Check files array
   if (pkg.files) {
     pkg.files.forEach(file => {
@@ -48,7 +49,7 @@ try {
       }
     });
   }
-  
+
 } catch (e) {
   errors.push(`Failed to read package.json: ${e.message}`);
 }
@@ -57,13 +58,7 @@ try {
 if (!fs.existsSync('dist')) {
   errors.push('dist/ directory missing - run bun run build');
 } else {
-  // Check critical files
-  const criticalFiles = [
-    'dist/ink/cli.js',
-    'dist/graphyn-wrapper.js'
-  ];
-  
-  criticalFiles.forEach(file => {
+  packageCriticalFiles(pkg).forEach(file => {
     if (!fs.existsSync(file)) {
       errors.push(`Critical file missing: ${file}`);
     }
@@ -72,11 +67,8 @@ if (!fs.existsSync('dist')) {
 
 // 3. Check dependencies
 try {
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  const installedDeps = fs.readdirSync('node_modules').filter(d => !d.startsWith('.'));
-  
   Object.keys(pkg.dependencies || {}).forEach(dep => {
-    if (!installedDeps.includes(dep)) {
+    if (!dependencyInstalled(dep)) {
       warnings.push(`Dependency not installed: ${dep}`);
     }
   });
@@ -87,19 +79,19 @@ try {
 // 4. Check for problematic patterns
 const checkProblematicPatterns = () => {
   // Check for absolute paths
-  const filesToCheck = ['dist/ink/cli.js', 'dist/graphyn-wrapper.js'];
-  
+  const filesToCheck = packageCriticalFiles(pkg);
+
   filesToCheck.forEach(file => {
     if (fs.existsSync(file)) {
       const content = fs.readFileSync(file, 'utf8');
-      
+
       // Check for absolute paths
       if (content.includes('/Users/') || content.includes('C:\\Users\\')) {
         warnings.push(`Absolute paths found in ${file}`);
       }
-      
-      // Check for missing shebang
-      if (file.endsWith('cli.js') && !content.startsWith('#!/usr/bin/env node')) {
+
+      // Check for missing shebang on executable package bins.
+      if (packageBinFiles(pkg).includes(file) && !content.startsWith('#!/usr/bin/env node')) {
         errors.push(`Missing shebang in ${file}`);
       }
     }
@@ -119,8 +111,8 @@ try {
 
 // 6. Check file permissions
 if (process.platform !== 'win32') {
-  const executableFiles = ['dist/graphyn-wrapper.js', 'dist/ink/cli.js'];
-  
+  const executableFiles = packageBinFiles(pkg);
+
   executableFiles.forEach(file => {
     if (fs.existsSync(file)) {
       try {
@@ -130,6 +122,29 @@ if (process.platform !== 'win32') {
       }
     }
   });
+}
+
+function packageBinFiles(packageJson) {
+  if (!packageJson || !packageJson.bin) return [];
+  if (typeof packageJson.bin === 'string') return [packageJson.bin];
+  return Object.values(packageJson.bin);
+}
+
+function packageCriticalFiles(packageJson) {
+  const files = new Set([
+    packageJson?.main,
+    ...packageBinFiles(packageJson),
+  ].filter(Boolean));
+
+  // The package bin dynamically imports these built entrypoints.
+  files.add('dist/index.js');
+  files.add('dist/orchestrator/UltimateOrchestrator.js');
+
+  return Array.from(files);
+}
+
+function dependencyInstalled(dep) {
+  return fs.existsSync(path.join('node_modules', ...dep.split('/')));
 }
 
 // Report results
@@ -144,12 +159,12 @@ if (errors.length === 0 && warnings.length === 0) {
     console.log(`❌ Found ${errors.length} error(s):\n`);
     errors.forEach(err => console.log(`  • ${err}`));
   }
-  
+
   if (warnings.length > 0) {
     console.log(`\n⚠️  Found ${warnings.length} warning(s):\n`);
     warnings.forEach(warn => console.log(`  • ${warn}`));
   }
-  
+
   console.log('\nPlease fix these issues before publishing.');
   process.exit(errors.length > 0 ? 1 : 0);
 }
