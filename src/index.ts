@@ -95,6 +95,7 @@ ${colors.highlight('Examples:')}
   graphyn "help me understand this repo"
   graphyn base "plan billing refactor"
   graphyn fs ls /repo
+  graphyn config check --json
   graphyn design "polish the onboarding flow"
   graphyn backend "add user authentication"
   graphyn analyze --mode summary
@@ -103,6 +104,7 @@ ${colors.highlight('Commands:')}
   base <task>         Deterministic local KB retrieval (JSON output)
   fs <subcommand>      ACL-gated local VFS inspection (JSON output)
   env <subcommand>    Manage environment files (setup, check, list)
+  config <subcommand> Non-secret config registry checks
   analyze [options]    Analyze repository
   doctor              Check system requirements
   init [options]      Initialize project
@@ -244,6 +246,12 @@ async function routeCommand(query: string, options: CLIOptions, queryArgs: strin
     return true;
   }
 
+  if (query === 'config' || query.startsWith('config ')) {
+    const { runConfigCommand } = await import('./commands/config.js');
+    await runConfigCommand(query);
+    return true;
+  }
+
   if (query === 'mcp' || query === 'mcp-server') {
     const { runMCPServer } = await import('./commands/mcp-server.js');
     await runMCPServer();
@@ -274,7 +282,7 @@ function isNaturalLanguage(query: string): boolean {
     'backend', 'frontend', 'architect', 'design', 'cli',
     'base', 'fs',
     'analyze', 'doctor', 'init', 'auth', 'logout',
-    'mcp', 'mcp-server', 'mcp config', 'env',
+    'mcp', 'mcp-server', 'mcp config', 'env', 'config',
     '--version', '-v', '--help', '-h', 'help'
   ];
 

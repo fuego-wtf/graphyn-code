@@ -16,7 +16,15 @@
 import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import {
+  envTargetsByName,
+  findWorkspaceRoot,
+  loadGraphynConfig,
+  resolveEnvPath,
+  resolveExamplePath,
+  resolveRepoRoot,
+  type EnvTarget,
+} from '../config/graphyn-config.js';
 
 const colors = {
   success: chalk.green,
@@ -28,77 +36,19 @@ const colors = {
   dim: chalk.dim,
 };
 
-// ─── Service Registry ──────────────────────────────────────────────
-
-interface ServiceDef {
-  label: string;
-  examplePath: string;
-  envPath: string;
-  repo: 'WORKSPACE' | 'COMPOUND';
-}
-
 interface EnvFileAudit {
   assignmentCount: number;
   placeholderCount: number;
   invalidReason?: string;
 }
 
-const SERVICES: Record<string, ServiceDef> = {
-  workspace:   { label: 'workspace',   examplePath: '.env.example',                              envPath: '.env',                              repo: 'WORKSPACE' },
-  vault:       { label: 'vault',       examplePath: 'vault/.env.example',                        envPath: 'vault/.env',                        repo: 'WORKSPACE' },
-  web:         { label: 'web',         examplePath: 'web/.env.example',                          envPath: 'web/.env',                          repo: 'WORKSPACE' },
-  'tbh-md':    { label: 'tbh-md',      examplePath: 'tbh-md/.env.example',                      envPath: 'tbh-md/.env',                       repo: 'WORKSPACE' },
-  desktop:     { label: 'desktop',     examplePath: 'desktop/.env.example',                     envPath: 'desktop/.env.development',           repo: 'WORKSPACE' },
-  id:          { label: 'id',          examplePath: 'id/.env.example',                          envPath: 'id/.env',                           repo: 'WORKSPACE' },
-  'id-test':   { label: 'id-test',     examplePath: 'id/.env.test.example',                     envPath: 'id/.env.test.local',                repo: 'WORKSPACE' },
-  code:        { label: 'code',        examplePath: 'code/.env.example',                        envPath: 'code/.env',                         repo: 'WORKSPACE' },
-  mcp:         { label: 'mcp-server',  examplePath: 'backyard/mcp-server/.env.example',         envPath: 'backyard/mcp-server/.env',          repo: 'WORKSPACE' },
-  mobile:      { label: 'mobile',      examplePath: 'mobile/.env.example',                      envPath: 'mobile/.env',                       repo: 'WORKSPACE' },
-  state:       { label: 'state',       examplePath: 'state/.env.example',                       envPath: 'state/.env',                        repo: 'WORKSPACE' },
-  compound:    { label: 'compound',    examplePath: '.env.example',                              envPath: '.env',                              repo: 'COMPOUND' },
-  buildfridays:{ label: 'buildfridays',examplePath: 'projects/buildfridays/.env.example',       envPath: 'projects/buildfridays/.env',        repo: 'COMPOUND' },
-  prodaktiv:   { label: 'prodaktiv',   examplePath: 'projects/prodaktiv/.env.example',          envPath: 'projects/prodaktiv/.env',           repo: 'COMPOUND' },
-  prvt:        { label: 'prvt',        examplePath: 'projects/prvt/scripts/prvt.env.example',   envPath: 'PRVT_HOME_ENV',                     repo: 'COMPOUND' },
-};
-
 const ENV_ASSIGNMENT_RE = /^(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=/;
 const PLACEHOLDER_RE = /(?:your-|replace_with|REPLACE_|sk_test_your|pk_test_your|whsec_your|gph_sk_your|your_|_here$)/i;
 
 // ─── Path Helpers ──────────────────────────────────────────────────
 
-function findWorkspaceRoot(): string {
-  // Walk up from cwd to find the graphyn-workspace root
-  let dir = process.cwd();
-  for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.join(dir, 'code', 'package.json')) &&
-        fs.existsSync(path.join(dir, 'id', 'package.json'))) {
-      return dir;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  // Fallback: assume cwd is workspace root
-  return process.cwd();
-}
-
-function resolveRepoRoot(service: ServiceDef, workspaceRoot: string): string | null {
-  if (service.repo === 'COMPOUND') {
-    const candidate = path.resolve(workspaceRoot, '..', 'compound');
-    return fs.existsSync(candidate) ? candidate : null;
-  }
-  return workspaceRoot;
-}
-
-function resolveEnvPath(service: ServiceDef, repoRoot: string): string {
-  if (service.envPath === 'PRVT_HOME_ENV') {
-    return path.join(os.homedir(), '.prvt.env');
-  }
-  return path.join(repoRoot, service.envPath);
-}
-
-function resolveExamplePath(service: ServiceDef, repoRoot: string): string {
-  return path.join(repoRoot, service.examplePath);
+function loadServices(): Record<string, EnvTarget> {
+  return envTargetsByName(loadGraphynConfig(findWorkspaceRoot()));
 }
 
 function containsNonTextBytes(content: Buffer): boolean {
@@ -150,15 +100,16 @@ function auditEnvFile(filePath: string): EnvFileAudit {
 /**
  * graphyn env setup — Copy .env.example → .env for registered env targets
  */
-async function setupCommand(serviceFilter?: string): Promise<void> {
+async function setupCommand(serviceFilter?: string, dryRun = false): Promise<void> {
   const root = findWorkspaceRoot();
+  const services = loadServices();
   const targets = serviceFilter
-    ? { [serviceFilter]: SERVICES[serviceFilter] }
-    : SERVICES;
+    ? { [serviceFilter]: services[serviceFilter] }
+    : services;
 
-  if (serviceFilter && !SERVICES[serviceFilter]) {
+  if (serviceFilter && !services[serviceFilter]) {
     console.log(colors.error(`Unknown service: ${serviceFilter}`));
-    console.log(colors.info(`Available: ${Object.keys(SERVICES).join(', ')}`));
+    console.log(colors.info(`Available: ${Object.keys(services).join(', ')}`));
     process.exitCode = 1;
     return;
   }
@@ -192,6 +143,12 @@ async function setupCommand(serviceFilter?: string): Promise<void> {
       continue;
     }
 
+    if (dryRun) {
+      console.log(colors.highlight(`  DRY   ${svc.label} — would create ${path.relative(root, dest)}`));
+      skipped++;
+      continue;
+    }
+
     const destDir = path.dirname(dest);
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
@@ -216,6 +173,7 @@ async function setupCommand(serviceFilter?: string): Promise<void> {
  */
 async function checkCommand(): Promise<void> {
   const root = findWorkspaceRoot();
+  const services = loadServices();
 
   console.log(colors.bold('\n  Fuego Labs — Environment Audit\n'));
 
@@ -224,7 +182,7 @@ async function checkCommand(): Promise<void> {
   let placeholders = 0;
   let invalid = 0;
 
-  for (const [name, svc] of Object.entries(SERVICES)) {
+  for (const [_name, svc] of Object.entries(services)) {
     const repoRoot = resolveRepoRoot(svc, root);
     if (!repoRoot) continue;
 
@@ -266,11 +224,12 @@ async function checkCommand(): Promise<void> {
  */
 async function listCommand(): Promise<void> {
   const root = findWorkspaceRoot();
+  const services = loadServices();
 
   console.log(colors.bold('\n  Fuego Labs — Environment Services\n'));
 
   const rows: string[][] = [];
-  for (const [name, svc] of Object.entries(SERVICES)) {
+  for (const [name, svc] of Object.entries(services)) {
     const repoRoot = resolveRepoRoot(svc, root);
     if (!repoRoot) {
       rows.push([name, colors.dim('not found'), svc.repo, '—']);
@@ -314,6 +273,7 @@ function unavailableApiCommand(command: 'fetch' | 'push'): void {
 // ─── Help ──────────────────────────────────────────────────────────
 
 function showHelp(): void {
+  const services = loadServices();
   console.log(`
 ${colors.bold('Graphyn Env — Secure Environment Variable Management')}
 
@@ -322,6 +282,7 @@ ${colors.highlight('Usage:')}
 
 ${colors.highlight('Commands:')}
   setup [--service <name>]   Copy .env.example → .env for registered env targets
+  setup --dry-run            Preview env setup without writing files
   check                      Audit .env files for validity and placeholders
   list                       Show which services have env files configured
 
@@ -330,7 +291,7 @@ ${colors.highlight('Unavailable:')}
   push, upload                API-backed env push route is not implemented
 
 ${colors.highlight('Services:')}
-  ${Object.keys(SERVICES).join(', ')}
+  ${Object.keys(services).join(', ')}
 
 ${colors.highlight('Workflow:')}
   ${colors.bold('Team Lead:')}
@@ -360,18 +321,21 @@ export async function runEnvCommand(rawQuery: string): Promise<void> {
 
   const subcommand = tokens[1] || '';
   let serviceFilter: string | undefined;
+  let dryRun = false;
 
   // Parse --service flag
   for (let i = 2; i < tokens.length; i++) {
     if (tokens[i] === '--service' && tokens[i + 1]) {
       serviceFilter = tokens[i + 1];
       i++;
+    } else if (tokens[i] === '--dry-run') {
+      dryRun = true;
     }
   }
 
   switch (subcommand) {
     case 'setup':
-      await setupCommand(serviceFilter);
+      await setupCommand(serviceFilter, dryRun);
       break;
     case 'fetch':
     case 'pull':
