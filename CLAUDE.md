@@ -1,5 +1,12 @@
 # Graphyn Code - CLI Tool
 
+## Clarity contract (mandatory)
+
+This document inherits `docs/CLARITY_CONTRACT.md`. When you use this
+contract, write plain-language decisions, expand project shorthand on
+first use, include task identifiers with titles, and end with the next
+concrete action or exact blocker.
+
 ## Constitution Priority (Mandatory)
 
 This agent doc inherits the workspace-root `docs/CONSTITUTION.md`. If a local
