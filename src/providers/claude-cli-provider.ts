@@ -119,7 +119,7 @@ export class ClaudeCLIProvider extends AIProvider {
 
   async healthCheck(): Promise<{ healthy: boolean; model?: string; error?: string }> {
     const validation = await this.validateConfig();
-    if (!validation.valid) return validation;
+    if (!validation.valid) return { healthy: false, error: validation.error };
 
     return new Promise((resolve) => {
       const child = spawn('claude', ['--version'], { stdio: 'pipe' });
