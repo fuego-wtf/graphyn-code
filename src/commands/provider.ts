@@ -9,6 +9,7 @@ const colors = {
   info: chalk.gray,
   highlight: chalk.cyan,
   bold: chalk.bold,
+  dim: chalk.dim,
 };
 
 export async function runProviderCommand(rawQuery: string): Promise<void> {
