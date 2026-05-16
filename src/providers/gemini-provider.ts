@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { AIProvider, AIMessage, ProviderResponse, StreamChunk, ProviderConfig, ProviderInfo } from './ai-provider.js';
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite-preview-06-17';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export class GeminiProvider extends AIProvider {
   readonly info: ProviderInfo = {
