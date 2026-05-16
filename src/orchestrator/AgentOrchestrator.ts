@@ -6,7 +6,8 @@
  */
 
 import { EventEmitter } from 'events';
-import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
+import { ProviderManager } from '../providers/provider-manager.js';
+import { AIMessage } from '../providers/ai-provider.js';
 import { ConsoleOutput } from '../console/ConsoleOutput.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -52,7 +53,7 @@ export interface OrchestrationResult {
  */
 export class AgentOrchestrator extends EventEmitter {
   private static instance: AgentOrchestrator | null = null;
-  private claudeClient!: ClaudeCodeClient;
+  private providerManager!: ProviderManager;
   private consoleOutput!: ConsoleOutput;
   private agentConfigs: Map<string, AgentConfig> = new Map();
   private agentsPath!: string;
@@ -67,12 +68,9 @@ export class AgentOrchestrator extends EventEmitter {
       return AgentOrchestrator.instance;
     }
     
-    this.claudeClient = new ClaudeCodeClient();
+    this.providerManager = new ProviderManager();
     this.consoleOutput = new ConsoleOutput();
     this.agentsPath = agentsPath;
-    
-    // Set up Claude client event handlers
-    this.setupEventHandlers();
     
     AgentOrchestrator.instance = this;
   }
@@ -395,35 +393,27 @@ export class AgentOrchestrator extends EventEmitter {
     // Build specialized prompt for the agent
     const agentPrompt = await this.buildAgentPrompt(agentConfig, query, repositoryContext);
 
-    // IMMEDIATE FEEDBACK: Connecting to Claude
-    yield {
-      type: 'assistant',
-      message: {
-        type: 'assistant',
-        message: { content: `🌟 Connecting to Claude Code SDK... (prompt: ${agentPrompt.length} chars)` },
-        timestamp: Date.now()
-      }
-    };
-
-    // Use REAL Claude Code SDK streaming - NO MOCKING
-    const claudeOptions = {
-      maxTurns: 10,
-      allowedTools: [
-        'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
-        'WebFetch', 'WebSearch', 'NotebookEdit'  // Removed 'Task' as potential hang point
-      ],
-      model: 'claude-3-5-sonnet-20241022',
-      mcpServers: repositoryContext?.mcpServers // Pass MCP servers from context
-    };
-    
-    // Log MCP server usage
-    if (repositoryContext?.mcpServers && Object.keys(repositoryContext.mcpServers).length > 0) {
-      this.emit('debug', `Using ${Object.keys(repositoryContext.mcpServers).length} MCP servers: ${Object.keys(repositoryContext.mcpServers).join(', ')}`);
+    const provider = this.providerManager.getProvider();
+    if (!provider) {
+      throw new Error('No AI provider selected. Run: graphyn provider set <gemini|lmstudio|claude-cli>');
     }
-    
-    for await (const message of this.claudeClient.executeQueryStream(agentPrompt, claudeOptions)) {
-      // Yield each message as it arrives from Claude
-      yield message;
+
+    const messages: AIMessage[] = [
+      { role: 'system', content: `You are a ${agentConfig.role}.` },
+      { role: 'user', content: agentPrompt },
+    ];
+
+    for await (const chunk of provider.chatStream(messages)) {
+      if (chunk.type === 'text' && chunk.content) {
+        yield { type: 'assistant', message: { content: chunk.content } };
+      }
+      if (chunk.type === 'done') {
+        yield { type: 'result', subtype: 'success', result: '' };
+        break;
+      }
+      if (chunk.type === 'error') {
+        throw new Error(chunk.error || 'Provider error');
+      }
     }
   }
 
@@ -437,16 +427,13 @@ export class AgentOrchestrator extends EventEmitter {
   ): Promise<{ result: string; metrics?: any }> {
     let agentConfig = this.agentConfigs.get(agentName);
 
-    // Fallback mechanism for unknown agents
     if (!agentConfig) {
-      // Try to find any available agent as fallback
       const availableAgents = Array.from(this.agentConfigs.keys());
       
       if (availableAgents.length === 0) {
         throw new Error(`No agents available. Make sure .claude/agents/ directory has agent configuration files`);
       }
       
-      // Use first available agent as fallback
       const fallbackAgentName = availableAgents[0];
       agentConfig = this.agentConfigs.get(fallbackAgentName)!;
       
@@ -456,7 +443,7 @@ export class AgentOrchestrator extends EventEmitter {
         'progress'
       );
       
-      agentName = fallbackAgentName; // Update for logging
+      agentName = fallbackAgentName;
     }
 
     this.consoleOutput.streamAgentActivity(
@@ -465,15 +452,21 @@ export class AgentOrchestrator extends EventEmitter {
       'progress'
     );
 
-
-    // Build specialized prompt for the agent
     const agentPrompt = await this.buildAgentPrompt(agentConfig, query, repositoryContext);
 
-    // REAL-TIME STREAMING: Show progress indicators and stream character-by-character
+    const provider = this.providerManager.getProvider();
+    if (!provider) {
+      throw new Error('No AI provider selected. Run: graphyn provider set <gemini|lmstudio|claude-cli>');
+    }
+
+    const messages: AIMessage[] = [
+      { role: 'system', content: `You are a ${agentConfig.role}.` },
+      { role: 'user', content: agentPrompt },
+    ];
+
     let finalResult = '';
     let isThinking = true;
     
-    // Add progress indicator during initialization
     const thinkingInterval = setInterval(() => {
       if (isThinking) {
         const dots = '.'.repeat((Date.now() / 500) % 4);
@@ -486,39 +479,26 @@ export class AgentOrchestrator extends EventEmitter {
     }, 500);
 
     try {
-      // Stream through Claude Code SDK for real-time output
-      for await (const message of this.claudeClient.executeQueryStream(agentPrompt, {
-        maxTurns: 10,
-        allowedTools: [
-          'Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep',
-          'WebFetch', 'WebSearch', 'NotebookEdit', 'Task'
-        ],
-        model: 'claude-3-5-sonnet-20241022'
-      })) {
-        // Stop thinking indicator once we get first response
-        if (isThinking && message.type === 'assistant') {
+      for await (const chunk of provider.chatStream(messages)) {
+        if (isThinking && chunk.type === 'text') {
           isThinking = false;
           clearInterval(thinkingInterval);
         }
 
-        // Stream assistant messages in real-time
-        if (message.type === 'assistant' && message.message?.content) {
-          const content = Array.isArray(message.message.content) 
-            ? message.message.content.map((c: any) => c.text || '').join('')
-            : message.message.content;
-            
-          if (content) {
-            this.consoleOutput.streamAgentActivity(agentName, content, 'progress');
-          }
+        if (chunk.type === 'text' && chunk.content) {
+          this.consoleOutput.streamAgentActivity(agentName, chunk.content, 'progress');
+          finalResult += chunk.content;
         }
-        
-        // Collect result for return value
-        if (message.type === 'result' && 'subtype' in message && message.subtype === 'success') {
-          finalResult = (message as any).result || '';
+
+        if (chunk.type === 'done') {
+          break;
+        }
+
+        if (chunk.type === 'error') {
+          throw new Error(chunk.error || 'Provider error');
         }
       }
     } finally {
-      // Always clear thinking indicator
       isThinking = false;
       clearInterval(thinkingInterval);
     }
@@ -730,7 +710,7 @@ export class AgentOrchestrator extends EventEmitter {
     try {
       this.consoleOutput.streamAgentActivity(
         'orchestrator',
-        'Getting Claude routing recommendation...',
+        'Getting AI routing recommendation...',
         'progress'
       );
 
@@ -738,7 +718,6 @@ export class AgentOrchestrator extends EventEmitter {
         .map(([name, config]) => `- ${name}: ${config.role}`)
         .join('\n');
 
-      // Build optimized routing prompt (reduced size)
       const contextSummary = repositoryContext ? 
         `Project: ${repositoryContext.packageJson?.name || 'Unknown'}, Type: ${repositoryContext.hasTypeScript ? 'TypeScript' : 'JavaScript'}, Files: ${repositoryContext.fileCount || 0}` :
         'No context';
@@ -760,29 +739,20 @@ Respond with JSON only:
   "reasoning": "Brief explanation"
 }`;
 
-      // Use STREAMING Claude Code SDK for routing - faster feedback
-      let routingResult = '';
-      for await (const message of this.claudeClient.executeQueryStream(routingPrompt, {
-        maxTurns: 3, // Increased from 1 to handle complex routing decisions
-        model: 'claude-3-5-sonnet-20241022'
-      })) {
-        if (message.type === 'result' && 'subtype' in message && message.subtype === 'success') {
-          routingResult = (message as any).result || '';
-          break;
-        }
-      }
-      const result = { result: routingResult };
+      const provider = this.providerManager.getProvider();
+      if (!provider) return initialAnalysis;
 
-      // Parse JSON response from Claude
+      const response = await provider.chat([{ role: 'user', content: routingPrompt }]);
+      const result = { result: response.result };
+
       const jsonMatch = result.result.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const recommendation = JSON.parse(jsonMatch[0]);
         
-        // Validate the recommendation
         if (this.agentConfigs.has(recommendation.primaryAgent)) {
           this.consoleOutput.streamAgentActivity(
             'orchestrator',
-            `Claude recommends: ${recommendation.primaryAgent} (${recommendation.confidence}% confidence)`,
+            `AI recommends: ${recommendation.primaryAgent} (${recommendation.confidence}% confidence)`,
             'progress'
           );
 
@@ -858,46 +828,6 @@ Provide a concise, practical response with actionable steps.`;
   }
 
   /**
-   * Set up event handlers for the Claude client
-   */
-  private setupEventHandlers(): void {
-    this.claudeClient.on('error', (error) => {
-      this.emit('agent-error', error);
-    });
-
-    this.claudeClient.on('retry', ({ attempt, error }) => {
-      this.emit('agent-retry', { attempt, error });
-    });
-
-    this.claudeClient.on('debug', (message) => {
-      // Add timestamp for better debugging visibility
-      const timestamp = new Date().toLocaleTimeString();
-      this.consoleOutput.streamAgentActivity('claude-sdk', `[${timestamp}] ${message}`, 'progress');
-    });
-
-    // Handle streaming events from Claude Code SDK
-    this.claudeClient.on('partial_content', (text) => {
-      // Emit partial content for real-time display
-      this.emit('streaming_content', text);
-    });
-
-    this.claudeClient.on('thinking_start', () => {
-      this.emit('thinking_start');
-    });
-
-    this.claudeClient.on('thinking_end', () => {
-      this.emit('thinking_end');
-    });
-  }
-
-  /**
-   * Emergency response when Claude Code SDK fails
-   */
-  private getEmergencyResponse(agentName: string, query: string, repositoryContext?: any): string {
-    return `Claude Code SDK unavailable. Query: "${query}"\nEmergency mode active - limited functionality.\nRun 'graphyn doctor' to diagnose connectivity issues.`;
-  }
-
-  /**
    * Get available agents
    */
   getAvailableAgents(): string[] {
@@ -961,19 +891,23 @@ Provide a concise, practical response with actionable steps.`;
       try {
         console.log(colors.highlight(`\n🔍 Processing: "${query}"\n`));
         
-        // Use emergency response since Claude Code SDK is timing out
-        const repositoryContext = {}; // Simple context for now
+        const repositoryContext = {};
         const analysis = await this.analyzeTask(query, repositoryContext);
-        const emergencyResponse = this.getEmergencyResponse(analysis.primaryAgent, query, repositoryContext);
         
-        if (emergencyResponse) {
+        const provider = this.providerManager.getProvider();
+        if (provider) {
+          const messages: AIMessage[] = [
+            { role: 'system', content: `You are a ${analysis.primaryAgent}.` },
+            { role: 'user', content: query },
+          ];
+          const response = await provider.chat(messages);
           console.log(colors.success(`\n📋 ${analysis.primaryAgent} Response:`));
           console.log(colors.success('─'.repeat(60)));
-          console.log(colors.success(emergencyResponse));
+          console.log(colors.success(response.result));
           console.log(colors.success('─'.repeat(60)));
         } else {
           console.log(colors.info(`\n✅ Routed to ${analysis.primaryAgent} (${analysis.confidence}% confidence)`));
-          console.log(colors.info('💡 Emergency mode: Providing basic guidance while Claude Code SDK is unavailable'));
+          console.log(colors.info('💡 No provider configured. Run: graphyn provider set <gemini|lmstudio|claude-cli>'));
         }
         
       } catch (error) {
@@ -993,7 +927,6 @@ Provide a concise, practical response with actionable steps.`;
    * Cleanup resources
    */
   async cleanup(): Promise<void> {
-    this.claudeClient.reset();
     this.removeAllListeners();
   }
 }
