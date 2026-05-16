@@ -1,4 +1,6 @@
 import { AIProvider, AIMessage, ProviderResponse, StreamChunk, ProviderConfig, ProviderInfo } from './ai-provider.js';
+import { showModelPicker, loadModelIntoLMStudio, waitForModelReady } from './lmstudio-model-picker.js';
+import chalk from 'chalk';
 
 const DEFAULT_BASE_URL = 'http://localhost:1234/v1';
 
@@ -42,7 +44,30 @@ export class LMStudioProvider extends AIProvider {
       this.detectedModel = data.data[0].id;
       return this.detectedModel;
     }
-    throw new Error('No models loaded in LM Studio');
+
+    // No model loaded — show interactive picker
+    console.log(chalk.yellow('\n  ⚠️  No model loaded in LM Studio. Opening model selector...\n'));
+    const apiBaseUrl = baseUrl.replace('/v1', '');
+    const pickerResult = await showModelPicker(apiBaseUrl);
+    if (!pickerResult) {
+      throw new Error('Model selection cancelled');
+    }
+
+    console.log(chalk.cyan(`  Loading ${pickerResult.model.name}...`));
+    const loadResult = await loadModelIntoLMStudio(pickerResult.modelId, apiBaseUrl);
+    if (!loadResult.success) {
+      throw new Error(`Failed to load model: ${loadResult.error}`);
+    }
+
+    console.log(chalk.dim('  Waiting for model to load...'));
+    const readyResult = await waitForModelReady(pickerResult.modelId, apiBaseUrl);
+    if (!readyResult.ready) {
+      throw new Error(`Model load timed out: ${readyResult.error}`);
+    }
+
+    this.detectedModel = pickerResult.modelId;
+    console.log(chalk.green(`  ✅ ${pickerResult.model.name} loaded and ready\n`));
+    return pickerResult.modelId;
   }
 
   private buildBody(messages: AIMessage[], stream: boolean): Record<string, unknown> {
