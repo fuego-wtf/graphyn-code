@@ -373,7 +373,7 @@ export class GraphynMCPBridge {
   
   private async handleAnalyzeRepository(args: any) {
     // Import repository analyzer
-    const { RepositoryAnalyzer } = await import('../services/repository-analyzer');
+    const { RepositoryAnalyzer } = await import('../services/repository-analyzer.js');
     
     const analyzer = new RepositoryAnalyzer();
     const analysis = await analyzer.analyze({
@@ -435,7 +435,7 @@ export class GraphynMCPBridge {
       }
       
       case 'graphyn://context': {
-        const { RepositoryAnalyzer } = await import('../services/repository-analyzer');
+        const { RepositoryAnalyzer } = await import('../services/repository-analyzer.js');
         const analyzer = new RepositoryAnalyzer();
         const context = await analyzer.analyze({ path: process.cwd() });
         return {
