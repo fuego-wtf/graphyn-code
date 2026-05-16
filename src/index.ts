@@ -252,6 +252,12 @@ async function routeCommand(query: string, options: CLIOptions, queryArgs: strin
     return true;
   }
 
+  if (query === 'provider' || query.startsWith('provider ')) {
+    const { runProviderCommand } = await import('./commands/provider.js');
+    await runProviderCommand(query);
+    return true;
+  }
+
   if (query === 'mcp' || query === 'mcp-server') {
     const { runMCPServer } = await import('./commands/mcp-server.js');
     await runMCPServer();
@@ -282,7 +288,7 @@ function isNaturalLanguage(query: string): boolean {
     'backend', 'frontend', 'architect', 'design', 'cli',
     'base', 'fs',
     'analyze', 'doctor', 'init', 'auth', 'logout',
-    'mcp', 'mcp-server', 'mcp config', 'env', 'config',
+    'mcp', 'mcp-server', 'mcp config', 'env', 'config', 'provider',
     '--version', '-v', '--help', '-h', 'help'
   ];
 
