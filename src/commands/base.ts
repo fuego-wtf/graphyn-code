@@ -110,12 +110,13 @@ const DEFAULT_DOC_LIMIT = 20;
 const DEFAULT_AGENT_LIMIT = 10;
 const MAX_AGENT_RESULTS = 3;
 const DEFAULT_AGENT_THRESHOLD = 0.7;
+const LOCAL_ORG = 'local';
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const ERROR_DETAILS: Record<BaseErrorCode, { message: string; actionable: string }> = {
   AUTH_FILE_MISSING: {
     message: 'Authentication file not found.',
-    actionable: 'Authenticate first so ~/.graphyn/auth.json exists, then retry.',
+    actionable: 'Create ~/.graphyn/auth.json for cloud org context, or use local mode.',
   },
   AUTH_FILE_UNREADABLE: {
     message: 'Authentication file could not be read.',
@@ -292,14 +293,25 @@ Options:
   --agents-limit <n>   Agent candidate limit before top-3 trim (default: ${DEFAULT_AGENT_LIMIT})
   --threshold <0..1>   Agent threshold (default: ${DEFAULT_AGENT_THRESHOLD})
   --help, -h           Show this help
+
+Auth:
+  Missing ~/.graphyn/auth.json falls back to org=${LOCAL_ORG}; GRAPHYN_ORG overrides org.
 `);
 }
 
-function readAuthFileStrict(): BaseAuthData | BaseFailureEnvelope {
+function localBaseAuth(): BaseAuthData {
+  return {
+    valid: true,
+    apiKey: '',
+    user: { orgID: LOCAL_ORG },
+  };
+}
+
+function readAuthFileForBase(): BaseAuthData | BaseFailureEnvelope {
   const authPath = path.join(os.homedir(), '.graphyn', 'auth.json');
 
   if (!fs.existsSync(authPath)) {
-    return createFailure('AUTH_FILE_MISSING', { path: authPath });
+    return localBaseAuth();
   }
 
   let raw: string;
@@ -350,7 +362,7 @@ function resolveOrg(auth: BaseAuthData): string {
   const orgId = auth.user?.orgID?.trim();
   if (orgId) return orgId;
 
-  return 'unknown';
+  return LOCAL_ORG;
 }
 
 function isExecutablePath(filePath: string): boolean {
@@ -599,7 +611,7 @@ export async function runBaseCommand(rawQuery: string): Promise<void> {
     return;
   }
 
-  const authResult = readAuthFileStrict();
+  const authResult = readAuthFileForBase();
   if ('ok' in authResult) {
     console.log(JSON.stringify(authResult, null, 2));
     process.exitCode = 1;
