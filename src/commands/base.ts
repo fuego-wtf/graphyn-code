@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { spawn } from 'child_process';
 import { performance } from 'perf_hooks';
+import { fileURLToPath } from 'url';
 
 type ProviderPreference = 'claude_code' | 'codex' | 'gemini';
 type SessionMode = 'ask' | 'plan-first' | 'code';
@@ -109,6 +110,7 @@ const DEFAULT_DOC_LIMIT = 20;
 const DEFAULT_AGENT_LIMIT = 10;
 const MAX_AGENT_RESULTS = 3;
 const DEFAULT_AGENT_THRESHOLD = 0.7;
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const ERROR_DETAILS: Record<BaseErrorCode, { message: string; actionable: string }> = {
   AUTH_FILE_MISSING: {
@@ -134,7 +136,7 @@ const ERROR_DETAILS: Record<BaseErrorCode, { message: string; actionable: string
   BASE_BINARY_NOT_FOUND: {
     message: 'Graphyn base binary could not be resolved.',
     actionable:
-      'Set GRAPHYN_BASE_BIN or install/build packages/base so graphyn-base (or graphyn-kb) is available.',
+      'Set GRAPHYN_BASE_BIN or build packages/base so graphyn, graphyn-kb, or graphyn-base is available.',
   },
   BASE_QUERY_FAILED: {
     message: 'Base retrieval command failed.',
@@ -366,11 +368,11 @@ function isExecutablePath(filePath: string): boolean {
 
 function resolveBaseBinary(): string | null {
   const executableName = process.platform === 'win32' ? 'graphyn.exe' : 'graphyn';
-  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const repoRoot = path.resolve(MODULE_DIR, '..', '..', '..');
   const envBinary = process.env.GRAPHYN_BASE_BIN?.trim();
 
   const absoluteCandidates: string[] = [];
-  const commandCandidates: string[] = ['graphyn-base', 'graphyn-kb'];
+  const commandCandidates: string[] = ['graphyn-kb', 'graphyn-base'];
 
   if (envBinary) {
     if (path.isAbsolute(envBinary)) {
@@ -380,11 +382,13 @@ function resolveBaseBinary(): string | null {
     }
   }
 
-  absoluteCandidates.push(path.join(os.homedir(), '.graphyn', 'bin', 'graphyn-base'));
-  absoluteCandidates.push(path.join(os.homedir(), '.graphyn', 'bin', 'graphyn-kb'));
-  absoluteCandidates.push(path.join(os.homedir(), '.cargo', 'bin', 'graphyn-base'));
+  absoluteCandidates.push(path.join(repoRoot, 'packages', 'base', 'target', 'production', executableName));
   absoluteCandidates.push(path.join(repoRoot, 'packages', 'base', 'target', 'release', executableName));
   absoluteCandidates.push(path.join(repoRoot, 'packages', 'base', 'target', 'debug', executableName));
+  absoluteCandidates.push(path.join(os.homedir(), '.graphyn', 'bin', 'graphyn-kb'));
+  absoluteCandidates.push(path.join(os.homedir(), '.graphyn', 'bin', 'graphyn-base'));
+  absoluteCandidates.push(path.join(os.homedir(), '.cargo', 'bin', 'graphyn-kb'));
+  absoluteCandidates.push(path.join(os.homedir(), '.cargo', 'bin', 'graphyn-base'));
 
   for (const candidate of absoluteCandidates) {
     if (isExecutablePath(candidate)) {
@@ -392,7 +396,34 @@ function resolveBaseBinary(): string | null {
     }
   }
 
-  return commandCandidates[0] ?? null;
+  for (const candidate of commandCandidates) {
+    const resolved = resolveCommandFromPath(candidate);
+    if (resolved) return resolved;
+  }
+
+  return null;
+}
+
+function resolveCommandFromPath(command: string): string | null {
+  const pathEnv = process.env.PATH ?? '';
+  if (!pathEnv) return null;
+
+  const extensions =
+    process.platform === 'win32'
+      ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM')
+          .split(';')
+          .filter(Boolean)
+      : [''];
+
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) continue;
+    for (const ext of extensions) {
+      const candidate = path.join(dir, `${command}${ext}`);
+      if (isExecutablePath(candidate)) return candidate;
+    }
+  }
+
+  return null;
 }
 
 function executeJsonCommand(binary: string, args: string[]): Promise<unknown> {
@@ -431,7 +462,7 @@ function executeJsonCommand(binary: string, args: string[]): Promise<unknown> {
       }
 
       try {
-        resolve(JSON.parse(trimmed));
+        resolve(parseJsonPayload(trimmed));
       } catch (error) {
         reject(
           new Error(
@@ -441,6 +472,29 @@ function executeJsonCommand(binary: string, args: string[]): Promise<unknown> {
       }
     });
   });
+}
+
+function parseJsonPayload(output: string): unknown {
+  try {
+    return JSON.parse(output);
+  } catch {
+    // The Rust Base CLI currently emits startup diagnostics before the JSON
+    // payload. Prefer the last JSON-looking line so the wrapper stays strict
+    // about the payload while tolerating those non-payload diagnostics.
+  }
+
+  const lines = output
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .reverse();
+
+  for (const line of lines) {
+    if (!line.startsWith('{') && !line.startsWith('[')) continue;
+    return JSON.parse(line);
+  }
+
+  throw new Error('No JSON payload found in command output.');
 }
 
 function toNumber(value: unknown): number {
