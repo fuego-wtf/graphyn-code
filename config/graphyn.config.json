@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-05-17T00:00:00Z",
+  "sourceOfTruth": "local",
+  "envTargets": [
+    {
+      "name": "graphyn-code",
+      "label": "Graphyn Code CLI",
+      "repo": "WORKSPACE",
+      "examplePath": ".env.example",
+      "envPath": ".env",
+      "encryptedName": "graphyn-code.env.enc",
+      "owner": "graphyn"
+    }
+  ],
+  "billing": {
+    "catalogVersion": "2026-05-17",
+    "tiers": [
+      {
+        "key": "free",
+        "displayName": "Free",
+        "monthlyAmountUsd": 0,
+        "annualAmountUsd": 0,
+        "trialDays": 0,
+        "entitlementTier": "desktop",
+        "limits": {
+          "designExtractionsPerDay": 3,
+          "apiCallsPerMonth": 100
+        },
+        "features": ["basic-cli", "design-extraction"]
+      },
+      {
+        "key": "pro",
+        "displayName": "Pro",
+        "monthlyAmountUsd": 20,
+        "annualAmountUsd": 200,
+        "trialDays": 14,
+        "entitlementTier": "pro",
+        "limits": {
+          "designExtractionsPerDay": 50,
+          "apiCallsPerMonth": 10000
+        },
+        "features": ["basic-cli", "design-extraction", "multi-agent", "desktop-sync"]
+      },
+      {
+        "key": "pro_plus",
+        "displayName": "Pro Plus",
+        "monthlyAmountUsd": 39,
+        "annualAmountUsd": 390,
+        "trialDays": 14,
+        "entitlementTier": "pro_plus",
+        "limits": {
+          "designExtractionsPerDay": 200,
+          "apiCallsPerMonth": 50000
+        },
+        "features": ["basic-cli", "design-extraction", "multi-agent", "desktop-sync", "voice-integration"]
+      },
+      {
+        "key": "max",
+        "displayName": "Max",
+        "monthlyAmountUsd": 99,
+        "annualAmountUsd": 990,
+        "trialDays": 14,
+        "entitlementTier": "max",
+        "limits": {
+          "designExtractionsPerDay": -1,
+          "apiCallsPerMonth": -1
+        },
+        "features": ["basic-cli", "design-extraction", "multi-agent", "desktop-sync", "voice-integration", "premium-orchestration", "cross-platform-state"]
+      }
+    ],
+    "legacyAliases": {
+      "ultra": "pro_plus"
+    },
+    "stripe": {
+      "test": {
+        "free": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        },
+        "pro": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        },
+        "pro_plus": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        },
+        "max": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        }
+      },
+      "live": {
+        "free": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        },
+        "pro": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        },
+        "pro_plus": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        },
+        "max": {
+          "productId": null,
+          "monthlyPriceId": null,
+          "annualPriceId": null,
+          "status": "active"
+        }
+      }
+    }
+  },
+  "prvt": {
+    "repoPath": "./",
+    "workerName": "graphyn-code-cli",
+    "statusEndpoint": "/api/status",
+    "routeOriginKeys": [],
+    "kvBindings": [],
+    "secretRefs": []
+  }
+}

@@ -12,6 +12,10 @@ import { AgentOrchestrator } from './orchestrator/AgentOrchestrator.js';
 import { ConsoleOutput } from './console/ConsoleOutput.js';
 import { StreamingConsoleOutput } from './console/StreamingConsoleOutput.js';
 import { InteractiveInput } from './console/InteractiveInput.js';
+import { ProviderManager } from './providers/provider-manager.js';
+import { showModelPicker, loadModelIntoLMStudio, waitForModelReady } from './providers/lmstudio-model-picker.js';
+import inquirer from 'inquirer';
+import chalk from 'chalk';
 // Import project-agnostic orchestration commands
 import {
   handleInitCommand,
@@ -29,9 +33,74 @@ import {
  */
 export async function main(): Promise<void> {
   try {
-    // Parse command line arguments
     const args = process.argv.slice(2);
     const [command, ...queryParts] = args;
+
+    // First-run provider selection
+    const providerManager = new ProviderManager();
+    const selectedProvider = providerManager.getSelectedProvider();
+
+    if (!selectedProvider) {
+      console.log(chalk.bold('\n  Welcome to Graphyn! Let\'s set up your AI provider.\n'));
+
+      const { provider } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'provider',
+          message: 'Which AI provider would you like to use?',
+          choices: [
+            { name: 'Gemini API (cloud, requires API key)', value: 'gemini' },
+            { name: 'LM Studio (local, requires LM Studio running)', value: 'lmstudio' },
+            { name: 'Claude CLI (requires claude command in PATH)', value: 'claude-cli' },
+          ],
+        },
+      ]);
+
+      if (provider === 'gemini') {
+        const { apiKey } = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'apiKey',
+            message: 'Enter your Gemini API key:',
+          },
+        ]);
+        providerManager.updateConfig({ geminiApiKey: apiKey });
+        await providerManager.selectProvider('gemini');
+      } else if (provider === 'lmstudio') {
+        await providerManager.selectProvider('lmstudio');
+
+        const health = await providerManager.healthCheck('lmstudio');
+        if (!health.healthy && health.error?.includes('No models loaded')) {
+          console.log(chalk.yellow('\n  ⚠️  No model loaded in LM Studio. Opening model selector...\n'));
+          const baseUrl = 'http://localhost:1234';
+          const pickerResult = await showModelPicker(baseUrl);
+          if (pickerResult) {
+            console.log(chalk.cyan(`  Loading ${pickerResult.model.name}...`));
+            const loadResult = await loadModelIntoLMStudio(pickerResult.modelId, baseUrl);
+            if (loadResult.success) {
+              const readyResult = await waitForModelReady(pickerResult.modelId, baseUrl);
+              if (readyResult.ready) {
+                console.log(chalk.green(`  ✅ ${pickerResult.model.name} loaded and ready\n`));
+              } else {
+                console.log(chalk.yellow(`  ⚠️  ${readyResult.error}\n`));
+              }
+            } else {
+              console.log(chalk.yellow(`  ⚠️  ${loadResult.error}\n`));
+            }
+          }
+        }
+      } else {
+        await providerManager.selectProvider('claude-cli');
+      }
+
+      const health = await providerManager.healthCheck();
+      if (health.healthy) {
+        console.log(chalk.green(`  Connected to ${health.type} (${health.model})\n`));
+      } else {
+        console.log(chalk.yellow(`  Warning: ${health.error}\n`));
+        console.log(chalk.gray('  You can reconfigure later with: graphyn provider set <type>\n'));
+      }
+    }
 
     // Initialize components with Claude Code style interface
     const realTimeExecutor = new RealTimeExecutor();

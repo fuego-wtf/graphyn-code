@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.126",
+    "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/chokidar": "^1.7.5",
     "@types/eventsource": "^1.1.15",
@@ -75,7 +76,8 @@
     "@types/inquirer": "^9.0.0",
     "@types/node": "^20.0.0",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.6"
   },
   "files": [
     "dist",
