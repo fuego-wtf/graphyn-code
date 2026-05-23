@@ -74,9 +74,11 @@ token, webhook secret, model key, or env variable, update teammate onboarding
 in the same change:
 
 1. Add or update the placeholder in the relevant `.env.example`.
-2. Register any new env file target in `src/commands/env.ts`, the workspace
-   `scripts/setup-env.sh`, `scripts/encrypt-to-skill.sh`, and
-   `.skills/fuegolabs-onboarding/SKILL.md`.
+2. Register any new env file target in `config/graphyn.config.json` (add a new
+   entry to the `envTargets` array), then update `scripts/setup-env.sh`,
+   `scripts/encrypt-to-skill.sh`, and `.skills/fuegolabs-onboarding/SKILL.md`.
+   `src/commands/env.ts` reads the registry at runtime — do not hardcode
+   targets there.
 3. Add the variable to
    `.skills/fuegolabs-onboarding/references/env-reference.md`.
 4. Re-run the workspace `./scripts/encrypt-to-skill.sh` with the Bitwarden

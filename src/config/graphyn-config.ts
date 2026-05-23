@@ -1,3 +1,14 @@
+/**
+ * Full loader for the workspace config registry (`config/graphyn.config.json`).
+ *
+ * This is the **canonical** implementation.  The ID service has a billing-slim
+ * subset loader at `id/src/config/graphyn-config.ts` that reads the same JSON
+ * but exposes only the `billing` slice.  Both files share `BillingTierKey`,
+ * `BillingTierConfig`, and `StripeTierConfig` — keep them structurally in sync.
+ *
+ * To add a new env target, edit `config/graphyn.config.json` (`envTargets`
+ * array).  Do NOT hardcode targets in this file or in `src/commands/env.ts`.
+ */
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
