@@ -100,6 +100,18 @@ export class RealTimeExecutor extends EventEmitter {
         this.emit('thinking_end');
       });
     }
+
+    if (this.agentOrchestrator.listenerCount('orchestration_event') === 0) {
+      this.agentOrchestrator.on('orchestration_event', (event) => {
+        this.emit('orchestration_event', event);
+      });
+    }
+
+    if (this.agentOrchestrator.listenerCount('telemetry_alert') === 0) {
+      this.agentOrchestrator.on('telemetry_alert', (alert) => {
+        this.emit('telemetry_alert', alert);
+      });
+    }
   }
 
   /**

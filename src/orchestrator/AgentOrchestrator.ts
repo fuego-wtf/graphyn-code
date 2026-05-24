@@ -12,6 +12,17 @@ import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
 import * as readline from 'readline';
+import { EventStream } from './EventStream.js';
+import {
+  DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS,
+  type CanonicalOrchestrationEvent,
+  type OrchestrationAlertThresholds,
+  type OrchestrationEventInput,
+  type OrchestrationRuntimeAlert,
+  type OrchestrationTelemetrySnapshot,
+  createOrchestrationTelemetrySnapshot,
+  deriveOrchestrationRuntimeAlert
+} from './types.js';
 
 const colors = {
   success: chalk.green,
@@ -57,6 +68,9 @@ export class AgentOrchestrator extends EventEmitter {
   private agentConfigs: Map<string, AgentConfig> = new Map();
   private agentsPath!: string;
   private initialized: boolean = false;
+  private readonly eventStream: EventStream = new EventStream();
+  private readonly telemetrySnapshots = new Map<string, OrchestrationTelemetrySnapshot>();
+  private readonly alertThresholds: OrchestrationAlertThresholds = DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS;
 
   constructor(agentsPath: string = path.join(process.cwd(), '.claude/agents')) {
     super();
@@ -178,13 +192,37 @@ export class AgentOrchestrator extends EventEmitter {
       maxAgents?: number;
       requireApproval?: boolean;
     }
-  ): AsyncGenerator<{ type: 'analysis' | 'agent_start' | 'message' | 'result'; data: any }> {
+  ): AsyncGenerator<{ type: string; data: any }> {
     const startTime = Date.now();
+    const executionId = this.generateExecutionId('orch');
+    this.eventStream.startStreaming(executionId);
     
     try {
+      const startEvent = this.recordOrchestrationEvent({
+        kind: 'orchestration_progress',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'routing',
+        progress: { completedSteps: 0, totalSteps: 3, percentage: 0 },
+        message: 'Starting query orchestration'
+      });
+      yield { type: 'orchestration_event', data: startEvent };
+
       // Analyze which agents are needed
       yield { type: 'analysis', data: { message: 'Analyzing task requirements...', stage: 'routing' }};
       const analysis = await this.analyzeTask(query, repositoryContext);
+      const routingEvent = this.recordOrchestrationEvent({
+        kind: 'phase_transition',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'agent_routing',
+        currentStepName: analysis.primaryAgent,
+        progress: { completedSteps: 1, totalSteps: 3, percentage: 33 },
+        message: `Routing to ${analysis.primaryAgent}`
+      });
+      yield { type: 'orchestration_event', data: routingEvent };
       
       yield { 
         type: 'analysis', 
@@ -205,6 +243,19 @@ export class AgentOrchestrator extends EventEmitter {
           message: `${analysis.primaryAgent} agent starting analysis...`
         }
       };
+      const taskStartedEvent = this.recordOrchestrationEvent({
+        kind: 'task_started',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'agent_execution',
+        agentId: analysis.primaryAgent,
+        taskId: 'orchestrated-response',
+        currentStepName: `${analysis.primaryAgent} analysis`,
+        progress: { completedSteps: 2, totalSteps: 3, percentage: 66 },
+        message: `${analysis.primaryAgent} agent starting analysis`
+      });
+      yield { type: 'orchestration_event', data: taskStartedEvent };
 
       let finalResult = '';
       try {
@@ -223,6 +274,19 @@ export class AgentOrchestrator extends EventEmitter {
       }
 
       // Return final orchestration result
+      const taskCompletedEvent = this.recordOrchestrationEvent({
+        kind: 'task_completed',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'complete',
+        agentId: analysis.primaryAgent,
+        taskId: 'orchestrated-response',
+        progress: { completedSteps: 3, totalSteps: 3, percentage: 100 },
+        message: 'Orchestration completed'
+      });
+      yield { type: 'orchestration_event', data: taskCompletedEvent };
+
       yield { 
         type: 'result', 
         data: {
@@ -234,6 +298,17 @@ export class AgentOrchestrator extends EventEmitter {
       };
 
     } catch (error) {
+      const errorEvent = this.recordOrchestrationEvent({
+        kind: 'orchestration_error',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'error',
+        message: error instanceof Error ? error.message : String(error),
+        blockers: [error instanceof Error ? error.message : String(error)]
+      });
+      yield { type: 'orchestration_event', data: errorEvent };
+
       yield { 
         type: 'result', 
         data: {
@@ -243,6 +318,8 @@ export class AgentOrchestrator extends EventEmitter {
           totalDuration: Date.now() - startTime
         }
       };
+    } finally {
+      this.eventStream.stopStreaming();
     }
   }
 
@@ -258,10 +335,32 @@ export class AgentOrchestrator extends EventEmitter {
     }
   ): Promise<OrchestrationResult> {
     const startTime = Date.now();
+    const executionId = this.generateExecutionId('orch');
+    this.eventStream.startStreaming(executionId);
     
     try {
+      this.recordOrchestrationEvent({
+        kind: 'orchestration_progress',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'routing',
+        progress: { completedSteps: 0, totalSteps: 3, percentage: 0 },
+        message: 'Starting query orchestration'
+      });
+
       // Analyze which agents are needed
       const analysis = await this.analyzeTask(query, repositoryContext);
+      this.recordOrchestrationEvent({
+        kind: 'phase_transition',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'agent_routing',
+        currentStepName: analysis.primaryAgent,
+        progress: { completedSteps: 1, totalSteps: 3, percentage: 33 },
+        message: `Routing to ${analysis.primaryAgent}`
+      });
       
       this.consoleOutput.streamAgentActivity(
         'orchestrator',
@@ -275,6 +374,17 @@ export class AgentOrchestrator extends EventEmitter {
         query,
         repositoryContext
       );
+      this.recordOrchestrationEvent({
+        kind: 'task_completed',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'complete',
+        agentId: analysis.primaryAgent,
+        taskId: 'orchestrated-response',
+        progress: { completedSteps: 3, totalSteps: 3, percentage: 100 },
+        message: 'Primary agent completed orchestration'
+      });
 
       const result: OrchestrationResult = {
         success: true,
@@ -324,6 +434,15 @@ export class AgentOrchestrator extends EventEmitter {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      this.recordOrchestrationEvent({
+        kind: 'orchestration_error',
+        executionId,
+        orchestrationId: executionId,
+        source: 'AgentOrchestrator',
+        phase: 'error',
+        message: errorMessage,
+        blockers: [errorMessage]
+      });
       
       this.consoleOutput.streamError(
         'orchestrator',
@@ -338,6 +457,8 @@ export class AgentOrchestrator extends EventEmitter {
         totalDuration: Date.now() - startTime,
         error: errorMessage
       };
+    } finally {
+      this.eventStream.stopStreaming();
     }
   }
 
@@ -920,6 +1041,71 @@ Provide a concise, practical response with actionable steps.`;
       startTime: Date.now() - 60000, // Mock start time
       queryCount: 1
     };
+  }
+
+  /**
+   * Event stream for canonical orchestration events and telemetry alerts.
+   */
+  getOrchestrationEventStream(): EventStream {
+    return this.eventStream;
+  }
+
+  /**
+   * Last sanitized telemetry snapshot for a specific orchestration run.
+   */
+  getTelemetrySnapshot(orchestrationId: string): OrchestrationTelemetrySnapshot | undefined {
+    return this.telemetrySnapshots.get(orchestrationId);
+  }
+
+  /**
+   * All sanitized telemetry snapshots currently retained by the orchestrator.
+   */
+  getTelemetrySnapshots(): OrchestrationTelemetrySnapshot[] {
+    return Array.from(this.telemetrySnapshots.values());
+  }
+
+  /**
+   * Evaluate retained snapshots for blocked or stuck orchestration alerts.
+   */
+  evaluateStuckOrchestrationAlerts(
+    observedAtMs: number = Date.now(),
+    thresholds: OrchestrationAlertThresholds = this.alertThresholds
+  ): OrchestrationRuntimeAlert[] {
+    const alerts: OrchestrationRuntimeAlert[] = [];
+
+    for (const snapshot of this.telemetrySnapshots.values()) {
+      const observedSnapshot: OrchestrationTelemetrySnapshot = {
+        ...snapshot,
+        observedAtMs
+      };
+      const alert = deriveOrchestrationRuntimeAlert(observedSnapshot, thresholds, 'watchdog_timer');
+      if (alert) {
+        this.eventStream.emitRuntimeAlert(alert);
+        this.emit('telemetry_alert', alert);
+        alerts.push(alert);
+      }
+    }
+
+    return alerts;
+  }
+
+  private recordOrchestrationEvent(input: OrchestrationEventInput): CanonicalOrchestrationEvent {
+    const event = this.eventStream.emitCanonicalEvent(input);
+    const snapshot = createOrchestrationTelemetrySnapshot(event);
+    this.telemetrySnapshots.set(event.orchestrationId, snapshot);
+    this.emit('orchestration_event', event);
+
+    const alert = deriveOrchestrationRuntimeAlert(snapshot, this.alertThresholds);
+    if (alert) {
+      this.eventStream.emitRuntimeAlert(alert);
+      this.emit('telemetry_alert', alert);
+    }
+
+    return event;
+  }
+
+  private generateExecutionId(prefix: string): string {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
   /**

@@ -7,7 +7,18 @@
  */
 
 import { EventEmitter } from 'events';
-import { AgentType, TaskStatus, TaskExecution } from './types.js';
+import {
+  AgentType,
+  TaskExecution,
+  type CanonicalOrchestrationEvent,
+  type OrchestrationAlertThresholds,
+  type OrchestrationEventInput,
+  type OrchestrationEventKind,
+  type OrchestrationRuntimeAlert,
+  type OrchestrationTelemetrySnapshot,
+  createCanonicalOrchestrationEvent,
+  deriveOrchestrationRuntimeAlert
+} from './types.js';
 
 // ============================================================================
 // EVENT TYPES AND INTERFACES
@@ -68,10 +79,39 @@ export interface SystemEvent extends BaseOrchestrationEvent {
   };
 }
 
+export type CanonicalOrchestrationEventStreamType =
+  | 'orchestration.phase_transition'
+  | 'orchestration.phase_gate'
+  | 'orchestration.gate_resolved'
+  | 'orchestration.task_started'
+  | 'orchestration.task_progress'
+  | 'orchestration.task_completed'
+  | 'orchestration.progress'
+  | 'orchestration.error'
+  | 'telemetry.agent_spawn_failed'
+  | 'telemetry.plan_approval_outcome'
+  | 'telemetry.stuck_orchestration_alert';
+
+/**
+ * Canonical orchestration event envelope for mode-agnostic consumers.
+ */
+export interface CanonicalEvent extends BaseOrchestrationEvent {
+  type: CanonicalOrchestrationEventStreamType;
+  data: CanonicalOrchestrationEvent;
+}
+
+/**
+ * Alert event emitted from telemetry snapshots or watchdog evaluation.
+ */
+export interface TelemetryAlertEvent extends BaseOrchestrationEvent {
+  type: 'telemetry.orchestration_alert' | 'telemetry.stuck_orchestration_alert';
+  data: OrchestrationRuntimeAlert;
+}
+
 /**
  * Union type for all possible events
  */
-export type OrchestrationEvent = TaskEvent | AgentEvent | SystemEvent;
+export type OrchestrationEvent = TaskEvent | AgentEvent | SystemEvent | CanonicalEvent | TelemetryAlertEvent;
 
 // ============================================================================
 // CONSOLE STREAMING INTERFACE
@@ -172,6 +212,49 @@ export class EventStream extends EventEmitter {
     // Emit to synchronous listeners
     this.emit('event', fullEvent);
     this.emit(fullEvent.type, fullEvent);
+  }
+
+  /**
+   * Emit a versioned canonical orchestration event.
+   */
+  emitCanonicalEvent(event: OrchestrationEventInput): CanonicalOrchestrationEvent {
+    const canonicalEvent = createCanonicalOrchestrationEvent({
+      ...event,
+      executionId: event.executionId ?? this.executionId ?? event.orchestrationId
+    });
+
+    this.emitEvent({
+      type: streamTypeForCanonicalEvent(canonicalEvent.kind),
+      source: canonicalEvent.source,
+      data: canonicalEvent
+    });
+
+    return canonicalEvent;
+  }
+
+  /**
+   * Derive and emit a runtime alert from a sanitized telemetry snapshot.
+   */
+  deriveAndEmitRuntimeAlert(
+    snapshot: OrchestrationTelemetrySnapshot,
+    thresholds?: OrchestrationAlertThresholds
+  ): OrchestrationRuntimeAlert | null {
+    const alert = deriveOrchestrationRuntimeAlert(snapshot, thresholds);
+    if (alert) {
+      this.emitRuntimeAlert(alert);
+    }
+    return alert;
+  }
+
+  /**
+   * Emit a telemetry alert event for subscribers and async stream consumers.
+   */
+  emitRuntimeAlert(alert: OrchestrationRuntimeAlert): void {
+    this.emitEvent({
+      type: alert.kind === 'stuck' ? 'telemetry.stuck_orchestration_alert' : 'telemetry.orchestration_alert',
+      source: 'orchestration-telemetry',
+      data: alert
+    });
   }
 
   /**
@@ -340,6 +423,50 @@ export class RealTimeConsoleStreamer implements ConsoleStreamer {
           this.writeLine(`📊 Summary: ${stats.completedTasks}/${stats.totalTasks} tasks completed with ${stats.activeAgents} agents`);
         }
         break;
+
+      case 'orchestration.phase_transition':
+        this.writeLine(`\n🎯 ${event.data.phase || event.data.currentStepName || 'Phase transition'}`);
+        break;
+
+      case 'orchestration.phase_gate':
+        this.writeLine(`⚠️ Gate pending: ${event.data.gate?.type || event.data.message || 'orchestration gate'}`);
+        break;
+
+      case 'orchestration.gate_resolved':
+        this.writeLine(`✅ Gate resolved: ${event.data.gate?.type || event.data.message || 'orchestration gate'}`);
+        break;
+
+      case 'orchestration.task_started':
+        this.writeLine(`🚀 @${event.data.agentId || 'agent'}: ${event.data.message || 'Task started'}`);
+        break;
+
+      case 'orchestration.task_progress':
+      case 'orchestration.progress':
+        if (typeof event.data.progress?.percentage === 'number') {
+          const progressBar = this.createProgressBar(event.data.progress.percentage);
+          this.updateLine(`🔄 ${progressBar} ${event.data.progress.percentage}%`);
+        } else {
+          this.updateLine(`🔄 ${event.data.message || 'Orchestration progress'}`);
+        }
+        break;
+
+      case 'orchestration.task_completed':
+        this.writeLine(`✅ @${event.data.agentId || 'agent'}: ${event.data.message || 'Task completed'}`);
+        break;
+
+      case 'orchestration.error':
+      case 'telemetry.agent_spawn_failed':
+        this.writeLine(`❌ ${event.data.message || 'Orchestration error'}`);
+        break;
+
+      case 'telemetry.plan_approval_outcome':
+        this.writeLine(`⚠️ Plan approval: ${event.data.message || event.data.gate?.status || 'outcome recorded'}`);
+        break;
+
+      case 'telemetry.orchestration_alert':
+      case 'telemetry.stuck_orchestration_alert':
+        this.writeLine(`⚠️ ${event.data.message}`);
+        break;
     }
   }
 
@@ -418,6 +545,33 @@ export function createSystemEvent(
     source,
     data,
   };
+}
+
+function streamTypeForCanonicalEvent(kind: OrchestrationEventKind): CanonicalOrchestrationEventStreamType {
+  switch (kind) {
+    case 'phase_transition':
+      return 'orchestration.phase_transition';
+    case 'phase_gate':
+      return 'orchestration.phase_gate';
+    case 'gate_resolved':
+      return 'orchestration.gate_resolved';
+    case 'task_started':
+      return 'orchestration.task_started';
+    case 'task_progress':
+      return 'orchestration.task_progress';
+    case 'task_completed':
+      return 'orchestration.task_completed';
+    case 'orchestration_error':
+      return 'orchestration.error';
+    case 'agent_spawn_failed':
+      return 'telemetry.agent_spawn_failed';
+    case 'plan_approval_outcome':
+      return 'telemetry.plan_approval_outcome';
+    case 'stuck_orchestration_alert':
+      return 'telemetry.stuck_orchestration_alert';
+    case 'orchestration_progress':
+      return 'orchestration.progress';
+  }
 }
 
 export default EventStream;

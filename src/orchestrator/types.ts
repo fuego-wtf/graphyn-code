@@ -453,3 +453,387 @@ export interface QueryProcessorConfig {
   defaultMode: ExecutionMode;
   enableSpecialization?: boolean;
 }
+
+// ============================================================================
+// CANONICAL ORCHESTRATION EVENT + TELEMETRY SCHEMA
+// ============================================================================
+
+export const ORCHESTRATION_EVENT_SCHEMA_VERSION = 'orchestration.event.v1' as const;
+export const ORCHESTRATION_TELEMETRY_SCHEMA_VERSION = 'orchestration.telemetry.v1' as const;
+
+export type OrchestrationEventSeverity = 'info' | 'warning' | 'error' | 'critical';
+
+export type OrchestrationEventKind =
+  | 'phase_transition'
+  | 'phase_gate'
+  | 'gate_resolved'
+  | 'task_started'
+  | 'task_progress'
+  | 'task_completed'
+  | 'orchestration_progress'
+  | 'orchestration_error'
+  | 'agent_spawn_failed'
+  | 'plan_approval_outcome'
+  | 'stuck_orchestration_alert';
+
+export type OrchestrationRuntimeState =
+  | 'pending'
+  | 'initializing'
+  | 'running'
+  | 'blocked'
+  | 'stuck'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type OrchestrationRuntimeAlertKind = 'blocked' | 'stuck';
+export type OrchestrationRuntimeAlertSeverity = 'warning' | 'critical';
+export type OrchestrationAlertReceiptSource =
+  | 'runtime_snapshot'
+  | 'orchestration_event'
+  | 'watchdog_timer';
+
+export interface OrchestrationEventProgress {
+  readonly completedSteps?: number;
+  readonly totalSteps?: number;
+  readonly percentage?: number;
+}
+
+export interface OrchestrationEventGate {
+  readonly type: string;
+  readonly status?: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  readonly description?: string;
+}
+
+export interface CanonicalOrchestrationEvent {
+  readonly schemaVersion: typeof ORCHESTRATION_EVENT_SCHEMA_VERSION;
+  readonly eventId: string;
+  readonly kind: OrchestrationEventKind;
+  readonly executionId: string;
+  readonly orchestrationId: string;
+  readonly threadId?: string;
+  readonly timestampMs: number;
+  readonly source: string;
+  readonly severity: OrchestrationEventSeverity;
+  readonly phase?: string;
+  readonly taskId?: string;
+  readonly agentId?: string;
+  readonly stepIndex?: number;
+  readonly totalSteps?: number;
+  readonly currentStepName?: string;
+  readonly gate?: OrchestrationEventGate;
+  readonly progress?: OrchestrationEventProgress;
+  readonly message?: string;
+  readonly blockers?: readonly string[];
+  readonly payload?: Record<string, unknown>;
+}
+
+export interface OrchestrationEventInput
+  extends Omit<
+    CanonicalOrchestrationEvent,
+    'schemaVersion' | 'eventId' | 'executionId' | 'orchestrationId' | 'timestampMs' | 'severity'
+  > {
+  readonly schemaVersion?: typeof ORCHESTRATION_EVENT_SCHEMA_VERSION;
+  readonly eventId?: string;
+  readonly executionId?: string;
+  readonly orchestrationId?: string;
+  readonly timestampMs?: number;
+  readonly severity?: OrchestrationEventSeverity;
+}
+
+export interface OrchestrationAlertThresholds {
+  readonly stuckAfterMs: number;
+  readonly blockedAfterMs: number;
+}
+
+export const DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS: OrchestrationAlertThresholds = Object.freeze({
+  stuckAfterMs: 120_000,
+  blockedAfterMs: 0
+});
+
+/**
+ * Summary snapshot used for receipts. Raw prompt, plan, gate, and payload text
+ * stays outside this shape so alert evidence can be reported without leakage.
+ */
+export interface OrchestrationTelemetrySnapshot {
+  readonly schemaVersion: typeof ORCHESTRATION_TELEMETRY_SCHEMA_VERSION;
+  readonly orchestrationId: string;
+  readonly threadId?: string;
+  readonly state: OrchestrationRuntimeState;
+  readonly phase?: string;
+  readonly stepIndex?: number;
+  readonly totalSteps?: number;
+  readonly currentStepName?: string;
+  readonly lastProgressAtMs: number;
+  readonly observedAtMs: number;
+  readonly blockers: readonly string[];
+  readonly pendingGateType?: string;
+  readonly sourceEvent?: OrchestrationEventKind;
+}
+
+export interface OrchestrationAlertReceipt {
+  readonly receiptId: string;
+  readonly source: OrchestrationAlertReceiptSource;
+  readonly generatedAtMs: number;
+  readonly evidence: Record<string, string>;
+}
+
+export interface OrchestrationRuntimeAlert {
+  readonly schemaVersion: typeof ORCHESTRATION_TELEMETRY_SCHEMA_VERSION;
+  readonly alertId: string;
+  readonly kind: OrchestrationRuntimeAlertKind;
+  readonly severity: OrchestrationRuntimeAlertSeverity;
+  readonly state: OrchestrationRuntimeState;
+  readonly message: string;
+  readonly receipt: OrchestrationAlertReceipt;
+}
+
+export function createCanonicalOrchestrationEvent(
+  input: OrchestrationEventInput
+): CanonicalOrchestrationEvent {
+  const timestampMs = input.timestampMs ?? Date.now();
+  const executionId = input.executionId ?? input.orchestrationId ?? 'unknown';
+  const orchestrationId = input.orchestrationId ?? executionId;
+
+  return {
+    ...input,
+    schemaVersion: ORCHESTRATION_EVENT_SCHEMA_VERSION,
+    eventId: input.eventId ?? `orch_evt_${timestampMs}_${Math.random().toString(36).slice(2, 8)}`,
+    executionId,
+    orchestrationId,
+    timestampMs,
+    severity: input.severity ?? defaultSeverityForOrchestrationEvent(input.kind)
+  };
+}
+
+export function createOrchestrationTelemetrySnapshot(
+  event: CanonicalOrchestrationEvent,
+  observedAtMs: number = event.timestampMs
+): OrchestrationTelemetrySnapshot {
+  const state = runtimeStateForOrchestrationEvent(event);
+  const blockers = blockersForOrchestrationEvent(event);
+  const stepIndex = event.stepIndex ?? event.progress?.completedSteps;
+  const totalSteps = event.totalSteps ?? event.progress?.totalSteps;
+
+  return {
+    schemaVersion: ORCHESTRATION_TELEMETRY_SCHEMA_VERSION,
+    orchestrationId: event.orchestrationId,
+    threadId: event.threadId,
+    state,
+    phase: event.phase ?? phaseForOrchestrationEvent(event),
+    stepIndex,
+    totalSteps,
+    currentStepName: event.currentStepName ?? event.message,
+    lastProgressAtMs: isProgressEvent(event) ? event.timestampMs : observedAtMs,
+    observedAtMs,
+    blockers,
+    pendingGateType: event.kind === 'phase_gate' ? event.gate?.type : undefined,
+    sourceEvent: event.kind
+  };
+}
+
+export function deriveOrchestrationRuntimeAlert(
+  snapshot: OrchestrationTelemetrySnapshot,
+  thresholds: OrchestrationAlertThresholds = DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS,
+  receiptSource?: OrchestrationAlertReceiptSource
+): OrchestrationRuntimeAlert | null {
+  if (isTerminalOrchestrationRuntimeState(snapshot.state)) {
+    return null;
+  }
+
+  const elapsedMs = elapsedSinceProgress(snapshot);
+  const isBlocked =
+    snapshot.state === 'blocked' ||
+    Boolean(snapshot.pendingGateType) ||
+    snapshot.blockers.length > 0;
+
+  if (isBlocked && elapsedMs >= thresholds.blockedAfterMs) {
+    return buildOrchestrationRuntimeAlert(
+      snapshot,
+      thresholds,
+      elapsedMs,
+      'blocked',
+      'warning',
+      receiptSource
+    );
+  }
+
+  const canBeStuck =
+    snapshot.state === 'pending' ||
+    snapshot.state === 'initializing' ||
+    snapshot.state === 'running' ||
+    snapshot.state === 'stuck';
+
+  if (canBeStuck && elapsedMs >= thresholds.stuckAfterMs) {
+    return buildOrchestrationRuntimeAlert(
+      snapshot,
+      thresholds,
+      elapsedMs,
+      'stuck',
+      'critical',
+      receiptSource
+    );
+  }
+
+  return null;
+}
+
+export function isTerminalOrchestrationRuntimeState(state: OrchestrationRuntimeState): boolean {
+  return state === 'completed' || state === 'failed' || state === 'cancelled';
+}
+
+function defaultSeverityForOrchestrationEvent(kind: OrchestrationEventKind): OrchestrationEventSeverity {
+  switch (kind) {
+    case 'phase_gate':
+    case 'plan_approval_outcome':
+      return 'warning';
+    case 'orchestration_error':
+    case 'agent_spawn_failed':
+    case 'stuck_orchestration_alert':
+      return 'error';
+    default:
+      return 'info';
+  }
+}
+
+function runtimeStateForOrchestrationEvent(event: CanonicalOrchestrationEvent): OrchestrationRuntimeState {
+  switch (event.kind) {
+    case 'phase_gate':
+      return 'blocked';
+    case 'orchestration_error':
+    case 'agent_spawn_failed':
+      return 'failed';
+    case 'stuck_orchestration_alert':
+      return 'stuck';
+    case 'task_completed':
+      return event.progress?.totalSteps !== undefined &&
+        event.progress.completedSteps !== undefined &&
+        event.progress.completedSteps >= event.progress.totalSteps
+        ? 'completed'
+        : 'running';
+    default:
+      return 'running';
+  }
+}
+
+function blockersForOrchestrationEvent(event: CanonicalOrchestrationEvent): readonly string[] {
+  if (event.blockers && event.blockers.length > 0) {
+    return event.blockers;
+  }
+
+  if (event.kind === 'phase_gate') {
+    return [event.gate?.description ?? event.message ?? `pending gate: ${event.gate?.type ?? 'unknown'}`];
+  }
+
+  if (event.kind === 'orchestration_error' || event.kind === 'agent_spawn_failed') {
+    return [event.message ?? event.kind];
+  }
+
+  return [];
+}
+
+function phaseForOrchestrationEvent(event: CanonicalOrchestrationEvent): string | undefined {
+  switch (event.kind) {
+    case 'phase_transition':
+      return event.currentStepName ?? 'phase_transition';
+    case 'phase_gate':
+      return 'phase_gate';
+    case 'gate_resolved':
+      return 'gate_resolved';
+    case 'orchestration_error':
+      return 'error';
+    default:
+      return undefined;
+  }
+}
+
+function isProgressEvent(event: CanonicalOrchestrationEvent): boolean {
+  return (
+    event.kind === 'phase_transition' ||
+    event.kind === 'gate_resolved' ||
+    event.kind === 'task_started' ||
+    event.kind === 'task_progress' ||
+    event.kind === 'task_completed' ||
+    event.kind === 'orchestration_progress'
+  );
+}
+
+function elapsedSinceProgress(snapshot: OrchestrationTelemetrySnapshot): number {
+  if (snapshot.observedAtMs <= snapshot.lastProgressAtMs) {
+    return 0;
+  }
+  return snapshot.observedAtMs - snapshot.lastProgressAtMs;
+}
+
+function buildOrchestrationRuntimeAlert(
+  snapshot: OrchestrationTelemetrySnapshot,
+  thresholds: OrchestrationAlertThresholds,
+  elapsedMs: number,
+  kind: OrchestrationRuntimeAlertKind,
+  severity: OrchestrationRuntimeAlertSeverity,
+  receiptSource?: OrchestrationAlertReceiptSource
+): OrchestrationRuntimeAlert {
+  const receipt = buildOrchestrationAlertReceipt(snapshot, thresholds, elapsedMs, kind, receiptSource);
+  return {
+    schemaVersion: ORCHESTRATION_TELEMETRY_SCHEMA_VERSION,
+    alertId: receipt.receiptId,
+    kind,
+    severity,
+    state: kind === 'stuck' ? 'stuck' : 'blocked',
+    message: orchestrationAlertMessage(snapshot, kind, elapsedMs),
+    receipt
+  };
+}
+
+function buildOrchestrationAlertReceipt(
+  snapshot: OrchestrationTelemetrySnapshot,
+  thresholds: OrchestrationAlertThresholds,
+  elapsedMs: number,
+  kind: OrchestrationRuntimeAlertKind,
+  receiptSource?: OrchestrationAlertReceiptSource
+): OrchestrationAlertReceipt {
+  const evidence: Record<string, string> = {
+    state: snapshot.state,
+    elapsed_ms: String(elapsedMs),
+    stuck_after_ms: String(thresholds.stuckAfterMs),
+    blocked_after_ms: String(thresholds.blockedAfterMs),
+    blocker_count: String(snapshot.blockers.length)
+  };
+
+  addEvidence(evidence, 'thread_id', snapshot.threadId);
+  addEvidence(evidence, 'phase', snapshot.phase);
+  addEvidence(evidence, 'step_index', numberToEvidence(snapshot.stepIndex));
+  addEvidence(evidence, 'total_steps', numberToEvidence(snapshot.totalSteps));
+  addEvidence(evidence, 'gate_type', snapshot.pendingGateType);
+  addEvidence(evidence, 'source_event', snapshot.sourceEvent);
+
+  return {
+    receiptId: `${snapshot.orchestrationId}:${kind}:${snapshot.observedAtMs}`,
+    source: receiptSource ?? (snapshot.sourceEvent ? 'orchestration_event' : 'runtime_snapshot'),
+    generatedAtMs: snapshot.observedAtMs,
+    evidence
+  };
+}
+
+function addEvidence(evidence: Record<string, string>, key: string, value?: string): void {
+  if (value !== undefined && value !== '') {
+    evidence[key] = value;
+  }
+}
+
+function numberToEvidence(value?: number): string | undefined {
+  return value === undefined ? undefined : String(value);
+}
+
+function orchestrationAlertMessage(
+  snapshot: OrchestrationTelemetrySnapshot,
+  kind: OrchestrationRuntimeAlertKind,
+  elapsedMs: number
+): string {
+  if (kind === 'blocked') {
+    const blocker = snapshot.blockers[0] ?? snapshot.pendingGateType ?? 'blocked runtime state';
+    return `Orchestration ${snapshot.orchestrationId} is blocked after ${elapsedMs} ms: ${blocker}`;
+  }
+
+  return `Orchestration ${snapshot.orchestrationId} is stuck: no progress for ${elapsedMs} ms`;
+}

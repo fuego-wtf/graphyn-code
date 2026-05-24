@@ -74,7 +74,7 @@ token, webhook secret, model key, or env variable, update teammate onboarding
 in the same change:
 
 1. Add or update the placeholder in the relevant `.env.example`.
-2. Register any new env file target in `config/graphyn.config.json` (add a new
+2. Register any new env file target in `scripts/graphyn.config.json` (add a new
    entry to the `envTargets` array), then update `scripts/setup-env.sh`,
    `scripts/encrypt-to-skill.sh`, and `.skills/fuegolabs-onboarding/SKILL.md`.
    `src/commands/env.ts` reads the registry at runtime — do not hardcode
