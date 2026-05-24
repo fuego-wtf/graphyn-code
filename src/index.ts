@@ -105,6 +105,7 @@ ${colors.highlight('Commands:')}
   fs <subcommand>      ACL-gated local VFS inspection (JSON output)
   env <subcommand>    Manage environment files (setup, check, list)
   config <subcommand> Non-secret config registry checks
+  schedule <sub>      Schedule agent runs (create, list, show, edit, enable, disable, delete, run-now, runs, grant, grants)
   analyze [options]    Analyze repository
   doctor              Check system requirements
   init [options]      Initialize project
@@ -246,6 +247,12 @@ async function routeCommand(query: string, options: CLIOptions, queryArgs: strin
     return true;
   }
 
+  if (query === 'schedule' || query.startsWith('schedule ')) {
+    const { runScheduleCommand } = await import('./commands/schedule.js');
+    await runScheduleCommand(query);
+    return true;
+  }
+
   if (query === 'config' || query.startsWith('config ')) {
     const { runConfigCommand } = await import('./commands/config.js');
     await runConfigCommand(query);
@@ -282,7 +289,7 @@ function isNaturalLanguage(query: string): boolean {
     'backend', 'frontend', 'architect', 'design', 'cli',
     'base', 'fs',
     'analyze', 'doctor', 'init', 'auth', 'logout',
-    'mcp', 'mcp-server', 'mcp config', 'env', 'config',
+    'mcp', 'mcp-server', 'mcp config', 'env', 'config', 'schedule',
     '--version', '-v', '--help', '-h', 'help'
   ];
 
