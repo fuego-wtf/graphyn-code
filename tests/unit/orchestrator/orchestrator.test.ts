@@ -5,16 +5,27 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AgentOrchestrator } from '../../../src/orchestrator/AgentOrchestrator.js';
+import { EventStream } from '../../../src/orchestrator/EventStream.js';
+import {
+  DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS,
+  ORCHESTRATION_EVENT_SCHEMA_VERSION,
+  ORCHESTRATION_TELEMETRY_SCHEMA_VERSION,
+  createOrchestrationTelemetrySnapshot,
+  deriveOrchestrationRuntimeAlert,
+  type OrchestrationTelemetrySnapshot
+} from '../../../src/orchestrator/types.js';
 import path from 'path';
 import fs from 'fs/promises';
+import { tmpdir } from 'os';
 
 describe('AgentOrchestrator - Method-Level Tests', () => {
   let orchestrator: AgentOrchestrator;
   let mockAgentsPath: string;
 
   beforeEach(async () => {
-    // Create a temporary directory for mock agents
-    mockAgentsPath = path.join(process.cwd(), 'test-agents');
+    // Keep generated agent fixtures outside the repo so test cleanup cannot
+    // remove tracked files when this suite runs from the package root.
+    mockAgentsPath = await fs.mkdtemp(path.join(tmpdir(), 'graphyn-test-agents-'));
     try {
       await fs.mkdir(mockAgentsPath, { recursive: true });
       
@@ -394,6 +405,94 @@ frontend, ui, ux, react, component, interface, design
       results.forEach(result => {
         expect(result.primaryAgent).toBeDefined();
       });
+    });
+  });
+
+  describe('orchestration event and telemetry schema', () => {
+    it('should emit versioned canonical phase gate events', () => {
+      const eventStream = new EventStream();
+      const capturedEvents: any[] = [];
+
+      eventStream.startStreaming('orch-test');
+      eventStream.on('orchestration.phase_gate', (event) => capturedEvents.push(event));
+
+      const canonicalEvent = eventStream.emitCanonicalEvent({
+        kind: 'phase_gate',
+        source: 'AgentOrchestrator',
+        orchestrationId: 'orch-test',
+        threadId: 'thread-test',
+        gate: {
+          type: 'plan_approval',
+          status: 'pending',
+          description: 'Plan approval required'
+        },
+        message: 'Plan approval required',
+        payload: { raw: 'payload must not be copied into receipts' }
+      });
+
+      eventStream.stopStreaming();
+
+      expect(canonicalEvent.schemaVersion).toBe(ORCHESTRATION_EVENT_SCHEMA_VERSION);
+      expect(canonicalEvent.kind).toBe('phase_gate');
+      expect(canonicalEvent.executionId).toBe('orch-test');
+      expect(capturedEvents).toHaveLength(1);
+      expect(capturedEvents[0].data.gate.type).toBe('plan_approval');
+    });
+
+    it('should derive blocked alerts without copying raw event payload text', () => {
+      const eventStream = new EventStream();
+      eventStream.startStreaming('orch-approval');
+
+      const event = eventStream.emitCanonicalEvent({
+        kind: 'phase_gate',
+        source: 'AgentOrchestrator',
+        orchestrationId: 'orch-approval',
+        threadId: 'thread-approval',
+        gate: {
+          type: 'plan_approval',
+          status: 'pending',
+          description: 'Plan approval required'
+        },
+        message: 'Plan approval required',
+        payload: { raw: 'payload must not be copied into receipts' }
+      });
+      const snapshot = createOrchestrationTelemetrySnapshot(event, 1_000);
+      const alert = deriveOrchestrationRuntimeAlert(snapshot, DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS);
+
+      eventStream.stopStreaming();
+
+      expect(alert).toBeDefined();
+      expect(alert?.schemaVersion).toBe(ORCHESTRATION_TELEMETRY_SCHEMA_VERSION);
+      expect(alert?.kind).toBe('blocked');
+      expect(alert?.severity).toBe('warning');
+      expect(alert?.receipt.evidence.gate_type).toBe('plan_approval');
+      expect(alert?.receipt.evidence.source_event).toBe('phase_gate');
+      expect(Object.values(alert?.receipt.evidence || {}).some((value) => value.includes('payload must not be copied'))).toBe(false);
+    });
+
+    it('should derive stuck alerts from old running snapshots', () => {
+      const snapshot: OrchestrationTelemetrySnapshot = {
+        schemaVersion: ORCHESTRATION_TELEMETRY_SCHEMA_VERSION,
+        orchestrationId: 'orch-stuck',
+        threadId: 'thread-stuck',
+        state: 'running',
+        phase: 'execution',
+        stepIndex: 2,
+        totalSteps: 5,
+        currentStepName: 'write source patch',
+        lastProgressAtMs: 1_000,
+        observedAtMs: 130_500,
+        blockers: []
+      };
+
+      const alert = deriveOrchestrationRuntimeAlert(snapshot, DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS);
+
+      expect(alert).toBeDefined();
+      expect(alert?.kind).toBe('stuck');
+      expect(alert?.state).toBe('stuck');
+      expect(alert?.severity).toBe('critical');
+      expect(alert?.receipt.evidence.elapsed_ms).toBe('129500');
+      expect(alert?.receipt.evidence.stuck_after_ms).toBe(String(DEFAULT_ORCHESTRATION_ALERT_THRESHOLDS.stuckAfterMs));
     });
   });
 });

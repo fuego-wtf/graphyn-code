@@ -5,7 +5,10 @@
  * They MUST FAIL initially before implementation (TDD Red phase).
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
 import type { 
   TaskItem,
   TaskDecompositionResult,
@@ -19,6 +22,8 @@ import { ApprovalWorkflowHandler } from '../../src/cli/enhanced-ux/services/appr
 
 describe('ApprovalWorkflowHandler Contract', () => {
   let workflowHandler: ApprovalWorkflowHandler;
+  let tempApprovalDir: string | null = null;
+  let sampleTasks: TaskItem[];
   const mockConfig: EnhancedUXConfig = {
     performance: {
       maxRenderTime: 16,
@@ -41,6 +46,14 @@ describe('ApprovalWorkflowHandler Contract', () => {
   beforeEach(() => {
     // This WILL FAIL until ApprovalWorkflowHandler is implemented
     workflowHandler = new ApprovalWorkflowHandler(mockConfig);
+    sampleTasks = createSampleTasks();
+  });
+
+  afterEach(async () => {
+    if (tempApprovalDir) {
+      await rm(tempApprovalDir, { recursive: true, force: true });
+      tempApprovalDir = null;
+    }
   });
 
   describe('Task Decomposition', () => {
@@ -120,40 +133,6 @@ describe('ApprovalWorkflowHandler Contract', () => {
   });
 
   describe('Approval Workflow', () => {
-    let sampleTasks: TaskItem[];
-    
-    beforeEach(() => {
-      sampleTasks = [
-        {
-          id: 'task-1',
-          title: 'Set up database schema',
-          description: 'Create PostgreSQL tables for user authentication',
-          agent: 'backend',
-          estimatedTime: 1800, // 30 minutes
-          dependencies: [],
-          status: 'pending'
-        },
-        {
-          id: 'task-2',
-          title: 'Create API endpoints',
-          description: 'Implement REST endpoints for user management',
-          agent: 'backend',
-          estimatedTime: 2400, // 40 minutes
-          dependencies: ['task-1'],
-          status: 'pending'
-        },
-        {
-          id: 'task-3',
-          title: 'Build login component',
-          description: 'Create React component for user authentication',
-          agent: 'frontend',
-          estimatedTime: 1200, // 20 minutes
-          dependencies: ['task-2'],
-          status: 'pending'
-        }
-      ];
-    });
-
     it('should initialize approval state correctly', async () => {
       const approvalState = await workflowHandler.initializeApproval(sampleTasks);
       
@@ -240,6 +219,81 @@ describe('ApprovalWorkflowHandler Contract', () => {
       const selectedTask = toggledState.tasks[toggledState.selectedIndex];
       expect(selectedTask.status).not.toBe('pending'); // Should be toggled to approved/rejected
       expect(toggledState.modified).toBe(true);
+    });
+
+    it('should persist and recover approved decisions instead of returning placeholder success', async () => {
+      tempApprovalDir = await mkdtemp(path.join(tmpdir(), 'graphyn-approval-'));
+      workflowHandler = new ApprovalWorkflowHandler(mockConfig, {
+        storageDirectory: tempApprovalDir,
+        deviceId: 'device-primary',
+        persistDecisions: true,
+        now: () => new Date('2026-05-24T10:00:00.000Z')
+      });
+      const approvalState = await workflowHandler.initializeApproval(sampleTasks, {
+        workflowId: 'approval-workflow-contract'
+      });
+
+      const approvedState = await workflowHandler.handleKeyboardInput(approvalState, { key: 'a', action: 'approve' });
+      const recoveredDecision = await workflowHandler.recoverApprovalDecision('approval-workflow-contract');
+      const recoveredState = await workflowHandler.initializeApproval(sampleTasks, {
+        workflowId: 'approval-workflow-contract',
+        recover: true
+      });
+
+      expect(approvedState.approved).toBe(true);
+      expect(recoveredDecision).toMatchObject({
+        workflowId: 'approval-workflow-contract',
+        status: 'approved',
+        deviceId: 'device-primary',
+        sequence: 1,
+        approvedTaskIds: ['task-1', 'task-2', 'task-3']
+      });
+      expect(recoveredDecision?.stateHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(recoveredState.approved).toBe(true);
+      expect(recoveredState.recoveredDecisionId).toBe(recoveredDecision?.id);
+    });
+
+    it('should resolve multi-device decision conflicts with deterministic precedence', async () => {
+      tempApprovalDir = await mkdtemp(path.join(tmpdir(), 'graphyn-approval-'));
+      workflowHandler = new ApprovalWorkflowHandler(mockConfig, {
+        storageDirectory: tempApprovalDir,
+        deviceId: 'device-primary'
+      });
+
+      const firstDecision = await workflowHandler.persistApprovalDecision({
+        workflowId: 'approval-workflow-conflict',
+        status: 'approved',
+        taskIds: ['task-1'],
+        approvedTaskIds: ['task-1'],
+        deviceId: 'device-secondary',
+        sequence: 2,
+        decidedAt: '2026-05-24T10:00:00.000Z'
+      });
+      const cancellingDecision = await workflowHandler.persistApprovalDecision({
+        workflowId: 'approval-workflow-conflict',
+        status: 'cancelled',
+        taskIds: ['task-1'],
+        rejectedTaskIds: ['task-1'],
+        deviceId: 'device-primary',
+        sequence: 2,
+        decidedAt: '2026-05-24T10:00:00.000Z'
+      });
+      const staleLaterDecision = await workflowHandler.persistApprovalDecision({
+        workflowId: 'approval-workflow-conflict',
+        status: 'approved',
+        taskIds: ['task-1'],
+        approvedTaskIds: ['task-1'],
+        deviceId: 'device-tertiary',
+        sequence: 1,
+        decidedAt: '2026-05-24T11:00:00.000Z'
+      });
+      const recoveredDecision = await workflowHandler.recoverApprovalDecision('approval-workflow-conflict');
+
+      expect(firstDecision.status).toBe('approved');
+      expect(cancellingDecision.status).toBe('cancelled');
+      expect(staleLaterDecision.status).toBe('cancelled');
+      expect(recoveredDecision?.status).toBe('cancelled');
+      expect(recoveredDecision?.deviceId).toBe('device-primary');
     });
   });
 
@@ -422,3 +476,35 @@ describe('ApprovalWorkflowHandler Contract', () => {
     });
   });
 });
+
+function createSampleTasks(): TaskItem[] {
+  return [
+    {
+      id: 'task-1',
+      title: 'Set up database schema',
+      description: 'Create PostgreSQL tables for user authentication',
+      agent: 'backend',
+      estimatedTime: 1800,
+      dependencies: [],
+      status: 'pending'
+    },
+    {
+      id: 'task-2',
+      title: 'Create API endpoints',
+      description: 'Implement REST endpoints for user management',
+      agent: 'backend',
+      estimatedTime: 2400,
+      dependencies: ['task-1'],
+      status: 'pending'
+    },
+    {
+      id: 'task-3',
+      title: 'Build login component',
+      description: 'Create React component for user authentication',
+      agent: 'frontend',
+      estimatedTime: 1200,
+      dependencies: ['task-2'],
+      status: 'pending'
+    }
+  ];
+}
