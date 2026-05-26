@@ -19,7 +19,12 @@
  */
 
 import { spawn } from 'node:child_process';
-import { applyConsultTransformPolicy, type TransformReceipt } from './transform-policy.js';
+import { randomUUID } from 'node:crypto';
+import { applyConsultTransformPolicy, redactSecrets, type TransformReceipt } from './transform-policy.js';
+
+// Re-export so any existing callers that import redactSecrets from this file keep working.
+// (Canonical implementation now lives in transform-policy.ts.)
+export { redactSecrets } from './transform-policy.js';
 
 export type HarnessId = 'gemini' | 'codex' | 'claude';
 
@@ -50,6 +55,12 @@ export interface HarnessConsultReceipt {
   readOnlyEnforced: boolean;
   /** Exact argv the junction handed to the leaf (for audit). */
   invocationArgv: string[];
+  /** Recursion depth at which this junction was invoked (G3 audit). */
+  junctionDepth: number;
+  /** Trace id propagated across the full agent-calling-agent chain (G3 audit). */
+  junctionTraceId: string;
+  /** Number of env keys stripped from the leaf environment (G2 audit). */
+  strippedEnvKeyCount: number;
 }
 
 export interface HarnessConsultSuccess {
@@ -70,7 +81,8 @@ export type HarnessConsultErrorCode =
   | 'HARNESS_TIMEOUT'
   | 'HARNESS_FAILED'
   | 'HARNESS_UNPARSEABLE'
-  | 'HARNESS_UNSAFE_OUTPUT';
+  | 'HARNESS_UNSAFE_OUTPUT'
+  | 'JUNCTION_DEPTH_EXCEEDED';
 
 export interface HarnessConsultFailure {
   ok: false;
@@ -82,28 +94,41 @@ export interface HarnessConsultFailure {
 
 export type HarnessConsultResult = HarnessConsultSuccess | HarnessConsultFailure;
 
-// ─── Secret redaction (W273 guardrail G1) ──────────────────────────────────────
-// Strip obvious secret material before any external harness CLI sees the question.
-// Proof of redaction is the hash mismatch in the transform receipt.
+// ─── G2: Secret-stripped leaf environment ─────────────────────────────────────
+// Build a sanitised copy of process.env for the leaf harness subprocess.
+// Strips any env key whose name matches the secret-shaped pattern plus an
+// explicit allowlist of known Graphyn/provider secret keys.
+// Non-secret vars (HOME, PATH, TMPDIR, etc.) are preserved so the leaf CLIs
+// can still locate their file-based auth (~/.codex, ~/.gemini, etc.).
 
-const SECRET_PATTERNS: RegExp[] = [
-  /\bsk-[A-Za-z0-9_\-]{16,}\b/g, // OpenAI-style keys
-  /\bAIza[0-9A-Za-z_\-]{30,}\b/g, // Google API keys
-  /\bghp_[A-Za-z0-9]{20,}\b/g, // GitHub PATs
-  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, // Slack tokens
-  /\b(?:api[_-]?key|token|secret|password|passwd|bearer)\b\s*[:=]\s*['"]?[^\s'"]{6,}/gi,
-];
+/** Pattern matching env key NAMES that are likely to carry secret values. */
+const SECRET_KEY_PATTERN = /(^|_)(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?)($|_)/i;
 
-export function redactSecrets(input: string): { text: string; redacted: boolean } {
-  let redacted = false;
-  let text = input;
-  for (const pattern of SECRET_PATTERNS) {
-    text = text.replace(pattern, () => {
-      redacted = true;
-      return '[REDACTED]';
-    });
+/** Explicit additional key names to strip regardless of the above pattern. */
+const EXPLICIT_SECRET_KEYS = new Set([
+  'GRAPHYN_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GOOGLE_API_KEY',
+  'GEMINI_API_KEY',
+]);
+
+function buildLeafEnv(
+  base: NodeJS.ProcessEnv,
+  overrides: Record<string, string>,
+): { env: NodeJS.ProcessEnv; strippedCount: number } {
+  let strippedCount = 0;
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(base)) {
+    if (EXPLICIT_SECRET_KEYS.has(key) || SECRET_KEY_PATTERN.test(key)) {
+      strippedCount++;
+      continue;
+    }
+    env[key] = value;
   }
-  return { text, redacted };
+  // Apply caller-supplied overrides AFTER stripping (depth/trace propagation).
+  Object.assign(env, overrides);
+  return { env, strippedCount };
 }
 
 // ─── Subprocess runner ──────────────────────────────────────────────────────────
@@ -116,9 +141,14 @@ interface ProcessResult {
   spawnError?: NodeJS.ErrnoException;
 }
 
-function runProcess(command: string, argv: string[], timeoutMs: number): Promise<ProcessResult> {
+function runProcess(
+  command: string,
+  argv: string[],
+  timeoutMs: number,
+  env: NodeJS.ProcessEnv,
+): Promise<ProcessResult> {
   return new Promise((resolve) => {
-    const child = spawn(command, argv, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, argv, { stdio: ['ignore', 'pipe', 'pipe'], env });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -264,6 +294,21 @@ export async function runHarnessConsult(req: HarnessConsultRequest): Promise<Har
   const readOnly = req.readOnly !== false;
   const timeoutMs = req.timeoutMs ?? 120_000;
 
+  // ── Guardrail G3: recursion / depth cap ────────────────────────────────────
+  // Read the incoming depth from the env (set by the parent junction, if any).
+  const incomingDepth = parseInt(process.env.GRAPHYN_JUNCTION_DEPTH ?? '0', 10) || 0;
+  if (incomingDepth >= 3) {
+    return fail(
+      req.toHarness,
+      'JUNCTION_DEPTH_EXCEEDED',
+      `Junction recursion depth ${incomingDepth} has reached the maximum of 3.`,
+      'An agent-calling-agent chain exceeded the depth cap. Review the calling chain for unbounded recursion.',
+    );
+  }
+  // Resolve (or generate) the trace id propagated across the entire chain.
+  const traceId = process.env.GRAPHYN_JUNCTION_TRACE_ID || randomUUID();
+
+  // ── Basic validation ───────────────────────────────────────────────────────
   if (!req.question || !req.question.trim()) {
     return fail(req.toHarness, 'BAD_REQUEST', 'Empty question.', 'Provide a question: graphyn consult --to gemini "your question".');
   }
@@ -278,13 +323,27 @@ export async function runHarnessConsult(req: HarnessConsultRequest): Promise<Har
     );
   }
 
-  // Guardrail G1: redact secrets, then run the deterministic transform chain for the receipt.
-  const { text: redactedQuestion, redacted } = redactSecrets(req.question);
-  const { transformedInput, receipt } = applyConsultTransformPolicy(redactedQuestion);
+  // ── Guardrail G1 + redaction: apply the full transform chain on the RAW question.
+  // Redaction now happens INSIDE applyConsultTransformPolicy (new contract from
+  // transform-policy.ts). We pass the raw question; the chain handles redaction
+  // before the deterministic transform stages, producing a combined receipt.
+  const { transformedInput, receipt, redacted } = applyConsultTransformPolicy(req.question);
+
+  // ── Guardrail G2: build a secret-stripped leaf environment ─────────────────
+  // The leaf inherits HOME, PATH, and other non-secret vars so CLIs can locate
+  // their file-based auth (~/.codex, ~/.gemini). Secret-shaped keys are stripped.
+  // GRAPHYN_JUNCTION_DEPTH and GRAPHYN_JUNCTION_TRACE_ID are explicitly set so
+  // any nested consult call is bounded and traceable.
+  // TODO(later-wave): junction_budget_usd needs a per-model cost map before USD
+  //   budgeting can be enforced here.
+  const { env: leafEnv, strippedCount } = buildLeafEnv(process.env, {
+    GRAPHYN_JUNCTION_DEPTH: String(incomingDepth + 1),
+    GRAPHYN_JUNCTION_TRACE_ID: traceId,
+  });
 
   const argv = adapter.buildArgv(transformedInput, req);
   const started = Date.now();
-  const result = await runProcess(adapter.binary, argv, timeoutMs);
+  const result = await runProcess(adapter.binary, argv, timeoutMs, leafEnv);
   const durationMs = Date.now() - started;
 
   if (result.spawnError) {
@@ -328,6 +387,9 @@ export async function runHarnessConsult(req: HarnessConsultRequest): Promise<Har
       redacted,
       readOnlyEnforced: readOnly,
       invocationArgv: [adapter.binary, ...argv],
+      junctionDepth: incomingDepth,
+      junctionTraceId: traceId,
+      strippedEnvKeyCount: strippedCount,
     },
   };
 }
