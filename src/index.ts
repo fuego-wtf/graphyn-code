@@ -72,6 +72,52 @@ export function parseArgs(args: string[]): { options: CLIOptions; query: string;
 }
 
 /**
+ * Parse `consult --to <harness> "question"` args (cross-harness A2A junction).
+ * queryArgs[0] is the literal "consult" token.
+ */
+export function parseHarnessConsultArgs(queryArgs: string[]): {
+  toHarness?: string;
+  from?: string;
+  model?: string;
+  question?: string;
+  json?: boolean;
+  timeoutMs?: number;
+} {
+  const out: { toHarness?: string; from?: string; model?: string; question?: string; json?: boolean; timeoutMs?: number } = {};
+  const questionParts: string[] = [];
+
+  for (let i = 1; i < queryArgs.length; i++) {
+    const token = queryArgs[i];
+    const takeValue = (): string | undefined => {
+      const next = queryArgs[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        i++;
+        return next;
+      }
+      return undefined;
+    };
+
+    if (token === '--to' || token === '--harness') {
+      out.toHarness = takeValue();
+    } else if (token === '--from') {
+      out.from = takeValue();
+    } else if (token === '--model' || token === '-m') {
+      out.model = takeValue();
+    } else if (token === '--timeout') {
+      const value = Number(takeValue());
+      if (!Number.isNaN(value)) out.timeoutMs = value;
+    } else if (token === '--json') {
+      out.json = true;
+    } else {
+      questionParts.push(token);
+    }
+  }
+
+  out.question = questionParts.join(' ').trim() || undefined;
+  return out;
+}
+
+/**
  * Show CLI version
  */
 function showVersion(): void {
@@ -102,6 +148,7 @@ ${colors.highlight('Examples:')}
   
 ${colors.highlight('Commands:')}
   base <task>         Deterministic local KB retrieval (JSON output)
+  consult --to <h>    Ask another agent harness (A2A junction). e.g. consult --to gemini "Q"
   fs <subcommand>      ACL-gated local VFS inspection (JSON output)
   env <subcommand>    Manage environment files (setup, check, list)
   config <subcommand> Non-secret config registry checks
@@ -163,6 +210,38 @@ async function routeCommand(query: string, options: CLIOptions, queryArgs: strin
     if (result.response) {
       console.log(result.response);
     }
+    return true;
+  }
+
+  // Cross-harness consult (A2A junction): graphyn consult --to <harness> "question"
+  if (query === 'consult' || query.startsWith('consult ')) {
+    const { runHarnessConsult, SUPPORTED_HARNESSES } = await import('./consult/harness-adapter.js');
+    const parsed = parseHarnessConsultArgs(queryArgs);
+
+    if (!parsed.toHarness || !parsed.question) {
+      console.error(colors.error('❌ Usage: graphyn consult --to <harness> "question" [--model M] [--from H] [--json] [--timeout MS]'));
+      console.log(colors.info(`Supported harnesses: ${SUPPORTED_HARNESSES.join(', ')}`));
+      process.exitCode = 1;
+      return true;
+    }
+
+    const consultResult = await runHarnessConsult({
+      toHarness: parsed.toHarness as any,
+      fromHarness: parsed.from,
+      question: parsed.question,
+      model: parsed.model,
+      timeoutMs: parsed.timeoutMs,
+    });
+
+    if (parsed.json) {
+      console.log(JSON.stringify(consultResult, null, 2));
+    } else if (consultResult.ok) {
+      console.log(consultResult.response);
+    } else {
+      console.error(colors.error(`❌ consult failed [${consultResult.errorCode}]: ${consultResult.error}`));
+      console.error(colors.info(consultResult.actionable));
+    }
+    process.exitCode = consultResult.ok ? 0 : 1;
     return true;
   }
 
@@ -289,7 +368,7 @@ function isNaturalLanguage(query: string): boolean {
     'backend', 'frontend', 'architect', 'design', 'cli',
     'base', 'fs',
     'analyze', 'doctor', 'init', 'auth', 'logout',
-    'mcp', 'mcp-server', 'mcp config', 'env', 'config', 'schedule',
+    'mcp', 'mcp-server', 'mcp config', 'env', 'config', 'schedule', 'consult',
     '--version', '-v', '--help', '-h', 'help'
   ];
 

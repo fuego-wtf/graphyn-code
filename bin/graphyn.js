@@ -110,12 +110,12 @@ async function main() {
 main().catch(console.error);
 
 function isUnifiedCliCommand(firstToken) {
-  return new Set(['base', 'config', 'env', 'fs', '--version', '-v', '--help', '-h', 'help']).has(firstToken);
+  return new Set(['base', 'config', 'consult', 'env', 'fs', '--version', '-v', '--help', '-h', 'help']).has(firstToken);
 }
 
 function firstCommandToken(args) {
-  const flagsWithValue = new Set(['--agent-uuid', '--machine']);
-  const flagsWithoutValue = new Set(['--dev', '--debug', '--non-interactive', '-n', '--new']);
+  const flagsWithValue = new Set(['--agent-uuid', '--machine', '--to', '--harness', '--from', '--model', '-m', '--timeout']);
+  const flagsWithoutValue = new Set(['--dev', '--debug', '--non-interactive', '-n', '--new', '--json']);
 
   for (let i = 0; i < args.length; i++) {
     const token = args[i];

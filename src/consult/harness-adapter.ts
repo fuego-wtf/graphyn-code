@@ -1,0 +1,292 @@
+/**
+ * Cross-harness consult — the agent-to-agent (A2A) junction leaf.
+ *
+ * This is the "graphyn CLI as junction" path: a caller (Claude, or any agent /
+ * human via `@code`) asks `graphyn consult --to <harness> "question"`, and the
+ * junction routes the question to an external coding-agent harness (Gemini in
+ * V1), enforces a read-only/advisory posture, normalizes the answer, and returns
+ * a receipt.
+ *
+ * Distinct from `commands/consult.ts`, which is the `.af`<->`.af` Desktop-ACP
+ * relay (machine-tag based, RUNTIME_REQUIRED in CLI-only mode). This file is
+ * harness<->harness and runs entirely from the CLI.
+ *
+ * Design ref: docs/desktop/research/w273-research-cli-a2a-harness-junction/
+ *   99-synthesis-and-design.md (HarnessAdapter behind CapabilityRouter).
+ *
+ * V1 scope: Gemini leaf, read-only one-shot subprocess (Tier 1, proven live).
+ * Fast-follow: Codex leaf (needs `--ignore-user-config -s read-only --json`),
+ * Claude leaf, then Tier 2 ACP-over-stdio. See §8 of the synthesis doc.
+ */
+
+import { spawn } from 'node:child_process';
+import { applyConsultTransformPolicy, type TransformReceipt } from './transform-policy.js';
+
+export type HarnessId = 'gemini' | 'codex' | 'claude';
+
+/** Harnesses with a wired adapter in this build. */
+export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini'];
+
+export interface HarnessConsultRequest {
+  /** Who is asking. Defaults to 'claude' (the most common caller via @code). */
+  fromHarness?: string;
+  /** Which harness answers. */
+  toHarness: HarnessId;
+  /** The question to forward. */
+  question: string;
+  /** Optional model override passed to the leaf harness. */
+  model?: string;
+  /** Read-only/advisory posture. Defaults true; a consult must never mutate. */
+  readOnly?: boolean;
+  /** Hard timeout for the leaf process. Defaults to 120s. */
+  timeoutMs?: number;
+}
+
+export interface HarnessConsultReceipt {
+  /** Deterministic transform-policy receipt (stage chain + SHA-256 hashes). */
+  transform: TransformReceipt;
+  /** True when secrets were detected and stripped from the question. */
+  redacted: boolean;
+  /** True when the junction confirmed the leaf made no filesystem writes. */
+  readOnlyEnforced: boolean;
+  /** Exact argv the junction handed to the leaf (for audit). */
+  invocationArgv: string[];
+}
+
+export interface HarnessConsultSuccess {
+  ok: true;
+  fromHarness: string;
+  toHarness: HarnessId;
+  /** Model the leaf reported answering with, when available. */
+  answeredByModel?: string;
+  response: string;
+  durationMs: number;
+  receipt: HarnessConsultReceipt;
+}
+
+export type HarnessConsultErrorCode =
+  | 'BAD_REQUEST'
+  | 'HARNESS_NOT_WIRED'
+  | 'HARNESS_UNAVAILABLE'
+  | 'HARNESS_TIMEOUT'
+  | 'HARNESS_FAILED'
+  | 'HARNESS_UNPARSEABLE'
+  | 'HARNESS_UNSAFE_OUTPUT';
+
+export interface HarnessConsultFailure {
+  ok: false;
+  toHarness: HarnessId | string;
+  errorCode: HarnessConsultErrorCode;
+  error: string;
+  actionable: string;
+}
+
+export type HarnessConsultResult = HarnessConsultSuccess | HarnessConsultFailure;
+
+// ─── Secret redaction (W273 guardrail G1) ──────────────────────────────────────
+// Strip obvious secret material before any external harness CLI sees the question.
+// Proof of redaction is the hash mismatch in the transform receipt.
+
+const SECRET_PATTERNS: RegExp[] = [
+  /\bsk-[A-Za-z0-9_\-]{16,}\b/g, // OpenAI-style keys
+  /\bAIza[0-9A-Za-z_\-]{30,}\b/g, // Google API keys
+  /\bghp_[A-Za-z0-9]{20,}\b/g, // GitHub PATs
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, // Slack tokens
+  /\b(?:api[_-]?key|token|secret|password|passwd|bearer)\b\s*[:=]\s*['"]?[^\s'"]{6,}/gi,
+];
+
+export function redactSecrets(input: string): { text: string; redacted: boolean } {
+  let redacted = false;
+  let text = input;
+  for (const pattern of SECRET_PATTERNS) {
+    text = text.replace(pattern, () => {
+      redacted = true;
+      return '[REDACTED]';
+    });
+  }
+  return { text, redacted };
+}
+
+// ─── Subprocess runner ──────────────────────────────────────────────────────────
+
+interface ProcessResult {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+  spawnError?: NodeJS.ErrnoException;
+}
+
+function runProcess(command: string, argv: string[], timeoutMs: number): Promise<ProcessResult> {
+  return new Promise((resolve) => {
+    const child = spawn(command, argv, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, timeoutMs);
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (err: NodeJS.ErrnoException) => {
+      clearTimeout(timer);
+      resolve({ code: null, stdout, stderr, timedOut, spawnError: err });
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr, timedOut });
+    });
+  });
+}
+
+/** Extract a JSON object from possibly-noisy stdout (gemini prints clean JSON to stdout). */
+function extractJson(raw: string): unknown {
+  const trimmed = raw.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    }
+    throw new Error('no JSON object found in harness output');
+  }
+}
+
+// ─── Adapter interface + leaves ───────────────────────────────────────────────
+
+interface HarnessAdapter {
+  readonly id: HarnessId;
+  /** The leaf binary on PATH. */
+  readonly binary: string;
+  buildArgv(prompt: string, req: HarnessConsultRequest): string[];
+  /** Parse the leaf's stdout into a normalized answer + read-only verification. */
+  parseOutput(stdout: string): { response: string; model?: string; readOnlyVerified: boolean };
+}
+
+class GeminiHarnessAdapter implements HarnessAdapter {
+  readonly id = 'gemini' as const;
+  readonly binary = 'gemini';
+
+  buildArgv(prompt: string, req: HarnessConsultRequest): string[] {
+    // `--approval-mode plan` = read-only mode; `-o json` = machine-parseable envelope.
+    const argv = ['-p', prompt, '--approval-mode', 'plan', '-o', 'json'];
+    if (req.model) argv.push('-m', req.model);
+    return argv;
+  }
+
+  parseOutput(stdout: string): { response: string; model?: string; readOnlyVerified: boolean } {
+    const parsed = extractJson(stdout) as {
+      response?: string;
+      stats?: {
+        models?: Record<string, unknown>;
+        files?: { totalLinesAdded?: number; totalLinesRemoved?: number };
+      };
+    };
+    const response = (parsed.response ?? '').trim();
+    const linesAdded = parsed.stats?.files?.totalLinesAdded ?? 0;
+    const linesRemoved = parsed.stats?.files?.totalLinesRemoved ?? 0;
+    const model = parsed.stats?.models ? Object.keys(parsed.stats.models)[0] : undefined;
+    return { response, model, readOnlyVerified: linesAdded === 0 && linesRemoved === 0 };
+  }
+}
+
+const ADAPTERS: Partial<Record<HarnessId, HarnessAdapter>> = {
+  gemini: new GeminiHarnessAdapter(),
+};
+
+function fail(
+  toHarness: HarnessId | string,
+  errorCode: HarnessConsultErrorCode,
+  error: string,
+  actionable: string,
+): HarnessConsultFailure {
+  return { ok: false, toHarness, errorCode, error, actionable };
+}
+
+// ─── The junction entry point ─────────────────────────────────────────────────
+
+/**
+ * Route a consult to an external harness through the graphyn junction.
+ * Read-only by default; redacts secrets; returns a receipt.
+ */
+export async function runHarnessConsult(req: HarnessConsultRequest): Promise<HarnessConsultResult> {
+  const fromHarness = req.fromHarness ?? 'claude';
+  const readOnly = req.readOnly !== false;
+  const timeoutMs = req.timeoutMs ?? 120_000;
+
+  if (!req.question || !req.question.trim()) {
+    return fail(req.toHarness, 'BAD_REQUEST', 'Empty question.', 'Provide a question: graphyn consult --to gemini "your question".');
+  }
+
+  const adapter = ADAPTERS[req.toHarness];
+  if (!adapter) {
+    return fail(
+      req.toHarness,
+      'HARNESS_NOT_WIRED',
+      `Harness "${req.toHarness}" is not wired in this build.`,
+      `Supported harnesses: ${SUPPORTED_HARNESSES.join(', ')}. (Codex/Claude leaves are the fast-follow — see W273 §8.)`,
+    );
+  }
+
+  // Guardrail G1: redact secrets, then run the deterministic transform chain for the receipt.
+  const { text: redactedQuestion, redacted } = redactSecrets(req.question);
+  const { transformedInput, receipt } = applyConsultTransformPolicy(redactedQuestion);
+
+  const argv = adapter.buildArgv(transformedInput, req);
+  const started = Date.now();
+  const result = await runProcess(adapter.binary, argv, timeoutMs);
+  const durationMs = Date.now() - started;
+
+  if (result.spawnError) {
+    if (result.spawnError.code === 'ENOENT') {
+      return fail(req.toHarness, 'HARNESS_UNAVAILABLE', `"${adapter.binary}" is not installed or not on PATH.`, `Install the ${req.toHarness} CLI and ensure it is on PATH.`);
+    }
+    return fail(req.toHarness, 'HARNESS_FAILED', `Failed to spawn ${adapter.binary}: ${result.spawnError.message}`, 'Check the harness CLI installation and retry.');
+  }
+  if (result.timedOut) {
+    return fail(req.toHarness, 'HARNESS_TIMEOUT', `${adapter.binary} did not respond within ${timeoutMs}ms.`, 'Increase --timeout or simplify the question.');
+  }
+  if (result.code !== 0) {
+    const detail = (result.stderr || result.stdout || '').trim().split('\n').slice(-3).join(' ');
+    return fail(req.toHarness, 'HARNESS_FAILED', `${adapter.binary} exited with code ${result.code}. ${detail}`, 'Check the harness CLI auth/config and retry.');
+  }
+
+  let parsed: { response: string; model?: string; readOnlyVerified: boolean };
+  try {
+    parsed = adapter.parseOutput(result.stdout);
+  } catch (err) {
+    return fail(req.toHarness, 'HARNESS_UNPARSEABLE', `Could not parse ${adapter.binary} output: ${err instanceof Error ? err.message : String(err)}`, 'The harness output format may have changed; inspect raw output.');
+  }
+
+  // Read-only enforcement: a consult must never mutate the filesystem.
+  if (readOnly && !parsed.readOnlyVerified) {
+    return fail(req.toHarness, 'HARNESS_UNSAFE_OUTPUT', `${adapter.binary} reported filesystem writes during a read-only consult.`, 'Refusing to return a non-read-only consult result.');
+  }
+  if (!parsed.response) {
+    return fail(req.toHarness, 'HARNESS_UNPARSEABLE', `${adapter.binary} returned an empty answer.`, 'Retry; if it persists the harness may have errored silently.');
+  }
+
+  return {
+    ok: true,
+    fromHarness,
+    toHarness: req.toHarness,
+    answeredByModel: parsed.model,
+    response: parsed.response,
+    durationMs,
+    receipt: {
+      transform: receipt,
+      redacted,
+      readOnlyEnforced: readOnly,
+      invocationArgv: [adapter.binary, ...argv],
+    },
+  };
+}
