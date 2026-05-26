@@ -29,6 +29,23 @@ nodes. Treat gatekeeper/closure, delegated-auth, question-before-plan, retainer
 lifecycle, and certified-vs-reported state as policy gates: do not bypass them
 with local shortcuts, and attach receipts when a gate is satisfied.
 
+## Workspace Leveling (mandatory)
+
+This repo's position in the 4-discipline workspace hierarchy
+(source of truth: `docs/FILETREE.md` §1):
+
+| Discipline | Root | Children |
+|------------|------|----------|
+| **RUNTIME** | `desktop/` | `packages/{base,composer,nolimit,sync}`, `lens/` + `lens/store/*`, `tbh-md/`, `mobile/`, `extension/`, `code/` |
+| **ACCOUNT** | `id/` | `state/`, `backyard/` + `vault/`, `web/`, `design/` + `prototypes/` |
+| **GOVERNANCE** | `docs/` | — |
+| **INFRA** | `scripts/` | — |
+
+When planning cross-repo work, respect this hierarchy: a child repo
+does not own decisions that belong to its parent discipline.
+
+**This repo:** child of desktop/ (RUNTIME), at `desktop/ → code/`.
+
 ## Core Principles
 
 | Principle | Description |
