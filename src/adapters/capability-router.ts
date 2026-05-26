@@ -7,6 +7,7 @@
  *   schedule/*      → BackyardCliAdapter (THIS ROUTER)
  *   device/*        → BackyardCliAdapter (future)
  *   grant/*         → BackyardCliAdapter (future)
+ *   harness/*       → HarnessCapabilityAdapter (cross-harness A2A consult; W274)
  *
  * New Graphyn-internal capability domains should register here with
  * `router.register('domain/*', new BackyardCliAdapter())` — never default to
@@ -18,6 +19,7 @@ import {
   type BackyardCapabilityRequest,
   type BackyardResult,
 } from './backyard-cli-adapter.js';
+import { HarnessCapabilityAdapter } from './harness-capability-adapter.js';
 
 // ─── Adapter interface ────────────────────────────────────────────────────────
 
@@ -91,6 +93,9 @@ export function getDefaultCapabilityRouter(): CapabilityRouter {
   // device/*, grant/* reserved for future backyard domains — same adapter
   router.register('device', backyardAdapter);
   router.register('grant', backyardAdapter);
+
+  // harness/* → HarnessCapabilityAdapter (cross-harness A2A consult)
+  router.register('harness', new HarnessCapabilityAdapter());
 
   _defaultRouter = router;
   return _defaultRouter;

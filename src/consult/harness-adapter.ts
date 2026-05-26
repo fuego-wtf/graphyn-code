@@ -14,8 +14,8 @@
  * Design ref: docs/desktop/research/w273-research-cli-a2a-harness-junction/
  *   99-synthesis-and-design.md (HarnessAdapter behind CapabilityRouter).
  *
- * V1 scope: Gemini + Codex leaves, read-only one-shot subprocess (Tier 1, proven live).
- * Fast-follow: Claude leaf, then Tier 2 ACP-over-stdio. See §8 of the synthesis doc.
+ * V1 scope: Gemini + Codex + Claude leaves, read-only one-shot subprocess (Tier 1, proven live).
+ * Fast-follow: Tier 2 ACP-over-stdio. See §8 of the synthesis doc.
  */
 
 import { spawn } from 'node:child_process';
@@ -29,7 +29,7 @@ export { redactSecrets } from './transform-policy.js';
 export type HarnessId = 'gemini' | 'codex' | 'claude';
 
 /** Harnesses with a wired adapter in this build. */
-export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini', 'codex'];
+export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini', 'codex', 'claude'];
 
 export interface HarnessConsultRequest {
   /** Who is asking. Defaults to 'claude' (the most common caller via @code). */
@@ -269,9 +269,67 @@ class CodexHarnessAdapter implements HarnessAdapter {
   }
 }
 
+class ClaudeHarnessAdapter implements HarnessAdapter {
+  readonly id = 'claude' as const;
+  readonly binary = 'claude';
+
+  buildArgv(prompt: string, req: HarnessConsultRequest): string[] {
+    // Read-only is enforced by restricting --allowedTools to Read,Glob,Grep,
+    // which excludes Write, Edit, and Bash. NEVER add bypassPermissions or
+    // Write/Edit/Bash tools here — the consult contract requires advisory-only posture.
+    // W273 §6 specifies these flags for the Claude leaf.
+    const argv = ['-p', prompt, '--output-format', 'json', '--allowedTools', 'Read,Glob,Grep', '--permission-mode', 'default'];
+    if (req.model) argv.push('--model', req.model);
+    return argv;
+  }
+
+  parseOutput(stdout: string): { response: string; model?: string; readOnlyVerified: boolean } {
+    // `claude -p --output-format json` emits a single JSON object:
+    //   { type, subtype, is_error, result, stop_reason, session_id, total_cost_usd,
+    //     modelUsage: { "<model-id>": { inputTokens, outputTokens, ... }, ... }, ... }
+    const parsed = extractJson(stdout) as {
+      result?: string;
+      is_error?: boolean;
+      modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number }>;
+    };
+
+    // If is_error is true the result field is an error string, not an answer.
+    // Return empty response so the caller's empty-response guard maps it to HARNESS_UNPARSEABLE.
+    if (parsed.is_error === true) {
+      return { response: '', readOnlyVerified: true };
+    }
+
+    const response = (parsed.result ?? '').trim();
+
+    // claude --output-format json reports ALL model layers that participated
+    // (e.g. an orchestrating opus entry + an internal haiku entry for routing).
+    // There is no single "answering model" field in the schema. Best-effort:
+    // pick the key with the highest inputTokens — that is the primary reasoning
+    // model (opus in the probe: 5758 vs haiku's 445). Fall back to undefined
+    // when modelUsage is absent.
+    let model: string | undefined;
+    if (parsed.modelUsage && typeof parsed.modelUsage === 'object') {
+      let maxTokens = -1;
+      for (const [modelId, usage] of Object.entries(parsed.modelUsage)) {
+        const tokens = usage.inputTokens ?? 0;
+        if (tokens > maxTokens) {
+          maxTokens = tokens;
+          model = modelId;
+        }
+      }
+    }
+
+    // Read-only is guaranteed by --allowedTools "Read,Glob,Grep" in buildArgv
+    // (excludes Write/Edit/Bash at the harness level, not self-reported).
+    // Same pattern as the Codex -s read-only sandbox: a clean parse is sufficient.
+    return { response, model, readOnlyVerified: true };
+  }
+}
+
 const ADAPTERS: Partial<Record<HarnessId, HarnessAdapter>> = {
   gemini: new GeminiHarnessAdapter(),
   codex: new CodexHarnessAdapter(),
+  claude: new ClaudeHarnessAdapter(),
 };
 
 function fail(
