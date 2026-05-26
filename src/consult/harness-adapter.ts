@@ -14,9 +14,8 @@
  * Design ref: docs/desktop/research/w273-research-cli-a2a-harness-junction/
  *   99-synthesis-and-design.md (HarnessAdapter behind CapabilityRouter).
  *
- * V1 scope: Gemini leaf, read-only one-shot subprocess (Tier 1, proven live).
- * Fast-follow: Codex leaf (needs `--ignore-user-config -s read-only --json`),
- * Claude leaf, then Tier 2 ACP-over-stdio. See §8 of the synthesis doc.
+ * V1 scope: Gemini + Codex leaves, read-only one-shot subprocess (Tier 1, proven live).
+ * Fast-follow: Claude leaf, then Tier 2 ACP-over-stdio. See §8 of the synthesis doc.
  */
 
 import { spawn } from 'node:child_process';
@@ -25,7 +24,7 @@ import { applyConsultTransformPolicy, type TransformReceipt } from './transform-
 export type HarnessId = 'gemini' | 'codex' | 'claude';
 
 /** Harnesses with a wired adapter in this build. */
-export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini'];
+export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini', 'codex'];
 
 export interface HarnessConsultRequest {
   /** Who is asking. Defaults to 'claude' (the most common caller via @code). */
@@ -199,8 +198,50 @@ class GeminiHarnessAdapter implements HarnessAdapter {
   }
 }
 
+class CodexHarnessAdapter implements HarnessAdapter {
+  readonly id = 'codex' as const;
+  readonly binary = 'codex';
+
+  buildArgv(prompt: string, req: HarnessConsultRequest): string[] {
+    // `-s read-only` sandboxes the leaf at the OS level (no writes, no escalation).
+    // `--ignore-user-config` is MANDATORY: the operator's ~/.codex/config.toml is
+    // `danger-full-access` / `approval_policy = never` (W273 §6) and a consult must
+    // never inherit it. `--skip-git-repo-check` lets the consult run outside a git repo.
+    const argv = ['exec', '--skip-git-repo-check', '--ignore-user-config', '-s', 'read-only', '--json'];
+    if (req.model) argv.push('-m', req.model);
+    argv.push(prompt);
+    return argv;
+  }
+
+  parseOutput(stdout: string): { response: string; model?: string; readOnlyVerified: boolean } {
+    // codex --json emits JSONL events; the answer is the text of the last
+    // `item.completed` event whose `item.type` is `agent_message`. Non-JSON noise
+    // lines (e.g. "Reading additional input from stdin…") are skipped.
+    const messages: string[] = [];
+    for (const line of stdout.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let evt: { type?: string; item?: { type?: string; text?: string } };
+      try {
+        evt = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+      if (evt.type === 'item.completed' && evt.item?.type === 'agent_message' && typeof evt.item.text === 'string') {
+        messages.push(evt.item.text);
+      }
+    }
+    const response = (messages.at(-1) ?? '').trim();
+    // Read-only is guaranteed by the `-s read-only` OS sandbox in buildArgv (not
+    // self-reported in the JSON), so a clean parse is sufficient verification.
+    // codex --json does not surface the answering model, so `model` stays undefined.
+    return { response, readOnlyVerified: true };
+  }
+}
+
 const ADAPTERS: Partial<Record<HarnessId, HarnessAdapter>> = {
   gemini: new GeminiHarnessAdapter(),
+  codex: new CodexHarnessAdapter(),
 };
 
 function fail(
