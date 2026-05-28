@@ -1,27 +1,43 @@
 /**
  * Unit tests for UltimateOrchestrator.
  *
- * SKIPPED: This test suite tests an idealized contract that diverges from the
- * current implementation in multiple structural ways:
+ * SKIPPED: UltimateOrchestrator is aspirational scaffolding — it is NOT wired
+ * into the production CLI path.  The live entry point (src/index.ts) routes
+ * natural language queries through src/cli-orchestrator.ts → AgentOrchestrator,
+ * never through UltimateOrchestrator.orchestrateQuery().  UltimateOrchestrator
+ * is only imported in src/cli.ts, which is not referenced by src/index.ts.
+ *
+ * Additionally, the test suite asserts a contract that the current
+ * implementation does not satisfy in four concrete ways:
  *
  *   1. SDK resolution: @anthropic-ai/claude-code v2.x is a CLI-only binary
- *      with no JS entry point — Bun/vitest cannot resolve it at test time.
+ *      with no JS entry point — Bun/vitest cannot resolve it at test time
+ *      (a tests/__stubs__/claude-code-sdk.ts shim is in place, but end-to-end
+ *      orchestrateQuery() calls still reach the SDK at runtime).
  *
  *   2. Missing OrchestrationResult properties: the tests assert fields
  *      (agentTypes, stateTransitions, previousTaskInfluence, retryAttempts)
- *      that do not exist in the OrchestrationResult interface in types.ts.
+ *      that have never existed in the OrchestrationResult interface in types.ts
+ *      and have no definition in any commit history.
  *
- *   3. Constructor validation: the tests expect new UltimateOrchestrator with
- *      negative/zero values to throw, but the current constructor does not
- *      validate those values.
+ *   3. Constructor validation: the tests expect new UltimateOrchestrator({
+ *      maxParallelAgents: -1, taskTimeoutMs: -1000 }) to throw, but the
+ *      constructor uses falsy-coalescing (|| DEFAULT) and performs no range
+ *      checks, so negative values are silently accepted.
  *
  *   4. Single-error contract: several tests assert errors.length === 1 for
- *      multi-task failures, but the implementation accumulates one error per
- *      task (can be 3+).
+ *      multi-task failures, but buildOrchestrationResult() maps one error
+ *      string per failed TaskResult, so 3 concurrent failures → errors.length 3.
  *
- * These are product-contract gaps, not test infrastructure gaps. Unskip and
- * fix the tests only after the OrchestrationResult interface and constructor
- * are updated to match the intended contract documented here.
+ * To unskip and make these tests pass, all four gaps must be resolved:
+ *   - Wire UltimateOrchestrator into the production src/index.ts command path,
+ *     OR scope these tests to the cli.ts entry and provide a real SDK mock.
+ *   - Add agentTypes, stateTransitions, previousTaskInfluence, retryAttempts
+ *     to the OrchestrationResult interface in src/orchestrator/types.ts and
+ *     populate them in buildOrchestrationResult().
+ *   - Add constructor validation that throws for non-positive maxParallelAgents,
+ *     taskTimeoutMs, and memoryLimitMb.
+ *   - Decide and document the single-vs-multi error accumulation contract.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
