@@ -82,8 +82,10 @@ export function parseHarnessConsultArgs(queryArgs: string[]): {
   question?: string;
   json?: boolean;
   timeoutMs?: number;
+  /** Invoke tier. 'subprocess' (default, Tier 1) or 'acp' (Tier 2, opt-in). */
+  tier?: 'subprocess' | 'acp';
 } {
-  const out: { toHarness?: string; from?: string; model?: string; question?: string; json?: boolean; timeoutMs?: number } = {};
+  const out: { toHarness?: string; from?: string; model?: string; question?: string; json?: boolean; timeoutMs?: number; tier?: 'subprocess' | 'acp' } = {};
   const questionParts: string[] = [];
 
   for (let i = 1; i < queryArgs.length; i++) {
@@ -108,6 +110,17 @@ export function parseHarnessConsultArgs(queryArgs: string[]): {
       if (!Number.isNaN(value)) out.timeoutMs = value;
     } else if (token === '--json') {
       out.json = true;
+    } else if (token === '--acp') {
+      // Shorthand for --tier acp.
+      out.tier = 'acp';
+    } else if (token === '--tier') {
+      const raw = takeValue();
+      if (raw === 'acp' || raw === 'subprocess') {
+        out.tier = raw;
+      } else if (raw !== undefined) {
+        // Unknown tier value — surface as a bad-request later; store raw cast.
+        out.tier = raw as 'subprocess' | 'acp';
+      }
     } else {
       questionParts.push(token);
     }
@@ -149,6 +162,7 @@ ${colors.highlight('Examples:')}
 ${colors.highlight('Commands:')}
   base <task>         Deterministic local KB retrieval (JSON output)
   consult --to <h>    Ask another agent harness (A2A junction). e.g. consult --to gemini "Q"
+                      Flags: --tier <subprocess|acp>  (default: subprocess/Tier-1; --acp is shorthand for --tier acp)
   fs <subcommand>      ACL-gated local VFS inspection (JSON output)
   env <subcommand>    Manage environment files (setup, check, list)
   config <subcommand> Non-secret config registry checks
@@ -219,7 +233,7 @@ async function routeCommand(query: string, options: CLIOptions, queryArgs: strin
     const parsed = parseHarnessConsultArgs(queryArgs);
 
     if (!parsed.toHarness || !parsed.question) {
-      console.error(colors.error('❌ Usage: graphyn consult --to <harness> "question" [--model M] [--from H] [--json] [--timeout MS]'));
+      console.error(colors.error('❌ Usage: graphyn consult --to <harness> "question" [--model M] [--from H] [--json] [--timeout MS] [--tier subprocess|acp] [--acp]'));
       console.log(colors.info(`Supported harnesses: ${SUPPORTED_HARNESSES.join(', ')}`));
       process.exitCode = 1;
       return true;
@@ -231,6 +245,7 @@ async function routeCommand(query: string, options: CLIOptions, queryArgs: strin
       question: parsed.question,
       model: parsed.model,
       timeoutMs: parsed.timeoutMs,
+      tier: parsed.tier,
     });
 
     if (parsed.json) {
