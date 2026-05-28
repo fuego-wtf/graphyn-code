@@ -303,10 +303,17 @@ export async function runAcpTransport(options: AcpTransportOptions): Promise<Acp
   }
 
   // ── 5. session/new ────────────────────────────────────────────────────────
-  const sessionNewId = randomUUID();
+  // gemini@0.42+ requires BOTH cwd (absolute path) AND mcpServers (empty array
+  // is fine) in session/new params.  Without these two fields together the
+  // server returns {"code":-32603,"message":"Internal error"}.  The `id` field
+  // is optional (server mints its own sessionId regardless).
+  // Empirically verified 2026-05-28: {id} alone → -32603; {cwd,mcpServers:[]} → OK.
   let sessionNewResult: unknown;
   try {
-    sessionNewResult = await sendRequest('session/new', { id: sessionNewId });
+    sessionNewResult = await sendRequest('session/new', {
+      cwd: process.cwd(),
+      mcpServers: [],
+    });
   } catch (err) {
     clearTimeout(timer);
     try { child.kill('SIGKILL'); } catch { /* ignore */ }
@@ -321,7 +328,7 @@ export async function runAcpTransport(options: AcpTransportOptions): Promise<Acp
   }
 
   const snr = sessionNewResult as Record<string, unknown> | undefined;
-  const sessionId = (typeof snr?.sessionId === 'string' ? snr.sessionId : sessionNewId);
+  const sessionId = (typeof snr?.sessionId === 'string' ? snr.sessionId : randomUUID());
   const modelId = typeof snr?.modelId === 'string' ? snr.modelId : undefined;
 
   // ── 6. session/prompt ─────────────────────────────────────────────────────
