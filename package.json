@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:package": "./scripts/test-package.sh",
     "prepublishOnly": "bun run build && bun run test:package"
   },
@@ -74,8 +76,10 @@
     "@types/gradient-string": "^1.1.6",
     "@types/inquirer": "^9.0.0",
     "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
     "ts-node": "^10.9.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
   },
   "files": [
     "dist",
