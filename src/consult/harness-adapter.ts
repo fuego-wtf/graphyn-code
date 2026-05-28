@@ -21,6 +21,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { applyConsultTransformPolicy, redactSecrets, type TransformReceipt } from './transform-policy.js';
+import { runAcpTransport, type AcpTransportOptions } from './acp-transport.js';
 
 // Re-export so any existing callers that import redactSecrets from this file keep working.
 // (Canonical implementation now lives in transform-policy.ts.)
@@ -30,6 +31,21 @@ export type HarnessId = 'gemini' | 'codex' | 'claude';
 
 /** Harnesses with a wired adapter in this build. */
 export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini', 'codex', 'claude'];
+
+/**
+ * Invoke tier selection for runHarnessConsult.
+ *
+ * 'subprocess' (Tier 1, default): one-shot CLI subprocess with --approval-mode
+ *   plan / --json / -s read-only flags.  Proven live in W274 W1-W4.
+ *
+ * 'acp' (Tier 2, EXPERIMENTAL OPT-IN): ACP-over-stdio JSON-RPC 2.0 session.
+ *   Spawns `<harnessBin> --acp`, performs initialize → session/new →
+ *   session/prompt, streams agent_message_chunk notifications.
+ *   SHIP-GATE: requires two desktop ACP bug fixes before production use
+ *   (transport.rs:166 initialize filter + agent.rs prompt-response stopReason).
+ *   Enable via explicit `tier: 'acp'` OR env GRAPHYN_CONSULT_TIER=acp.
+ */
+export type ConsultTier = 'subprocess' | 'acp';
 
 export interface HarnessConsultRequest {
   /** Who is asking. Defaults to 'claude' (the most common caller via @code). */
@@ -44,6 +60,12 @@ export interface HarnessConsultRequest {
   readOnly?: boolean;
   /** Hard timeout for the leaf process. Defaults to 120s. */
   timeoutMs?: number;
+  /**
+   * Invoke tier.  Defaults to 'subprocess' (Tier 1).
+   * Use 'acp' only after the desktop ACP bugs are fixed (see SHIP-GATE above).
+   * Can also be set workspace-wide via GRAPHYN_CONSULT_TIER=acp env var.
+   */
+  tier?: ConsultTier;
 }
 
 export interface HarnessConsultReceipt {
@@ -399,6 +421,67 @@ export async function runHarnessConsult(req: HarnessConsultRequest): Promise<Har
     GRAPHYN_JUNCTION_TRACE_ID: traceId,
   });
 
+  // ── Tier selection ─────────────────────────────────────────────────────────
+  // Tier 2 (ACP-over-stdio) is opt-in: explicit `tier: 'acp'` on the request
+  // OR the environment variable GRAPHYN_CONSULT_TIER=acp.
+  // Tier 1 (subprocess) is the default and is never altered by this block.
+  //
+  // SHIP-GATE comment (record): Tier 2 MUST NOT be enabled by default until:
+  //   1. desktop transport.rs:166 filter is patched to pass `initialize` responses.
+  //   2. desktop agent.rs is patched to detect stopReason in session/prompt responses.
+  // Those fixes belong in a separate desktop session.  Tier 2 here is experimental.
+  const effectiveTier: ConsultTier = req.tier ?? (process.env.GRAPHYN_CONSULT_TIER === 'acp' ? 'acp' : 'subprocess');
+
+  if (effectiveTier === 'acp') {
+    const acpOpts: AcpTransportOptions = {
+      harnessBin: adapter.binary,
+      prompt: transformedInput,
+      timeoutMs,
+      env: leafEnv,
+    };
+    const acpStarted = Date.now();
+    const acpResult = await runAcpTransport(acpOpts);
+    const acpDuration = Date.now() - acpStarted;
+
+    if (!acpResult.ok) {
+      // Map ACP error codes to HarnessConsultErrorCode.
+      const codeMap: Record<string, HarnessConsultErrorCode> = {
+        ACP_SPAWN_ERROR: 'HARNESS_UNAVAILABLE',
+        ACP_TIMEOUT: 'HARNESS_TIMEOUT',
+        ACP_HANDSHAKE_FAILED: 'HARNESS_FAILED',
+        ACP_SESSION_NEW_FAILED: 'HARNESS_FAILED',
+        ACP_PROMPT_FAILED: 'HARNESS_FAILED',
+        ACP_EMPTY_ANSWER: 'HARNESS_UNPARSEABLE',
+      };
+      const mappedCode: HarnessConsultErrorCode = codeMap[acpResult.errorCode] ?? 'HARNESS_FAILED';
+      return fail(req.toHarness, mappedCode, acpResult.error, `ACP Tier-2 transport failed (${acpResult.errorCode}). See SHIP-GATE note in acp-transport.ts.`);
+    }
+
+    // ACP Tier-2 has no filesystem-write evidence — trust the read-only posture
+    // enforced by the advisory consult contract (caller's readOnly flag is advisory;
+    // the ACP protocol does not surface file-write stats like Tier-1 gemini -o json).
+    // This mirrors the Codex + Claude Tier-1 adapters which also set readOnlyVerified: true
+    // by protocol rather than by self-report.
+    return {
+      ok: true,
+      fromHarness,
+      toHarness: req.toHarness,
+      answeredByModel: acpResult.modelId,
+      response: acpResult.answerText,
+      durationMs: acpDuration,
+      receipt: {
+        transform: receipt,
+        redacted,
+        readOnlyEnforced: readOnly,
+        invocationArgv: [adapter.binary, '--acp'],
+        junctionDepth: incomingDepth,
+        junctionTraceId: traceId,
+        strippedEnvKeyCount: strippedCount,
+      },
+    };
+  }
+
+  // ── Tier 1: one-shot subprocess (default) ─────────────────────────────────
   const argv = adapter.buildArgv(transformedInput, req);
   const started = Date.now();
   const result = await runProcess(adapter.binary, argv, timeoutMs, leafEnv);
