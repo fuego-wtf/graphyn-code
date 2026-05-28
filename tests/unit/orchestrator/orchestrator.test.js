@@ -2,11 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AgentOrchestrator } from '../../../src/orchestrator/AgentOrchestrator.js';
 import path from 'path';
 import fs from 'fs/promises';
+import { tmpdir } from 'os';
 describe('AgentOrchestrator - Method-Level Tests', () => {
     let orchestrator;
     let mockAgentsPath;
     beforeEach(async () => {
-        mockAgentsPath = path.join(process.cwd(), 'test-agents');
+        mockAgentsPath = await fs.mkdtemp(path.join(tmpdir(), 'graphyn-test-agents-'));
         try {
             await fs.mkdir(mockAgentsPath, { recursive: true });
             await fs.writeFile(path.join(mockAgentsPath, 'backend-developer.md'), `# Backend Developer Agent

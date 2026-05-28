@@ -20,13 +20,14 @@ import { AgentSessionManager } from '../../src/orchestrator/AgentSessionManager.
 import { UniversalTaskDecomposer } from '../../src/orchestrator/UniversalTaskDecomposer.js';
 import path from 'path';
 import fs from 'fs/promises';
+import { tmpdir } from 'os';
 
 describe.skip('Agent Orchestration - Integration Tests', () => {
   let orchestrator: UltimateOrchestrator;
   let mockAgentsPath: string;
 
   beforeEach(async () => {
-    mockAgentsPath = path.join(process.cwd(), 'test-agents');
+    mockAgentsPath = await fs.mkdtemp(path.join(tmpdir(), 'graphyn-test-agents-'));
     try {
       await fs.mkdir(mockAgentsPath, { recursive: true });
       
