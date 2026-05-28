@@ -1,6 +1,19 @@
 /**
  * Method-level tests for AgentOrchestrator
  * Tests core orchestration logic without external dependencies
+ *
+ * @anthropic-ai/claude-code v2.x ships as a CLI binary only — it has no JS
+ * entry point and cannot be resolved by Bun/vitest at test time.
+ *
+ * vitest.config.ts aliases @anthropic-ai/claude-code to
+ * tests/__stubs__/claude-code-sdk.ts, which exports a synthetic `query`
+ * function that yields a successful stub result. This means
+ * ClaudeCodeClient.executeQueryStream() works under Bun without network access
+ * or a real ANTHROPIC_API_KEY.
+ *
+ * NOTE: vi.mock() hoisting does not work under `bunx --bun vitest` (Bun native
+ * ESM runtime bypasses Vite's module mock injection). The resolve.alias
+ * approach in vitest.config.ts is used instead.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

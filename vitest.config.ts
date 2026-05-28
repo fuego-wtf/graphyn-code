@@ -23,6 +23,11 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './src'),
       '@ink': resolve(__dirname, './src/ink'),
+      // @anthropic-ai/claude-code v2.x ships as a CLI binary only — it has no
+      // JS/ESM entry point and cannot be resolved by Bun/vitest at test time.
+      // Alias it to a stub so tests that indirectly invoke loadClaudeCodeSdk()
+      // receive a structured error rather than a module-resolution crash.
+      '@anthropic-ai/claude-code': resolve(__dirname, './tests/__stubs__/claude-code-sdk.ts'),
     },
   },
 });

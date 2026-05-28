@@ -1,14 +1,29 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runBaseCommand } from '../../../src/commands/base.js';
 
 describe('base command', () => {
+  // Bun's process.exitCode is a non-configurable accessor that silently ignores
+  // assignment of `undefined`, causing cross-test state leak. Swap in a plain
+  // object that owns a writable exitCode so resets work correctly.
+  const _realProcess = globalThis.process;
+  const _mockProcess = Object.create(_realProcess) as NodeJS.Process & { exitCode: number | undefined };
+  Object.defineProperty(_mockProcess, 'exitCode', {
+    value: undefined,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
+
+  beforeAll(() => { (globalThis as any).process = _mockProcess; });
+  afterAll(() => { (globalThis as any).process = _realProcess; });
+
   beforeEach(() => {
-    process.exitCode = undefined;
+    _mockProcess.exitCode = undefined;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    process.exitCode = undefined;
+    _mockProcess.exitCode = undefined;
   });
 
   it('emits deterministic INVALID_INPUT for conflicting mode flags', async () => {
