@@ -110,7 +110,7 @@ async function main() {
 main().catch(console.error);
 
 function isUnifiedCliCommand(firstToken) {
-  return new Set(['base', 'config', 'consult', 'env', 'fs', '--version', '-v', '--help', '-h', 'help']).has(firstToken);
+  return new Set(['base', 'config', 'consult', 'env', 'fs', 'schedule', '--version', '-v', '--help', '-h', 'help']).has(firstToken);
 }
 
 function firstCommandToken(args) {
