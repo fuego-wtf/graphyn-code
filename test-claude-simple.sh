@@ -5,7 +5,7 @@ echo "🚀 Testing Claude CLI with simple prompt..."
 
 # Start Claude in background with a simple prompt
 echo "📝 Starting Claude process..."
-/Users/resatugurulu/.claude/local/claude -p "Say 'Hello test' and exit" &
+"$HOME/.claude/local/claude" -p "Say 'Hello test' and exit" &
 
 # Get the process ID
 CLAUDE_PID=$!

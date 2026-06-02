@@ -4,6 +4,7 @@
 
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 import { AgentProfile } from './types.js';
 import chalk from 'chalk';
 
@@ -24,8 +25,8 @@ export class AgentRegistry {
       join(startPath, '.claude', 'agents'),
       join(startPath, '..', '.claude', 'agents'),
       join(startPath, '..', '..', '.claude', 'agents'),
-      // Also check the workspace root
-      '/Users/resatugurulu/Developer/graphyn-workspace/.claude/agents'
+      // Also check the workspace root dynamically
+      join(homedir(), 'Developer', 'graphyn-workspace', '.claude', 'agents')
     ];
 
     for (const path of paths) {

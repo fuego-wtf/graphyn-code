@@ -7,7 +7,9 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { AgentType, TaskExecution } from './types';
+import { AgentType } from './types';
+import os from 'os';
+import path from 'path';
 
 /**
  * Claude Code session representation
@@ -100,8 +102,9 @@ export class SessionPoolManager extends EventEmitter {
       // Build context prompt for agent  
       const contextPrompt = this.buildAgentContext(agentType, options.context);
       
-      // Spawn Claude Code process using direct path to avoid shell issues
-      const claudeProcess = spawn('/Users/resatugurulu/.claude/local/claude', ['-p', contextPrompt], {
+      // Spawn Claude Code process using dynamic home directory path to avoid shell issues
+      const claudePath = path.join(os.homedir(), '.claude', 'local', 'claude');
+      const claudeProcess = spawn(claudePath, ['-p', contextPrompt], {
         stdio: ['pipe', 'pipe', 'pipe'],
         timeout: options.timeout || this.sessionTimeout
       });
