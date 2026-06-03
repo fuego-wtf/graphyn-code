@@ -112,18 +112,18 @@ export class AgentPromptService {
   /**
    * Cache a prompt
    */
-  private cachePrompt(type: string, content: string): void {
-    try {
-      const cacheFile = path.join(this.cacheDir, `${type}.json`);
-      fs.writeFileSync(cacheFile, JSON.stringify({
-        content,
-        timestamp: Date.now(),
-        type
-      }));
-    } catch {
-      // Caching is optional, ignore errors
-    }
-  }
+  // private _cachePrompt(type: string, content: string): void {
+  //   try {
+  //     const cacheFile = path.join(this.cacheDir, `${type}.json`);
+  //     fs.writeFileSync(cacheFile, JSON.stringify({
+  //       content,
+  //       timestamp: Date.now(),
+  //       type
+  //     }));
+  //   } catch {
+  //     // Caching is optional, ignore errors
+  //   }
+  // }
   
   /**
    * Get local prompt from file system
@@ -187,7 +187,7 @@ export class AgentPromptService {
       const response = await apiClient.listAgents();
       if (!response || !Array.isArray(response)) return;
       
-      for (const agent of response) {
+      for (const _agent of response) {
         try {
           // TODO: Add this endpoint to apiClient
           // const promptResponse = await apiClient.get(`/api/agents/${agent.type}/prompt`);

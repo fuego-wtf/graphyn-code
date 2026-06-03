@@ -2,7 +2,7 @@
  * Multi-Agent Session Manager - Manages 5-8 parallel Claude sessions
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { AgentSession, TaskNode, AgentProfile, AgentCapabilityMatch } from './types.js';
 import { AgentRegistry } from './agent-registry.js';
@@ -12,7 +12,6 @@ export class MultiAgentSessionManager extends EventEmitter {
   private sessions: Map<string, AgentSession> = new Map();
   private processes: Map<string, ChildProcess> = new Map();
   private maxConcurrentSessions: number = 8;
-  private sessionQueue: Array<{ taskId: string; agentName: string; context: string }> = [];
 
   constructor(
     private agentRegistry: AgentRegistry,
@@ -199,7 +198,7 @@ export class MultiAgentSessionManager extends EventEmitter {
   /**
    * Calculate execution order respecting dependencies
    */
-  private calculateExecutionOrder(assignments: Map<string, string>): Array<{ levelNumber: number; tasks: TaskNode[] }> {
+  private calculateExecutionOrder(_assignments: Map<string, string>): Array<{ levelNumber: number; tasks: TaskNode[] }> {
     // This method needs the original tasks passed to it - for now return empty to fix build
     return [];
   }

@@ -1226,7 +1226,7 @@ export class FigmaAPIClient {
   /**
    * Get file variables (design tokens) efficiently
    */
-  private async getFileVariables(fileKey: string, progressCallback?: (message: string) => void): Promise<ComponentMap['designTokens']> {
+  private async getFileVariables(fileKey: string, _progressCallback?: (message: string) => void): Promise<ComponentMap['designTokens']> {
     const tokens: ComponentMap['designTokens'] = {
       colors: {},
       typography: {},
@@ -1238,7 +1238,7 @@ export class FigmaAPIClient {
       const variablesResponse = await this.client.get(`/files/${fileKey}/variables/local`);
       
       if (variablesResponse.data?.meta?.variables) {
-        Object.entries(variablesResponse.data.meta.variables).forEach(([id, variable]: [string, any]) => {
+        Object.entries(variablesResponse.data.meta.variables).forEach(([_id, variable]: [string, any]) => {
           if (variable.resolvedType === 'COLOR') {
             tokens.colors[variable.name] = this.rgbToHex(variable.valuesByMode?.default?.color || { r: 0, g: 0, b: 0 });
           } else if (variable.resolvedType === 'FLOAT') {
@@ -1438,12 +1438,12 @@ export class FigmaAPIClient {
     return organismPatterns.test(component.name) || (component.children?.length || 0) > 5;
   }
   
-  private isTemplate(component: ComponentInfo): boolean {
+  public isTemplate(component: ComponentInfo): boolean {
     const templatePatterns = /^(page|layout|template|view|screen)$/i;
     return templatePatterns.test(component.name) || component.type === 'FRAME';
   }
   
-  private detectReusablePatterns(components: ComponentInfo[], componentMap: ComponentMap) {
+  public detectReusablePatterns(components: ComponentInfo[], _componentMap: ComponentMap) {
     // Group components by similar properties
     const propertyGroups = new Map<string, ComponentInfo[]>();
     
@@ -1799,7 +1799,7 @@ export class FigmaAPIClient {
     
     try {
       // Build specialized prompt for the agent type
-      const agentPrompt = this.buildAgentPrompt(task, options);
+      this.buildAgentPrompt(task, options);
       
       // This would typically spawn a Claude Code session
       // For now, simulate the execution
@@ -1877,7 +1877,7 @@ export class FigmaAPIClient {
   /**
    * Build specialized prompt for agent
    */
-  private buildAgentPrompt(task: AgentTask, options: any): string {
+  private buildAgentPrompt(task: AgentTask, _options: any): string {
     const basePrompt = `You are a ${task.agentType} specialist working on a Figma-to-code project.
 
 `;

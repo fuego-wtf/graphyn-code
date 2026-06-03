@@ -33,7 +33,6 @@ export interface KeyMapping {
 export class RawInputHandler extends EventEmitter {
   private stdin: NodeJS.ReadStream;
   private isRawMode = false;
-  private inputBuffer: Buffer[] = [];
   private keySequenceMap: Map<string, KeyAction> = new Map();
 
   constructor() {

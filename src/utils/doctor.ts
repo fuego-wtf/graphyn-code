@@ -87,7 +87,7 @@ async function checkClaudeCode(): Promise<SystemCheck> {
       try {
         await fs.access(claudePath, fs.constants.X_OK);
         try {
-          const { stdout } = await execAsync(`"${claudePath}" --version`);
+          await execAsync(`"${claudePath}" --version`);
           return {
             name: 'Claude Code',
             status: 'pass',

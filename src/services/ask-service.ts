@@ -2,7 +2,6 @@ import { apiClient } from '../api/client.js';
 import { TMUXCockpitOrchestrator } from '../utils/tmux-cockpit-orchestrator.js';
 import { RepositoryContextExtractor, ExtractedContext } from './repository-context-extractor.js';
 import { RepositoryAnalyzerService } from './repository-analyzer.js';
-import { ClaudeAgentLauncher } from './claude-agent-launcher.js';
 import type { AgentConfig } from '../types/agent.js';
 import chalk from 'chalk';
 
@@ -42,13 +41,11 @@ export interface AgentTask {
 
 export class AskService {
   private contextExtractor: RepositoryContextExtractor;
-  private agentLauncher: ClaudeAgentLauncher;
   private cockpit: TMUXCockpitOrchestrator;
 
   constructor() {
     const analyzer = new RepositoryAnalyzerService();
     this.contextExtractor = new RepositoryContextExtractor(analyzer);
-    this.agentLauncher = new ClaudeAgentLauncher();
     this.cockpit = new TMUXCockpitOrchestrator();
   }
 
@@ -172,7 +169,7 @@ export class AskService {
     console.log(chalk.green('\n✅ Cockpit session ended.'));
   }
 
-  private getMockResponse(request: AskRequest): AskResponse {
+  public _getMockResponse(request: AskRequest): AskResponse {
     const { query, repositoryContext } = request;
     
     // Analyze query to determine agent types
@@ -184,7 +181,7 @@ export class AskService {
       agentName: 'System Architect',
       role: 'Design and plan the implementation',
       emoji: '🏗️',
-      prompt: this.generateArchitectPrompt(query, repositoryContext),
+      prompt: this._generateArchitectPrompt(query, repositoryContext),
       tasks: [
         {
           id: 'arch-task-1',
@@ -208,7 +205,7 @@ export class AskService {
         agentName: 'Backend Developer',
         role: 'Implement server-side logic',
         emoji: '⚙️',
-        prompt: this.generateBackendPrompt(query, repositoryContext),
+        prompt: this._generateBackendPrompt(query, repositoryContext),
         tasks: [
           {
             id: 'backend-task-1',
@@ -233,7 +230,7 @@ export class AskService {
         agentName: 'Frontend Developer',
         role: 'Build user interface',
         emoji: '🎨',
-        prompt: this.generateFrontendPrompt(query, repositoryContext),
+        prompt: this._generateFrontendPrompt(query, repositoryContext),
         tasks: [
           {
             id: 'frontend-task-1',
@@ -253,67 +250,67 @@ export class AskService {
     
     return {
       agents,
-      orchestrationPlan: this.generateOrchestrationPlan(query, agents),
+      orchestrationPlan: this._generateOrchestrationPlan(query, agents),
       estimatedTime: agents.length * 15,
       threadId: `thread-${Date.now()}`,
     };
   }
 
-  private generateArchitectPrompt(query: string, context: ExtractedContext): string {
+  private _generateArchitectPrompt(query: string, context: ExtractedContext): string {
     return `You are a System Architect specializing in ${context.framework} applications.
-
-Your task: ${query}
-
-Repository Context:
-- Framework: ${context.framework}
-- Language: ${context.language}
-- Key Dependencies: ${Object.keys(context.dependencies).slice(0, 5).join(', ')}
-
-Relevant Files:
-${context.relevantFiles.slice(0, 3).map(f => `- ${f.path}: ${f.reason}`).join('\n')}
-
-Please design a comprehensive solution that:
-1. Follows existing patterns in the codebase
-2. Integrates smoothly with current architecture
-3. Maintains consistency with project conventions
-4. Considers scalability and maintainability`;
-  }
-
-  private generateBackendPrompt(query: string, context: ExtractedContext): string {
+  
+  Your task: ${query}
+  
+  Repository Context:
+  - Framework: ${context.framework}
+  - Language: ${context.language}
+  - Key Dependencies: ${Object.keys(context.dependencies).slice(0, 5).join(', ')}
+  
+  Relevant Files:
+  ${context.relevantFiles.slice(0, 3).map(f => `- ${f.path}: ${f.reason}`).join('\n')}
+  
+  Please design a comprehensive solution that:
+  1. Follows existing patterns in the codebase
+  2. Integrates smoothly with current architecture
+  3. Maintains consistency with project conventions
+  4. Considers scalability and maintainability`;
+    }
+  
+    private _generateBackendPrompt(query: string, context: ExtractedContext): string {
     return `You are a Backend Developer expert in ${context.framework} and ${context.language}.
-
-Your task: ${query}
-
-Repository Context:
-- Framework: ${context.framework}
-- Existing patterns: ${context.patterns.join(', ')}
-
-Focus on:
-1. RESTful API design
-2. Data validation and security
-3. Database integration
-4. Error handling
-5. Testing`;
-  }
-
-  private generateFrontendPrompt(query: string, context: ExtractedContext): string {
+  
+  Your task: ${query}
+  
+  Repository Context:
+  - Framework: ${context.framework}
+  - Existing patterns: ${context.patterns.join(', ')}
+  
+  Focus on:
+  1. RESTful API design
+  2. Data validation and security
+  3. Database integration
+  4. Error handling
+  5. Testing`;
+    }
+  
+    private _generateFrontendPrompt(query: string, context: ExtractedContext): string {
     return `You are a Frontend Developer specializing in ${context.framework}.
-
-Your task: ${query}
-
-Repository Context:
-- UI Framework: ${context.framework}
-- Design patterns: ${context.patterns.filter(p => p.includes('component')).join(', ')}
-
-Focus on:
-1. Component architecture
-2. State management
-3. Responsive design
-4. Accessibility
-5. Performance optimization`;
-  }
-
-  private generateOrchestrationPlan(query: string, agents: AgentResponse[]): string {
+  
+  Your task: ${query}
+  
+  Repository Context:
+  - UI Framework: ${context.framework}
+  - Design patterns: ${context.patterns.filter(p => p.includes('component')).join(', ')}
+  
+  Focus on:
+  1. Component architecture
+  2. State management
+  3. Responsive design
+  4. Accessibility
+  5. Performance optimization`;
+    }
+  
+    private _generateOrchestrationPlan(_query: string, agents: AgentResponse[]): string {
     const steps = [
       '1. Architect analyzes requirements and creates system design',
       ...agents.slice(1).map((agent, index) => 

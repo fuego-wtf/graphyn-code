@@ -302,8 +302,6 @@ function describeRepository(analysis: any): string {
     // Look for CLI indicators in the structure
     const hasInkComponents = analysis.structure.directories.some((dir: any) => dir.includes('ink'));
     const hasCliCommands = analysis.structure.directories.some((dir: any) => dir.includes('commands'));
-    const hasBinScript = analysis.structure.files['.js'] > 0; // likely has bin scripts
-    
     if (hasInkComponents && hasCliCommands) {
       return 'a TypeScript CLI (command-line interface) tool with interactive UI components built using Ink (React for CLIs). This appears to be a development tool that provides both interactive and command-line interfaces.';
     }

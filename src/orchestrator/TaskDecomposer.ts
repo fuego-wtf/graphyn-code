@@ -8,18 +8,16 @@ import {
   TaskStatus,
   TaskPriority,
   TaskComplexity,
-  ExecutionGraph,
-  TaskMetadata
+  ExecutionGraph
 } from './types.js';
-import { AGENT_ROLES, AGENT_ROLE_CONSTANTS } from './constants.js';
+import { AGENT_ROLE_CONSTANTS } from './constants.js';
 
 /**
  * Advanced task decomposition with DAG analysis
  * Class name: PascalCase without prefix
  */
 export class TaskDecomposer {
-  private readonly taskTemplates: Map<string, TaskTemplate>;
-  private taskCounter = 0;
+  public readonly taskTemplates: Map<string, TaskTemplate>;
 
   constructor() {
     this.taskTemplates = this.initializeTaskTemplates();

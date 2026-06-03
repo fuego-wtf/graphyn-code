@@ -37,7 +37,7 @@ export class GraphynSDK {
   /**
    * Get a valid access token, refreshing if necessary
    */
-  private async getAccessToken(): Promise<string | undefined> {
+  public async getAccessToken(): Promise<string | undefined> {
     if (this.oauthManager) {
       return await this.oauthManager.getValidToken();
     }
@@ -47,20 +47,20 @@ export class GraphynSDK {
   /**
    * Update the API configuration with a new access token
    */
-  private async updateConfiguration() {
-    const token = await this.getAccessToken();
-    // TODO: Update configuration when SDK files are generated
-    // if (token) {
-    //   this.api.configuration.accessToken = token;
-    // }
-  }
+  // private async _updateConfiguration() {
+  //   const _token = await this.getAccessToken();
+  //   // TODO: Update configuration when SDK files are generated
+  //   // if (token) {
+  //   //   this.api.configuration.accessToken = token;
+  //   // }
+  // }
 
   // TODO: Implement API methods when SDK files are generated
-  async createThread(data: any) {
+  async createThread(_data: any) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  async getThread(id: string) {
+  async getThread(_id: string) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
@@ -68,23 +68,23 @@ export class GraphynSDK {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  async sendMessage(threadId: string, content: string) {
+  async sendMessage(_threadId: string, _content: string) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  async getMessages(threadId: string, limit?: number, offset?: number) {
+  async getMessages(_threadId: string, _limit?: number, _offset?: number) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  async validateApiKey(apiKey: string) {
+  async validateApiKey(_apiKey: string) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  async refreshToken(refreshToken: string) {
+  async refreshToken(_refreshToken: string) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 
-  async createChatCompletion(data: any) {
+  async createChatCompletion(_data: any) {
     throw new Error('SDK generation not completed - please run SDK generation first');
   }
 

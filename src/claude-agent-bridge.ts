@@ -12,7 +12,6 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { GraphynAPIClient } from './api/client.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -24,12 +23,10 @@ export interface AgentBridgeOptions {
 
 export class ClaudeAgentBridge {
   private server: Server;
-  private apiClient: GraphynAPIClient;
   private workspaceRoot: string;
   
   constructor(options: AgentBridgeOptions) {
     this.workspaceRoot = options.workspaceRoot;
-    this.apiClient = new GraphynAPIClient();
     
     this.server = new Server(
       {
@@ -245,11 +242,11 @@ export class ClaudeAgentBridge {
       
       // Read agent definition
       const agentPath = path.join(this.workspaceRoot, '.claude/agents/fullstack-sprint-executor.md');
-      const agentDefinition = fs.readFileSync(agentPath, 'utf-8');
+      fs.readFileSync(agentPath, 'utf-8');
       
       // Read project memory
       const claudemdPath = path.join(this.workspaceRoot, 'CLAUDE.md');
-      const projectMemory = fs.readFileSync(claudemdPath, 'utf-8');
+      fs.readFileSync(claudemdPath, 'utf-8');
       
       return {
         content: [
@@ -402,7 +399,7 @@ Next: Use Task tool to delegate to platform-architect for system design`,
     }
   }
   
-  private async handleAssignPhase1(args: any): Promise<any> {
+  private async handleAssignPhase1(_args: any): Promise<any> {
     try {
       // Get database issues
       const databaseIssues = execSync(
@@ -442,7 +439,7 @@ Next: Create TodoWrite tasks for each assignment`,
     }
   }
   
-  private async handleAssignPhase2(args: any): Promise<any> {
+  private async handleAssignPhase2(_args: any): Promise<any> {
     return {
       content: [
         {
@@ -461,7 +458,7 @@ Next: Verify Phase 1 completion via TodoRead before proceeding`,
     };
   }
   
-  private async handleStatus(args: any): Promise<any> {
+  private async handleStatus(_args: any): Promise<any> {
     try {
       // Get open PRs
       const openPRs = execSync(
@@ -507,7 +504,7 @@ Project Status: Per CLAUDE.md guidelines`,
     }
   }
   
-  private async handleActivateAll(args: any): Promise<any> {
+  private async handleActivateAll(_args: any): Promise<any> {
     return {
       content: [
         {
@@ -531,7 +528,7 @@ Next: Create TodoWrite tasks for each agent activation`,
     };
   }
   
-  private async handleTodoRead(args: any): Promise<any> {
+  private async handleTodoRead(_args: any): Promise<any> {
     // In a real implementation, this would read from persistent storage
     // For now, return mock data structure
     return {

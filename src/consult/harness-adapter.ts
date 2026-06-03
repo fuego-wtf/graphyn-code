@@ -20,7 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { applyConsultTransformPolicy, redactSecrets, type TransformReceipt } from './transform-policy.js';
+import { applyConsultTransformPolicy, type TransformReceipt } from './transform-policy.js';
 import { runAcpTransport, type AcpTransportOptions } from './acp-transport.js';
 
 // Re-export so any existing callers that import redactSecrets from this file keep working.

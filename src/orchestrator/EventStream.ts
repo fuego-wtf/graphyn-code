@@ -311,7 +311,7 @@ export class EventStream extends EventEmitter {
  * Real-time console output with streaming support
  */
 export class RealTimeConsoleStreamer implements ConsoleStreamer {
-  private eventStream: EventStream;
+  public eventStream: EventStream;
   private currentLine: string = '';
   private isAnimating: boolean = false;
 

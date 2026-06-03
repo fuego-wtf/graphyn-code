@@ -99,7 +99,7 @@ export class DynamicAgentRegistry {
   async getSpecializedAgents(context: ProjectContext): Promise<AgentMatch[]> {
     const matches: AgentMatch[] = [];
     
-    for (const [id, profile] of this.profiles) {
+    for (const [, profile] of this.profiles) {
       const match = this.matchAgentToContext(profile, context);
       if (match.confidence > 0.5) {
         matches.push(match);
@@ -661,7 +661,7 @@ export class DynamicAgentRegistry {
    */
   private async createSpecialization(
     technology: string, 
-    additionalTechs: string[]
+    _additionalTechs: string[]
   ): Promise<AgentSpecialization> {
     return {
       technology,

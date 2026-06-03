@@ -7,8 +7,8 @@
 
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
-import { spawn, exec } from 'child_process';
-import { AgentType, TaskExecution, ExecutionPlan, AgentExecutionContext } from './types';
+import { exec } from 'child_process';
+import { AgentType, TaskExecution, AgentExecutionContext } from './types';
 
 /**
  * Context files managed by the synchronizer
@@ -536,7 +536,7 @@ export class ContextSynchronizer {
 
   private async execGitCommand(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      exec(command, { cwd: this.workingDir }, (error: any, stdout: string, stderr: string) => {
+      exec(command, { cwd: this.workingDir }, (error: any, stdout: string, _stderr: string) => {
         if (error) {
           reject(error);
         } else {

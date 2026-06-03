@@ -19,8 +19,6 @@
 import { UltimateOrchestrator } from './orchestrator/UltimateOrchestrator.js';
 // import { SplitScreenInterfaceManager, createSplitScreenInterface } from './console/SplitScreenInterface.jsx';
 import { PerformanceMonitor } from './performance/PerformanceMonitor.js';
-import { render } from 'ink';
-import * as React from 'react';
 
 // Ultimate Orchestration Platform v10.0.0 Session Management
 interface GraphynSession {
@@ -81,7 +79,7 @@ async function initializeUltimateOrchestration(): Promise<void> {
 
   try {
     // Initialize performance monitoring
-    const performanceMonitor = new PerformanceMonitor({
+    new PerformanceMonitor({
       taskTargetMs: 120_000, // 120 seconds (2 minutes for Claude SDK calls)
       memoryLimitMb: 150, // 150 MB
       enabled: true
@@ -200,7 +198,7 @@ function displayPerformanceSummary(result: any): void {
  * Handle interactive commands
  */
 async function handleCommand(command: string): Promise<void> {
-  const [cmd, ...args] = command.slice(1).split(' ');
+  const [cmd, ..._args] = command.slice(1).split(' ');
 
   switch (cmd) {
     case 'help':
@@ -290,7 +288,7 @@ function isNaturalLanguageQuery(input: string): boolean {
 /**
  * Handle legacy commands for backward compatibility
  */
-async function handleLegacyCommand(command: string, args: string[]): Promise<void> {
+async function handleLegacyCommand(command: string, _args: string[]): Promise<void> {
   console.log('⚠️  Legacy command detected. Redirecting to Ultimate Orchestration...');
 
   // Map common legacy commands to natural language

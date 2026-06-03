@@ -26,10 +26,7 @@ interface RepositoryAnalysis {
 }
 
 export class RepositoryAnalyzer {
-  private apiClient: any;
-
-  constructor(apiClient?: any) {
-    this.apiClient = apiClient;
+  constructor(_apiClient?: any) {
   }
 
   /**
@@ -71,7 +68,7 @@ export class RepositoryAnalyzer {
     path?: string;
     includePatterns?: string[];
     excludePatterns?: string[];
-  } = {}, mode?: string): Promise<RepositoryAnalysis> {
+  } = {}, _mode?: string): Promise<RepositoryAnalysis> {
     // Handle overloaded parameters
     let options: {
       path?: string;

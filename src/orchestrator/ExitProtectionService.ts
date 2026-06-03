@@ -127,7 +127,7 @@ export class ExitProtectionService extends EventEmitter {
    * Handle emergency exit scenarios
    */
   private handleEmergencyExit(error: Error): void {
-    console.error('\n=¨ Emergency exit triggered:', error.message);
+    console.error('\n=Â¨ Emergency exit triggered:', error.message);
     
     // Try to save state quickly
     try {
@@ -158,7 +158,7 @@ export class ExitProtectionService extends EventEmitter {
     
     // For CLI orchestrator, if we're executing, show a simple confirmation
     if (this.currentContext.isExecuting && this.currentContext.activeAgents.length > 0) {
-      console.log('\n   Active agents are running. Press Ctrl+C again to force exit, or wait for completion.');
+      console.log('\nÂ   Active agents are running. Press Ctrl+C again to force exit, or wait for completion.');
       return false;
     }
     
@@ -172,7 +172,7 @@ export class ExitProtectionService extends EventEmitter {
   private handleForceExitRequest(): boolean {
     this.exitState = ExitState.FORCE_EXIT;
     
-    console.log('\n=¨ Force exit requested. Shutting down...');
+    console.log('\n=Â¨ Force exit requested. Shutting down...');
     
     return true; // Allow immediate exit
   }
@@ -196,7 +196,7 @@ export class ExitProtectionService extends EventEmitter {
   /**
    * Record exit attempt for analytics
    */
-  private recordExitAttempt(userAction: ExitAttemptEvent['userAction'], context: ExitContext): void {
+  public recordExitAttempt(userAction: ExitAttemptEvent['userAction'], context: ExitContext): void {
     const event: ExitAttemptEvent = {
       timestamp: new Date(),
       state: this.exitState,

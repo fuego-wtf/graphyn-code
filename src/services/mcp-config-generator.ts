@@ -11,7 +11,6 @@ import ora from 'ora';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { simpleGit } from 'simple-git';
-import type { FrameworkInfo } from '../context/detector.js';
 
 const execAsync = promisify(exec);
 
@@ -562,7 +561,7 @@ export class MCPConfigGenerator {
     const results = new Map<string, boolean>();
     const spinner = ora('Validating MCP servers...').start();
     
-    for (const [name, server] of Object.entries(settings.mcpServers)) {
+    for (const [name, _server] of Object.entries(settings.mcpServers)) {
       spinner.text = `Checking ${name}...`;
       
       try {

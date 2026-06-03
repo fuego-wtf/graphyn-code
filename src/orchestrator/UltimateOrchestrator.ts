@@ -15,7 +15,6 @@ import { EventEmitter } from 'events';
 import {
   OrchestrationResult,
   TaskNode,
-  TaskStatus,
   TaskResult,
   AgentPersona,
   AgentSession,
@@ -23,8 +22,6 @@ import {
   TaskExecution,
   ExecutionResults,
   OrchestrationPerformanceMetrics,
-  GitWorktreeInfo,
-  AgentState,
   QueryComplexity
 } from './types.js';
 import { UniversalTaskDecomposer } from './UniversalTaskDecomposer.js';
@@ -60,7 +57,7 @@ export class UltimateOrchestrator extends EventEmitter {
   private readonly config: Required<UltimateOrchestratorConfig>;
 
   private activeTasks = new Map<string, TaskExecution>();
-  private executionResults = new Map<string, ExecutionResults>();
+  public executionResults = new Map<string, ExecutionResults>();
   private currentExecutionId: string | null = null;
   private executionStartTime: Date | null = null;
 
@@ -370,7 +367,7 @@ Execute this task efficiently and report your progress.`;
   /**
    * Build dependency graph for task execution order
    */
-  private buildDependencyGraph(tasks: TaskNode[]): Map<string, string[]> {
+  public buildDependencyGraph(tasks: TaskNode[]): Map<string, string[]> {
     const graph = new Map<string, string[]>();
 
     for (const task of tasks) {
@@ -384,9 +381,9 @@ Execute this task efficiently and report your progress.`;
    * Build final orchestration result
    */
   private buildOrchestrationResult(
-    executionId: string,
+    _executionId: string,
     results: TaskResult[],
-    executionGraph: ExecutionGraph
+    _executionGraph: ExecutionGraph
   ): OrchestrationResult {
     const endTime = Date.now();
     const startTime = this.executionStartTime?.getTime() || endTime;
@@ -417,7 +414,7 @@ Execute this task efficiently and report your progress.`;
   /**
    * Build error result for failed orchestration
    */
-  private buildErrorResult(executionId: string, error: any): OrchestrationResult {
+  private buildErrorResult(_executionId: string, error: any): OrchestrationResult {
     const endTime = Date.now();
     const startTime = this.executionStartTime?.getTime() || endTime;
     const totalTimeSeconds = (endTime - startTime) / 1000;
@@ -485,7 +482,7 @@ Execute this task efficiently and report your progress.`;
   /**
    * Parse Claude output for structured results
    */
-  private parseClaudeOutput(output: string): any {
+  public parseClaudeOutput(output: string): any {
     // Extract structured data from Claude output
     try {
       const jsonMatches = output.match(/```json\n(.*?)\n```/s);
@@ -502,7 +499,7 @@ Execute this task efficiently and report your progress.`;
   /**
    * Extract artifacts from Claude output
    */
-  private extractArtifacts(output: string): string[] {
+  public extractArtifacts(output: string): string[] {
     const artifacts: string[] = [];
     const artifactRegex = /Created:\s*([^\n]+)/gi;
     let match;
@@ -517,7 +514,7 @@ Execute this task efficiently and report your progress.`;
   /**
    * Extract modified files from Claude output
    */
-  private extractFilesModified(output: string): string[] {
+  public extractFilesModified(output: string): string[] {
     const files: string[] = [];
     const fileRegex = /(?:Modified|Updated|Created):\s*([^\s]+\.[a-zA-Z0-9]+)/gi;
     let match;

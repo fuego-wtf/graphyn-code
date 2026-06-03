@@ -7,10 +7,10 @@
 
 import { EventEmitter } from 'events';
 import { SessionPoolManager, ClaudeSession } from './SessionPoolManager';
-import { ContextSynchronizer, ProgressUpdate } from './ContextSynchronizer';
+import { ContextSynchronizer } from './ContextSynchronizer';
 import { TaskDependencyGraph } from './TaskDependencyGraph';
 import { QueryProcessor } from './QueryProcessor';
-import { EventStream, createTaskEvent, createAgentEvent, createSystemEvent } from './EventStream';
+import { EventStream } from './EventStream';
 
 export interface UserFeedback {
   type: 'approval' | 'modification' | 'rejection';
@@ -19,14 +19,10 @@ export interface UserFeedback {
 }
 import { ConsoleOutput } from '../console/ConsoleOutput';
 import { 
-  AgentType, 
   TaskExecution, 
   TaskDefinition,
-  TaskStatus, 
   ExecutionMode,
-  QueryComplexity,
   ExecutionResults,
-  TaskResult,
   AgentExecutionContext
 } from './types';
 
@@ -83,7 +79,7 @@ export class MultiAgentSessionManager extends EventEmitter {
   private readonly activeSessions = new Map<string, SessionExecution>();
   private executionId?: string;
   private startTime?: Date;
-  private isPaused: boolean = false;
+  public isPaused: boolean = false;
 
   constructor(workingDirectory?: string, enableInteractive: boolean = true) {
     super();
@@ -383,7 +379,7 @@ export class MultiAgentSessionManager extends EventEmitter {
    */
   async shutdown(): Promise<void> {
     // Cancel all active sessions
-    this.activeSessions.forEach((execution, sessionId) => {
+    this.activeSessions.forEach((_execution, sessionId) => {
       try {
         this.sessionPool.terminateSession(sessionId);
       } catch (error) {
@@ -661,7 +657,7 @@ Please execute the task now.
   /**
    * Pause all active sessions
    */
-  private pauseAllSessions(): void {
+  public pauseAllSessions(): void {
     // TODO: Implement session pause mechanism
     this.consoleOutput.streamSystemEvent('coordination', 'Pausing all active sessions');
   }
@@ -669,7 +665,7 @@ Please execute the task now.
   /**
    * Resume all paused sessions
    */
-  private resumeAllSessions(): void {
+  public resumeAllSessions(): void {
     // TODO: Implement session resume mechanism
     this.consoleOutput.streamSystemEvent('coordination', 'Resuming all sessions');
   }
@@ -677,7 +673,7 @@ Please execute the task now.
   /**
    * Process user feedback and modify execution
    */
-  private processFeedback(feedback: any): void {
+  public processFeedback(feedback: any): void {
     switch (feedback.action) {
       case 'modify_task':
         this.consoleOutput.streamSystemEvent('coordination', `Modifying task based on feedback: ${feedback.details}`);
@@ -709,7 +705,7 @@ Please execute the task now.
   /**
    * Recalibrate all agents based on current state
    */
-  private recalibrateAgents(): void {
+  public recalibrateAgents(): void {
     this.consoleOutput.streamSystemEvent('coordination', 'Recalibrating all agents');
     // TODO: Implement agent recalibration
     // This should redistribute tasks, update priorities, and adjust execution strategy
@@ -721,15 +717,15 @@ Please execute the task now.
   /**
    * Emergency stop with context preservation
    */
-  private async emergencyStop(): Promise<void> {
+  public async emergencyStop(): Promise<void> {
     this.consoleOutput.streamSystemEvent('coordination', 'Emergency stop initiated');
     
     // Preserve current state
-    const currentState = {
-      activeSessions: Array.from(this.activeSessions.keys()),
-      statistics: this.getStatistics(),
-      timestamp: new Date()
-    };
+    // const _currentState = {
+    //   activeSessions: Array.from(this.activeSessions.keys()),
+    //   statistics: this.getStatistics(),
+    //   timestamp: new Date()
+    // };
     
     // TODO: Save state to disk for recovery
     
@@ -740,7 +736,7 @@ Please execute the task now.
   /**
    * Graceful shutdown with cleanup
    */
-  private async gracefulShutdown(): Promise<void> {
+  public async gracefulShutdown(): Promise<void> {
     this.consoleOutput.streamSystemEvent('coordination', 'Graceful shutdown initiated');
     
     // Allow current tasks to complete with timeout

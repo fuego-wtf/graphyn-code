@@ -331,7 +331,7 @@ export class QueryProcessor {
    */
   private async generateExecutionPlan(
     parsed: ParsedQuery, 
-    workspaceContext?: Record<string, unknown>
+    _workspaceContext?: Record<string, unknown>
   ): Promise<ExecutionPlan> {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
@@ -344,8 +344,6 @@ export class QueryProcessor {
     // Estimate duration
     const estimatedDuration = this.estimateExecutionTime(tasks, dependencies);
     
-    // Calculate parallelism level
-    const parallelismLevel = this.calculateParallelismLevel(parsed.complexity, tasks.length);
     
     return {
       id: planId,
@@ -392,7 +390,7 @@ export class QueryProcessor {
   /**
    * Generate task dependencies based on agent workflows
    */
-  private generateTaskDependencies(tasks: TaskDefinition[], intent: QueryIntent): TaskDependency[] {
+  private generateTaskDependencies(tasks: TaskDefinition[], _intent: QueryIntent): TaskDependency[] {
     const dependencies: TaskDependency[] = [];
     const taskMap = new Map(tasks.map(t => [t.agent, t.id]));
     
@@ -604,7 +602,7 @@ export class QueryProcessor {
     return baseDescriptions.get(agentType) || `Execute ${agentType} tasks for: ${parsed.originalQuery}`;
   }
 
-  private calculateTaskPriority(agentType: AgentType, intent: QueryIntent): number {
+  private calculateTaskPriority(agentType: AgentType, _intent: QueryIntent): number {
     // Higher number = higher priority
     const priorityMap = new Map([
       ['task-dispatcher', 100],  // Always highest priority for analysis
@@ -647,7 +645,7 @@ export class QueryProcessor {
     return Math.round(base * multiplier);
   }
 
-  private generateTaskTags(agentType: AgentType, parsed: ParsedQuery): string[] {
+  public generateTaskTags(agentType: AgentType, parsed: ParsedQuery): string[] {
     const tags = [agentType, parsed.intent, parsed.complexity];
     
     // Add technology tags
@@ -713,13 +711,13 @@ export class QueryProcessor {
     return toolsMap.get(agentType) || ['general-development'];
   }
 
-  private estimateExecutionTime(tasks: TaskDefinition[], dependencies: TaskDependency[]): number {
+  private estimateExecutionTime(tasks: TaskDefinition[], _dependencies: TaskDependency[]): number {
     // Simplified estimation - sum all task durations
     // In reality, this would consider parallelism and dependencies
     return tasks.reduce((total, task) => total + (task.estimatedDuration || 60), 0);
   }
 
-  private calculateParallelismLevel(complexity: QueryComplexity, taskCount: number): number {
+  public calculateParallelismLevel(complexity: QueryComplexity, taskCount: number): number {
     const baseLevel = {
       [QueryComplexity.SIMPLE]: 2,
       [QueryComplexity.MODERATE]: 4,
@@ -730,12 +728,12 @@ export class QueryProcessor {
     return Math.min(baseLevel, taskCount);
   }
 
-  private calculateParallelizability(complexity: QueryComplexity, taskCount: number): boolean {
+  public calculateParallelizability(complexity: QueryComplexity, taskCount: number): boolean {
     // Tasks can be parallelized if there are multiple tasks and complexity allows it
     return taskCount > 1 && complexity !== QueryComplexity.SIMPLE;
   }
 
-  private generateRecommendations(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
+  public generateRecommendations(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
     const recommendations: string[] = [];
     
     if (parsed.confidence && parsed.confidence < 0.7) {
@@ -758,7 +756,7 @@ export class QueryProcessor {
     return recommendations;
   }
 
-  private generateWarnings(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
+  public generateWarnings(parsed: ParsedQuery, plan: ExecutionPlan): string[] {
     const warnings: string[] = [];
     
     if (plan.estimatedDuration && plan.estimatedDuration > 480) { // 8 hours
@@ -772,7 +770,7 @@ export class QueryProcessor {
     return warnings;
   }
 
-  private estimateCost(plan: ExecutionPlan) {
+  public estimateCost(plan: ExecutionPlan) {
     // Simplified cost estimation
     const costPerMinute = 0.1; // $0.10 per minute
     const computeTime = plan.estimatedDuration;

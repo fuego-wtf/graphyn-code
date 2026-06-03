@@ -6,17 +6,12 @@
  */
 
 import { EventEmitter } from 'events';
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { ConsoleOutput } from '../console/ConsoleOutput.js';
-import { QueryProcessor } from './QueryProcessor.js';
 import { 
-  AgentType, 
-  TaskExecution, 
   ExecutionResults,
-  TaskResult,
-  TaskStatus 
+  TaskResult
 } from './types.js';
-import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
 import { AgentOrchestrator } from './AgentOrchestrator.js';
 import { specializationEngine } from '../engines/SpecializationEngine.js';
 import fs from 'fs/promises';
@@ -38,7 +33,6 @@ export interface ExecutionContext {
  */
 export class RealTimeExecutor extends EventEmitter {
   private consoleOutput: ConsoleOutput;
-  private queryProcessor: QueryProcessor;
   private activeProcesses = new Map<string, ChildProcess>();
   private taskResults = new Map<string, TaskResult>();
   private agentOrchestrator: AgentOrchestrator;
@@ -60,7 +54,6 @@ export class RealTimeExecutor extends EventEmitter {
   constructor(agentsPath?: string) {
     super();
     this.consoleOutput = new ConsoleOutput();
-    this.queryProcessor = new QueryProcessor();
     
     // Use singleton pattern to prevent double initialization
     this.agentOrchestrator = AgentOrchestrator.getInstance(agentsPath);
@@ -160,7 +153,7 @@ export class RealTimeExecutor extends EventEmitter {
       } else {
         // Fallback to repository context building
         const repositoryContextPromise = this.buildRepositoryContext(context.workingDirectory);
-        const repositoryContext = await repositoryContextPromise;
+        await repositoryContextPromise;
         
         // Try to use specialization engine for dynamic analysis
         try {
@@ -463,7 +456,7 @@ export class RealTimeExecutor extends EventEmitter {
   /**
    * NEW: Optimized README reading  
    */
-  private async readReadme(workingDirectory: string): Promise<string | null> {
+  public async readReadme(workingDirectory: string): Promise<string | null> {
     try {
       const readmePath = path.join(workingDirectory, 'README.md');
       return await fs.readFile(readmePath, 'utf-8');
@@ -626,7 +619,7 @@ export class RealTimeExecutor extends EventEmitter {
   /**
    * Build Claude prompt with repository context
    */
-  private buildClaudePrompt(query: string, repositoryContext: any): string {
+  public buildClaudePrompt(query: string, repositoryContext: any): string {
     let prompt = `# Repository Analysis Request
 
 User Query: "${query}"
@@ -722,7 +715,7 @@ Do not provide generic advice - tailor your response to this specific repository
    */
   async cleanup(): Promise<void> {
     // Terminate any active processes
-    for (const [taskId, process] of this.activeProcesses) {
+    for (const [_taskId, process] of this.activeProcesses) {
       try {
         process.kill('SIGTERM');
       } catch (error) {

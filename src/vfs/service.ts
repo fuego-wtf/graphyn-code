@@ -10,14 +10,13 @@ import {
   publicContentHash,
   resolveVirtualPath,
 } from './mounts.js';
-import { assertSafeId, ensureVfsLayout, snapshotManifestPath, vfsPaths } from './paths.js';
+import { assertSafeId, ensureVfsLayout, snapshotManifestPath } from './paths.js';
 import { loadRuntimeGrant, makePathOutcome, evaluatePathPolicy, redactVirtualPath } from './policy.js';
 import { appendReceipt } from './receipts.js';
 import {
   FsGlobalOptions,
   QueryClass,
   RuntimeGrant,
-  VfsAction,
   VfsEnvelope,
   VfsPathOutcome,
   VfsRedactionEvent,
@@ -81,7 +80,7 @@ function runLs(ctx: CommandContext, args: string[]): CommandResult {
       const policy = evaluatePathPolicy(ctx.grant, ctx.grantMissingReason, mount, 'ls', mount.virtualPrefix);
       return makePathOutcome(mount.virtualPrefix, 'ls', policy);
     });
-    const allowedMounts = ctx.mounts.filter((mount, index) => outcomes[index]?.decision === 'allowed');
+    const allowedMounts = ctx.mounts.filter((_mount, index) => outcomes[index]?.decision === 'allowed');
     const allowed = outcomes.some(outcome => outcome.decision === 'allowed');
     const denied = outcomes.some(outcome => outcome.decision !== 'allowed');
     const status = denied && allowed ? 'partial' : denied ? 'denied' : 'ok';

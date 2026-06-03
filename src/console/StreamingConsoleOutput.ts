@@ -27,7 +27,6 @@ export class StreamingConsoleOutput extends EventEmitter {
   private currentAgent?: string;
   private isStreaming = false;
   private streamBuffer = '';
-  private lastOutputTime = Date.now();
 
   /**
    * Start streaming output for an agent
@@ -121,7 +120,7 @@ export class StreamingConsoleOutput extends EventEmitter {
   /**
    * Handle result messages
    */
-  private streamResultMessage(message: StreamingMessage): void {
+  private streamResultMessage(_message: StreamingMessage): void {
     this.finishAgentStream();
   }
 
@@ -176,7 +175,6 @@ export class StreamingConsoleOutput extends EventEmitter {
     const section = this.sections.get(this.currentAgent);
     if (section) {
       section.content += content;
-      this.lastOutputTime = Date.now();
     }
   }
 

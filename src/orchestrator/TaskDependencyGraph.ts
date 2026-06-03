@@ -8,10 +8,7 @@
 import { 
   TaskDefinition,
   TaskExecution,
-  TaskDependency,
-  TaskStatus,
-  ExecutionError,
-  AgentType
+  TaskDependency
 } from './types.js';
 
 /**
@@ -120,7 +117,7 @@ export class TaskDependencyGraph {
     sourceTaskId: string, 
     targetTaskId: string, 
     type: 'hard' | 'soft',
-    reason?: string
+    _reason?: string
   ): void {
     const sourceNode = this.nodes.get(sourceTaskId);
     const targetNode = this.nodes.get(targetTaskId);

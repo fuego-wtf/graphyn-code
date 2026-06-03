@@ -3,7 +3,7 @@
  * Revolutionary AI agent orchestrator with dual-mode architecture
  */
 
-import { ModeManager, type Mode } from './mode-manager.js';
+import { ModeManager } from './mode-manager.js';
 import { SmartCoordinator } from '../coordinator/smart-coordinator.js';
 import { InteractiveShell } from './interactive-shell.js';
 import { ContextPreservingSession } from './context-preserving-session.js';

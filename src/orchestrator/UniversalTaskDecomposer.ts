@@ -17,22 +17,17 @@ import {
   TaskNode,
   TaskStatus,
   TaskPriority,
-  TaskComplexity,
   QueryIntent,
   QueryComplexity,
   ParsedQuery,
   TaskDefinition,
   TaskDependency,
-  TaskMetadata,
   ExtractedEntity
 } from './types.js';
 import {
   TASK_COMPLETION_TARGET_MS,
-  COMPLEXITY_THRESHOLDS,
   INTENT_PATTERNS,
-  AGENT_PERSONAS,
-  DEFAULT_TASK_PRIORITY,
-  MAX_TASK_DEPENDENCIES
+  DEFAULT_TASK_PRIORITY
 } from './constants.js';
 
 /**
@@ -665,7 +660,7 @@ export class UniversalTaskDecomposer extends EventEmitter {
     return Math.min(priority, 10);
   }
 
-  private calculateMaxConcurrency(tasks: TaskNode[], dependencies: TaskDependency[]): number {
+  private calculateMaxConcurrency(tasks: TaskNode[], _dependencies: TaskDependency[]): number {
     // Find tasks with no dependencies (can start immediately)
     const noDeps = tasks.filter(t => t.dependencies.length === 0);
     return Math.max(noDeps.length, 1);

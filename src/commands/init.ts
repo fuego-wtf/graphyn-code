@@ -8,7 +8,6 @@ import { ConfigManager } from '../config-manager.js';
 import { MCPConfigGenerator } from '../services/mcp-config-generator.js';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 
 const colors = {
   success: chalk.green,

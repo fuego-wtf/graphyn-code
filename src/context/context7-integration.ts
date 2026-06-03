@@ -5,7 +5,7 @@
  * architecture, technologies, workflows, and generate intelligent task plans.
  */
 
-import { detectTechStack, type TechStackContext, type FrameworkInfo } from './detector.js';
+import { detectTechStack, type TechStackContext } from './detector.js';
 import { RepositoryAnalyzer } from '../services/repository-analyzer.js';
 import path from 'path';
 import { promises as fs } from 'fs';
@@ -95,7 +95,7 @@ export class Context7Analyzer {
     const techStack = await detectTechStack(rootPath);
     
     // Phase 2: Repository structure analysis
-    const repoAnalysis = await this.repositoryAnalyzer.analyze({
+    await this.repositoryAnalyzer.analyze({
       path: rootPath,
       includePatterns: ['**/*.{js,ts,py,go,rs,java,php,rb,swift,kt}'],
       excludePatterns: ['node_modules/**', '.git/**', 'dist/**', 'build/**']
@@ -373,8 +373,8 @@ export class Context7Analyzer {
    */
   private analyzeTaskPatterns(
     techStack: TechStackContext,
-    architecture: ProjectArchitecture,
-    workflow: DevelopmentWorkflow
+    _architecture: ProjectArchitecture,
+    _workflow: DevelopmentWorkflow
   ): ProjectContext['taskPatterns'] {
     const typical = [
       'Add new feature',

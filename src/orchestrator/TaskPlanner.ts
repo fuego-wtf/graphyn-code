@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { TaskDecomposition, Task, TaskStatus, TaskPriority, RiskFactor } from './types.js';
+import { TaskDecomposition, TaskStatus, TaskPriority, RiskFactor } from './types.js';
 
 export interface ExecutionContext {
   workingDirectory: string;
@@ -230,7 +230,6 @@ export class TaskPlanner extends EventEmitter {
   private async generateTaskPlan(request: TaskPlanningRequest): Promise<TaskPlanningResult> {
     const tasks: PlannedTask[] = [];
     let totalEstimatedTime = 0;
-    const riskFactors: RiskFactor[] = [];
     const agentUtilization = new Map<string, number>();
     
     // Analyze query to determine task categories
@@ -284,7 +283,7 @@ export class TaskPlanner extends EventEmitter {
   /**
    * Analyze query to determine what types of tasks are needed
    */
-  private analyzeQueryForTaskCategories(query: string, context?: RepositoryContext): string[] {
+  private analyzeQueryForTaskCategories(query: string, _context?: RepositoryContext): string[] {
     const categories: string[] = [];
     const lowerQuery = query.toLowerCase();
 
@@ -599,7 +598,7 @@ export class TaskPlanner extends EventEmitter {
   /**
    * Assess risks in the task plan
    */
-  private assessRisks(tasks: PlannedTask[], request: TaskPlanningRequest): RiskFactor[] {
+  private assessRisks(tasks: PlannedTask[], _request: TaskPlanningRequest): RiskFactor[] {
     const risks: RiskFactor[] = [];
     
     // Check for high complexity tasks

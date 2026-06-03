@@ -19,7 +19,7 @@ export class Logger {
     return this.levels[level] >= this.levels[this.level];
   }
   
-  private formatMessage(level: LogLevel, message: string, ...args: any[]): string {
+  private formatMessage(level: LogLevel, message: string, ..._args: any[]): string {
     const timestamp = new Date().toISOString();
     const prefix = process.env.GRAPHYN_VERBOSE === 'true' 
       ? `[${timestamp}] [${level.toUpperCase()}]`

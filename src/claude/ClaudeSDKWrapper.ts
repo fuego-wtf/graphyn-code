@@ -6,9 +6,7 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
-import path from 'path';
 import fs from 'fs';
-import os from 'os';
 import { EventEmitter } from 'events';
 
 export interface ClaudeSession {

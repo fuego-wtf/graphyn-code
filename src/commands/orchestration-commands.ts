@@ -119,12 +119,8 @@ export class OrchestrationCommands {
       JSON.stringify(orchConfig, null, 2)
     );
     
-    // Step 7: Initialize task decomposer
-    console.log(chalk.blue('🎯 Initializing task decomposer...'));
-    const taskDecomposer = new UniversalTaskDecomposer();
-    
-    console.log(chalk.green('\\n✨ Project initialization complete!'));
-    console.log(chalk.gray('\\nNext steps:'));
+    console.log(chalk.green('\n✨ Project initialization complete!'));
+    console.log(chalk.gray('\nNext steps:'));
     console.log(chalk.gray('  • Use "graphyn plan <request>" to plan tasks'));
     console.log(chalk.gray('  • Use "graphyn execute <plan>" to run orchestration'));
     console.log(chalk.gray('  • Use "graphyn status" to monitor progress'));
@@ -464,7 +460,7 @@ export class OrchestrationCommands {
     }
   }
   
-  private async createSpecializedAgents(preferredAgents?: string[]): Promise<any[]> {
+  private async createSpecializedAgents(_preferredAgents?: string[]): Promise<any[]> {
     const matches = await dynamicAgentRegistry.getSpecializedAgents(this.projectContext!);
     
     console.log(chalk.green(`✅ Found ${matches.length} specialized agents:`));
@@ -530,7 +526,7 @@ export class OrchestrationCommands {
     console.log(chalk.green(`✅ Created agent: ${agent.name} (${agent.id})`));
   }
   
-  private async updateAgent(options: any): Promise<void> {
+  private async updateAgent(_options: any): Promise<void> {
     // Implementation for updating agents
     console.log(chalk.yellow('Agent update functionality coming soon...'));
   }

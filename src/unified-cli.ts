@@ -21,7 +21,6 @@ import { DynamicAgentRegistry } from './agents/DynamicAgentRegistry.js';
 import { StreamingConsoleOutput } from './console/StreamingConsoleOutput.js';
 import { InteractiveInput } from './console/InteractiveInput.js';
 import { RealTimeExecutor } from './orchestrator/RealTimeExecutor.js';
-import path from 'path';
 
 interface GraphynSession {
   id: string;
@@ -381,7 +380,7 @@ export class UnifiedGraphynCLI {
   /**
    * Offer continuation after query completion
    */
-  private async offerContinuation(previousQuery: string): Promise<void> {
+  private async offerContinuation(_previousQuery: string): Promise<void> {
     console.log('\n💡 What would you like to do next?');
     console.log('  • Ask for clarification or improvements');
     console.log('  • Request new features or changes');  
@@ -401,7 +400,7 @@ export class UnifiedGraphynCLI {
   /**
    * Handle legacy commands for backward compatibility
    */
-  private async handleLegacyCommand(command: string, args: string[]): Promise<void> {
+  private async handleLegacyCommand(command: string, _args: string[]): Promise<void> {
     switch (command) {
       case '--help':
       case '-h':

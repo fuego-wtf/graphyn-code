@@ -242,7 +242,7 @@ export function getMCPServersByCategory(category: string): string[] {
  * Build BUNX command for MCP server
  */
 export function buildMCPServerCommand(
-  serverName: string, 
+  _serverName: string, 
   config: MCPServerConfig,
   env: Record<string, string> = {}
 ): MCPServer {

@@ -4,7 +4,6 @@
  */
 
 /// <reference path="../types/globals.d.ts" />
-import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import chalk from 'chalk';
@@ -432,7 +431,7 @@ How can I help you in this thread?`;
     for (const cmdPath of possiblePaths) {
       try {
         // Test if command exists
-        const { spawn } = await import('child_process');
+        const { spawn: _spawn } = await import('child_process');
         return cmdPath;
       } catch (error) {
         // Continue to next path

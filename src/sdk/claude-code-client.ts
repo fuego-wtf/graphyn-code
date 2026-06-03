@@ -5,7 +5,6 @@
  * streaming support, and session management for multi-turn conversations.
  */
 
-import { z } from "zod";
 import { EventEmitter } from 'events';
 
 export type SDKMessage = {
@@ -67,7 +66,6 @@ export type ClaudeStreamCallback = (message: SDKMessage) => void;
 export class ClaudeCodeClient extends EventEmitter {
   private sessionId?: string;
   private abortController?: AbortController;
-  private retryCount = 0;
   private maxRetries = 3;
   private metrics: ExecutionMetrics[] = [];
 
@@ -90,7 +88,6 @@ export class ClaudeCodeClient extends EventEmitter {
     
     // TRUST SDK: Let Claude Code SDK handle its own timeouts naturally
     // The SDK works perfectly in 13s - no wrapper interference needed
-    let isTimedOut = false;
     
     try {
       this.emit('debug', `[${Date.now() - startTime}ms] Starting Claude query with prompt length: ${prompt.length}`);
@@ -361,7 +358,6 @@ export class ClaudeCodeClient extends EventEmitter {
     this.sessionId = undefined;
     this.abortController = undefined;
     this.metrics = [];
-    this.retryCount = 0;
   }
 
   /**
@@ -382,7 +378,7 @@ export class ClaudeCodeClient extends EventEmitter {
 /**
  * Utility function to create a pre-configured client
  */
-export function createClaudeClient(options?: Partial<ClaudeCodeOptions>): ClaudeCodeClient {
+export function createClaudeClient(): ClaudeCodeClient {
   const client = new ClaudeCodeClient();
   
   // Set up default event handlers

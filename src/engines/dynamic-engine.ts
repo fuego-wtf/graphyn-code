@@ -8,7 +8,6 @@ import path from 'path';
 import { spawn } from 'child_process';
 import chalk from 'chalk';
 import { GraphynAPIClient } from '../api/client.js';
-import type { Agent, Thread } from '../api-client.js';
 import { GraphynMCPBridge } from '../mcp/bridge-implementation.js';
 import type { CommandIntent } from '../coordinator/smart-coordinator.js';
 

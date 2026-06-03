@@ -9,7 +9,6 @@
 
 import { RealTimeExecutor } from './orchestrator/RealTimeExecutor.js';
 import { AgentOrchestrator } from './orchestrator/AgentOrchestrator.js';
-import { ConsoleOutput } from './console/ConsoleOutput.js';
 import { StreamingConsoleOutput } from './console/StreamingConsoleOutput.js';
 import { InteractiveInput } from './console/InteractiveInput.js';
 // Import project-agnostic orchestration commands
@@ -35,7 +34,6 @@ export async function main(): Promise<void> {
 
     // Initialize components with Claude Code style interface
     const realTimeExecutor = new RealTimeExecutor();
-    const consoleOutput = new ConsoleOutput();
     const streamingOutput = new StreamingConsoleOutput();
     const interactiveInput = new InteractiveInput();
     // Create agent orchestrator for multi-agent coordination
@@ -593,61 +591,6 @@ function isNaturalLanguageQuery(command: string): boolean {
   ];
 
   return naturalLanguagePatterns.some(pattern => pattern.test(command || ''));
-}
-
-/**
- * Show CLI help information
- */
-function showHelp(): void {
-  console.log(`
-Graphyn Code - Project-Agnostic Multi-Agent Orchestration
-
-Usage:
-  graphyn                        Interactive orchestrator (split-screen mode)
-  graphyn init [options]         Initialize project for orchestration
-  graphyn plan <request>         Plan tasks from natural language
-  graphyn execute [plan-id]      Execute orchestration plan
-  graphyn coordinate <request>   Plan and execute in one step
-  graphyn status                 Show orchestration status
-  graphyn agents <action>        Manage specialized agents
-  graphyn configure [options]    Configure orchestration settings
-
-Orchestration Commands:
-  init --force --template=<type> --agents=<list>   Initialize with options
-  plan "add authentication" --complexity=moderate  Plan complex tasks
-  execute plan-123456 --concurrency=5             Execute saved plan
-  coordinate "optimize performance" --dry-run      Test coordination
-  agents list                                      List available agents
-  agents create --type=backend --tech=django      Create specialized agent
-  configure --concurrency=8 --timeout=600000      Update settings
-
-Legacy Commands:
-  graphyn --simple               Simple interactive chat mode
-  graphyn "your query"           Direct query with immediate execution
-
-Project-Agnostic Features:
-  🎯 Context7-style deep project analysis
-  🤖 Dynamic agent specialization based on tech stack
-  📋 Universal task decomposition for any project type
-  ⚡ Real-time multi-agent coordination (up to 8 agents)
-  🔧 Automatic MCP configuration generation
-  💾 Persistent task planning and execution history
-
-Options:
-  -s, --simple                   Use simple interactive mode
-  -v, --version                  Show version
-  -h, --help                     Show help
-  --debug                        Show debug information
-  --force                        Force overwrite existing configuration
-  --dry-run                      Show plan without executing
-  --save                         Save plan for later execution
-
-Experience:
-  ✨ Works with any technology stack (React, Vue, Django, Go, etc.)
-  🚀 Intelligent task planning based on project architecture
-  💬 Natural language to coordinated multi-agent execution
-  🎯 Technology-aware agent selection and specialization
-`);
 }
 
 // Run main function if this file is executed directly

@@ -60,7 +60,7 @@ async function testMultiAgentSystem() {
     
     // Simulate complex request processing
     const complexRequest = 'Create a comprehensive fullstack authentication system with testing and documentation';
-    const complexGraph = await taskDecomposer.decomposeRequest(complexRequest);
+    await taskDecomposer.decomposeRequest(complexRequest);
     
     const processingTime = Date.now() - startTime;
     const performanceTarget = processingTime < 1000; // 1 second for decomposition

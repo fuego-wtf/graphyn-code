@@ -87,7 +87,6 @@ export const SplitScreenInterface: React.FC<SplitScreenProps> = ({
   const [showHelp, setShowHelp] = useState<boolean>(false);
 
   const { exit } = useApp();
-  const outputRef = useRef<HTMLDivElement>(null);
   const lastRenderTime = useRef<number>(0);
 
   // Configuration with defaults
@@ -311,7 +310,7 @@ export const SplitScreenInterface: React.FC<SplitScreenProps> = ({
         </Box>
 
         <Box flexDirection="column" flexGrow={1}>
-          {approvalWorkflow.tasks.slice(0, 3).map((task, index) => (
+          {approvalWorkflow.tasks.slice(0, 3).map((task) => (
             <Box key={task.taskId}>
               <Text color="white">{task.agentEmoji} </Text>
               <Text bold color="cyan">{task.agentName}</Text>

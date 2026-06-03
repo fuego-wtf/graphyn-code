@@ -7,7 +7,6 @@
  */
 
 import chalk from 'chalk';
-import { fileURLToPath } from 'url';
 import { pathToFileURL } from 'url';
 import { PACKAGE_VERSION } from './package-version.js';
 

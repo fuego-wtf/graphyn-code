@@ -4,7 +4,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { TaskPromptBuilder } from './task-prompt-builder.js';
 import { ClaudeOutputParser } from './claude-output-parser.js';
-import { detectClaude } from '../utils/claude-detector.js';
 import type { AgentConfig } from '../types/agent.js';
 import chalk from 'chalk';
 
@@ -122,9 +121,6 @@ export class ClaudeTaskGenerator {
         reject(new Error(`Failed to write prompt to temp file: ${err}`));
         return;
       }
-      
-      // Read prompt from file and pass to Claude with proper flags
-      const promptContent = `cat ${tempFile}`;
       
       // Spawn Claude process with print flag and json output
       const claude = spawn('/bin/sh', ['-c', `cat "${tempFile}" | "${claudePath}" --print --output-format json`], {

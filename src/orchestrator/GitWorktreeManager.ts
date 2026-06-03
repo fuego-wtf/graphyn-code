@@ -5,8 +5,8 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { mkdir, access, readdir, rm } from 'fs/promises';
-import { join, resolve } from 'path';
+import { mkdir, access, rm } from 'fs/promises';
+import { join } from 'path';
 import { GitWorktreeInfo } from './types.js';
 import { WORKTREE_PREFIX, BRANCH_PREFIX, MAIN_BRANCH, COMMIT_MESSAGE_PREFIX } from './constants.js';
 

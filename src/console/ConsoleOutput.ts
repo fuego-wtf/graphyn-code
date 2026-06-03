@@ -32,11 +32,9 @@ interface CompletionOptions {
 
 export class ConsoleOutput {
   private startTime: number;
-  private lastUpdateTime: number;
   
   constructor() {
     this.startTime = Date.now();
-    this.lastUpdateTime = this.startTime;
   }
 
   /**
@@ -67,8 +65,6 @@ export class ConsoleOutput {
       : ` (${elapsedTime}s)`;
     
     console.log(`${emoji} ${phase}: [${bar}] ${percentage}%${timeInfo}`);
-    
-    this.lastUpdateTime = currentTime;
   }
 
   /**
@@ -98,7 +94,7 @@ export class ConsoleOutput {
       console.log(`📋 Agent: ${agent}`);
       console.log('─'.repeat(agent.length + 10));
       
-      agentTasks.forEach((task, index) => {
+      agentTasks.forEach((task, _index) => {
         const statusEmoji = this.getTaskStatusEmoji(task.status);
         const priority = task.priority ? ` [P${task.priority}]` : '';
         const dependencies = (task.dependencies || []).length > 0 
@@ -377,7 +373,7 @@ export class ConsoleOutput {
   /**
    * Stream task progress with live updates
    */
-  streamTaskProgress(taskId: string, agent: string, progress: number, message?: string): void {
+  streamTaskProgress(_taskId: string, agent: string, progress: number, message?: string): void {
     const progressBar = this.createProgressBar(progress, 15);
     const displayMessage = message || 'Working...';
     const text = `🔄 @${agent}: ${progressBar} ${progress}% - ${displayMessage}`;

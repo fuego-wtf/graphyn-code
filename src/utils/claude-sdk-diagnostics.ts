@@ -460,7 +460,6 @@ async function checkEnvironmentVariables(results: SDKDiagnosticResult[]): Promis
  * Analyze diagnostic results and generate health report
  */
 function analyzeResults(results: SDKDiagnosticResult[]): SDKHealthReport {
-  const passCount = results.filter(r => r.status === 'pass').length;
   const warnCount = results.filter(r => r.status === 'warn').length;
   const failCount = results.filter(r => r.status === 'fail').length;
   

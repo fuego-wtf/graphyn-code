@@ -328,7 +328,6 @@ export class GraphynAPIClient {
     for (const port of commonPorts) {
       try {
         const testUrl = `http://localhost:${port}`;
-        const originalBaseUrl = this.baseUrl;
         this.baseUrl = testUrl;
         
         const result = await this.request<{ status: string }>('/internal/threads/health');

@@ -2,7 +2,7 @@
 /**
  * graphyn schedule — CLI surface for the schedules domain.
  *
- * Contract: code/docs/schedule-cli-design-v1.md §2 (CLI surface) + §1 (vocabulary).
+ * Contract: docs/code/schedule-cli-design-v1.md §2 (CLI surface) + §1 (vocabulary).
  *
  * Subcommands:
  *   create   Create a new schedule

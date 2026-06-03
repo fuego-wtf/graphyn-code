@@ -120,7 +120,7 @@ async function setupCommand(serviceFilter?: string, dryRun = false): Promise<voi
   let skipped = 0;
   let existed = 0;
 
-  for (const [name, svc] of Object.entries(targets)) {
+  for (const [, svc] of Object.entries(targets)) {
     const repoRoot = resolveRepoRoot(svc, root);
     if (!repoRoot) {
       console.log(colors.warning(`  SKIP  ${svc.label} — compound repo not found`));

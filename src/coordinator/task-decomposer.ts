@@ -2,12 +2,12 @@
  * Task Decomposer - Breaks complex requests into agent-specific tasks with DAG execution
  */
 
-import { TaskNode, ExecutionGraph, AgentProfile } from './types.js';
+import { TaskNode, ExecutionGraph } from './types.js';
 import { AgentRegistry } from './agent-registry.js';
 import chalk from 'chalk';
 
 export class TaskDecomposer {
-  constructor(private agentRegistry: AgentRegistry) {}
+  constructor(public agentRegistry: AgentRegistry) {}
 
   /**
    * Decompose a complex request into a DAG of tasks
@@ -238,7 +238,7 @@ export class TaskDecomposer {
   /**
    * Create tasks for architecture requests
    */
-  private createArchitectureTasks(request: string, complexity: 'low' | 'medium' | 'high'): TaskNode[] {
+  private createArchitectureTasks(_request: string, complexity: 'low' | 'medium' | 'high'): TaskNode[] {
     const tasks: TaskNode[] = [
       {
         id: 'arch_analysis',
@@ -290,7 +290,7 @@ export class TaskDecomposer {
   /**
    * Create tasks for deployment requests
    */
-  private createDeploymentTasks(request: string, complexity: 'low' | 'medium' | 'high'): TaskNode[] {
+  private createDeploymentTasks(_request: string, complexity: 'low' | 'medium' | 'high'): TaskNode[] {
     return [
       {
         id: 'deploy_prep',

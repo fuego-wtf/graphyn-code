@@ -2,7 +2,7 @@
  * BackyardCliAdapter — authenticated HTTP transport for Graphyn-internal
  * backyard capabilities (schedules, devices, grants, …).
  *
- * Design contract: §10 of code/docs/schedule-cli-design-v1.md.
+ * Design contract: §10 of docs/code/schedule-cli-design-v1.md.
  *
  * This adapter is intentionally NOT MCPBridge (MCPBridge is for external MCP
  * servers only, post-cutover) and NOT BaseCliAdapter (BaseCliAdapter is for the

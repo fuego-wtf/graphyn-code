@@ -188,7 +188,7 @@ export class AgentOrchestrator extends EventEmitter {
   async *executeQueryStream(
     query: string,
     repositoryContext?: any,
-    options?: {
+    _options?: {
       maxAgents?: number;
       requireApproval?: boolean;
     }
@@ -1014,7 +1014,7 @@ Provide a concise, practical response with actionable steps.`;
   /**
    * Emergency response when Claude Code SDK fails
    */
-  private getEmergencyResponse(agentName: string, query: string, repositoryContext?: any): string {
+  private getEmergencyResponse(_agentName: string, query: string, _repositoryContext?: any): string {
     return `Claude Code SDK unavailable. Query: "${query}"\nEmergency mode active - limited functionality.\nRun 'graphyn doctor' to diagnose connectivity issues.`;
   }
 

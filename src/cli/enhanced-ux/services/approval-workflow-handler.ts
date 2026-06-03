@@ -58,7 +58,7 @@ export class ApprovalWorkflowHandler extends EventEmitter {
   private sequence = 0;
 
   constructor(
-    private readonly config: EnhancedUXConfig,
+    config: EnhancedUXConfig,
     options: ApprovalWorkflowHandlerOptions = {}
   ) {
     super();

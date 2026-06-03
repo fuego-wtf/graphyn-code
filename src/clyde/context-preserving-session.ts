@@ -153,7 +153,6 @@ export class ContextPreservingSession {
   private async detectProjectContext(): Promise<void> {
     const cwd = process.cwd();
     const packageJsonPath = path.join(cwd, 'package.json');
-    const gitPath = path.join(cwd, '.git');
     
     let projectInfo: any = {
       path: cwd,

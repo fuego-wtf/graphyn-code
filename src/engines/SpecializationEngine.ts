@@ -10,9 +10,8 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { type ProjectContext } from '../context/context7-integration.js';
 import { type AgentType } from '../orchestrator/types.js';
-import { DynamicAgentRegistry, type AgentProfile, type AgentSpecialization, type AgentMatch } from '../agents/DynamicAgentRegistry.js';
+import { DynamicAgentRegistry, type AgentProfile, type AgentSpecialization } from '../agents/DynamicAgentRegistry.js';
 
 export interface TechnologyProfile {
   name: string;
@@ -71,7 +70,6 @@ export interface SpecializedAgentConfig {
 
 export class SpecializationEngine {
   private agentRegistry: DynamicAgentRegistry;
-  private specializationCache = new Map<string, SpecializedAgentConfig[]>();
   
   constructor() {
     this.agentRegistry = new DynamicAgentRegistry();
@@ -217,9 +215,6 @@ export class SpecializationEngine {
    * Repository Analysis (Step 1-4)
    */
   private async analyzeRepository(workingDir: string): Promise<ProjectAnalysis['repository']> {
-    const stats = await fs.stat(workingDir);
-    const gitDir = path.join(workingDir, '.git');
-    
     let gitInfo = {
       git_branch: 'main',
       remote_urls: [] as string[]
@@ -818,7 +813,7 @@ export class SpecializationEngine {
     // Load technology-specific specializations from files
   }
 
-  private async enhanceAgentCapabilities(agent: SpecializedAgentConfig, analysis: ProjectAnalysis): Promise<void> {
+  private async enhanceAgentCapabilities(_agent: SpecializedAgentConfig, _analysis: ProjectAnalysis): Promise<void> {
     // Add enhanced capabilities based on project analysis
   }
 
@@ -896,52 +891,52 @@ export class SpecializationEngine {
     }
   }
 
-  private async generateSpecializedPrompts(agent: SpecializedAgentConfig, analysis: ProjectAnalysis, userQuery: string): Promise<void> {
+  private async generateSpecializedPrompts(_agent: SpecializedAgentConfig, _analysis: ProjectAnalysis, _userQuery: string): Promise<void> {
     // Generate context-aware prompts
   }
 
-  private async setupFigmaIntegration(agents: SpecializedAgentConfig[]): Promise<void> {
+  private async setupFigmaIntegration(_agents: SpecializedAgentConfig[]): Promise<void> {
     // Setup Figma API integration
   }
 
-  private async setupGitHubIntegration(agents: SpecializedAgentConfig[]): Promise<void> {
+  private async setupGitHubIntegration(_agents: SpecializedAgentConfig[]): Promise<void> {
     // Setup GitHub API integration
   }
 
-  private async setupOAuthProvider(agents: SpecializedAgentConfig[], provider: string): Promise<void> {
+  private async setupOAuthProvider(_agents: SpecializedAgentConfig[], _provider: string): Promise<void> {
     // Setup OAuth provider
   }
 
-  private async setupAgentCoordination(agents: SpecializedAgentConfig[], analysis: ProjectAnalysis): Promise<void> {
+  private async setupAgentCoordination(_agents: SpecializedAgentConfig[], _analysis: ProjectAnalysis): Promise<void> {
     // Setup multi-agent coordination
   }
 
-  private async createTaskGraph(userQuery: string, agents: SpecializedAgentConfig[], analysis: ProjectAnalysis): Promise<any> {
+  private async createTaskGraph(_userQuery: string, _agents: SpecializedAgentConfig[], _analysis: ProjectAnalysis): Promise<any> {
     // Create task dependency graph
     return {};
   }
 
-  private async executeTaskGraph(taskGraph: any, agents: SpecializedAgentConfig[]): Promise<void> {
+  private async executeTaskGraph(_taskGraph: any, _agents: SpecializedAgentConfig[]): Promise<void> {
     // Execute task graph with dependency resolution
   }
 
-  private async monitorExecution(agents: SpecializedAgentConfig[], taskGraph: any): Promise<void> {
+  private async monitorExecution(_agents: SpecializedAgentConfig[], _taskGraph: any): Promise<void> {
     // Monitor real-time execution
   }
 
-  private async setupSplitScreenInterface(agents: SpecializedAgentConfig[]): Promise<void> {
+  private async setupSplitScreenInterface(_agents: SpecializedAgentConfig[]): Promise<void> {
     // Setup split-screen UI
   }
 
-  private async setupRealTimeStreaming(agents: SpecializedAgentConfig[]): Promise<void> {
+  private async setupRealTimeStreaming(_agents: SpecializedAgentConfig[]): Promise<void> {
     // Setup real-time streaming
   }
 
-  private async setupProfessionalUI(agents: SpecializedAgentConfig[]): Promise<void> {
+  private async setupProfessionalUI(_agents: SpecializedAgentConfig[]): Promise<void> {
     // Setup professional UI/UX
   }
 
-  private async setupSessionPersistence(agents: SpecializedAgentConfig[]): Promise<void> {
+  private async setupSessionPersistence(_agents: SpecializedAgentConfig[]): Promise<void> {
     // Setup session persistence
   }
 }

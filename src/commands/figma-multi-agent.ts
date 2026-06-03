@@ -8,10 +8,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import inquirer from 'inquirer';
 import ora from 'ora';
-import { promises as fs } from 'fs';
-import path from 'path';
 import {
   setupFigmaMCP,
   interactiveFigmaWorkflowSetup,
@@ -19,7 +16,7 @@ import {
   initializeFigmaMultiAgentWorkflow
 } from '../setup/figma-mcp-setup.js';
 import { MultiAgentResult } from '../figma-api.js';
-import { ClaudeMultiAgentManager, AgentExecutionEvent } from '../claude-multi-agent-manager.js';
+import { ClaudeMultiAgentManager } from '../claude-multi-agent-manager.js';
 
 const colors = {
   success: chalk.green,
@@ -59,7 +56,7 @@ Multi-Agent Features:
     .command('setup')
     .description('Setup Figma MCP integration and multi-agent environment')
     .option('--force', 'Force reconfiguration even if already set up')
-    .action(async (options) => {
+    .action(async (_options) => {
       console.log(colors.bold('\n🎨 Multi-Agent Figma Setup\n'));
       
       try {

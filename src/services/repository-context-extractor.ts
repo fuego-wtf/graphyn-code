@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'fs/promises';
-import { join, extname } from 'path';
+import { join } from 'path';
 import { glob } from 'glob';
 import { RepositoryAnalyzerService } from './repository-analyzer.js';
 import type { RepositoryContext } from './context-builder.js';
@@ -51,13 +51,6 @@ export class RepositoryContextExtractor {
     // Extract keywords from query
     const keywords = this.extractKeywords(query.toLowerCase());
     
-    // Create a context object from the analysis
-    const context = analysis.context || {
-      files: [],
-      summary: '',
-      metadata: {}
-    };
-    
     // Create structure for backward compatibility
     const contextCompat = {
       framework: analysis.framework || 'unknown',
@@ -98,7 +91,7 @@ export class RepositoryContextExtractor {
     });
     
     // Add related keywords based on categories
-    for (const [category, terms] of this.queryKeywords) {
+    for (const [_category, terms] of this.queryKeywords) {
       if (terms.some(term => query.includes(term))) {
         terms.forEach(term => keywords.add(term));
       }
@@ -110,7 +103,7 @@ export class RepositoryContextExtractor {
   private async findRelevantFiles(
     repoPath: string,
     keywords: string[],
-    context: RepositoryContext
+    _context: RepositoryContext
   ): Promise<RelevantFile[]> {
     const relevantFiles: RelevantFile[] = [];
     

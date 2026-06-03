@@ -413,7 +413,7 @@ export class InteractiveShell {
   /**
    * Handle special shell commands
    */
-  private async handleShellCommand(command: string): Promise<boolean> {
+  public async handleShellCommand(command: string): Promise<boolean> {
     switch (command.toLowerCase()) {
       case 'help':
         await this.showContextualHelp();

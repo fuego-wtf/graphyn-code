@@ -156,7 +156,7 @@ export class ClaudePromptBuilder {
     ];
     
     let contextIndex = 1;
-    for (const [contextId, context] of this.contexts) {
+    for (const [, context] of this.contexts) {
       sections.push('');
       sections.push(`## Context ${contextIndex}: ${context.type.toUpperCase()}`);
       sections.push(`Source: ${context.source}`);

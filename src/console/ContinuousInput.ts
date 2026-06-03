@@ -9,7 +9,6 @@
  */
 
 import { EventEmitter } from 'events';
-import * as readline from 'readline';
 
 export interface ContinuousInputOptions {
   prompt?: string;
@@ -28,7 +27,6 @@ export interface InputEvent {
 }
 
 export class ContinuousInput extends EventEmitter {
-  private rl?: readline.Interface;
   private isActive = false;
   private inputBuffer = '';
   private cursorPosition = 0;

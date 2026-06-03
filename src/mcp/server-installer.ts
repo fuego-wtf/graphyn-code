@@ -5,7 +5,7 @@
  * they can start properly before being passed to Claude Code SDK.
  */
 
-import { spawn, execSync, exec, ChildProcess } from 'child_process';
+import { spawn, exec, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
@@ -116,7 +116,7 @@ export async function autoInstallMCPServer(
     // Use Bun package runner for automatic installation without prompts
     const installCommand = `bunx --bun ${config.package} --version`;
     
-    const { stdout, stderr } = await execAsync(installCommand, {
+    const { stdout, stderr: _stderr } = await execAsync(installCommand, {
       timeout: options.timeout || 30000, // 30 second timeout
       env: { ...process.env, NODE_ENV: 'production' }
     });

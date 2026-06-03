@@ -36,7 +36,7 @@ export class SmartCoordinator {
   private modeManager: ModeManager;
   private standaloneEngine: StandaloneEngine;
   private dynamicEngine: DynamicEngine;
-  private session: ContextPreservingSession;
+  
   
   // Multi-agent orchestration components
   private agentRegistry?: AgentRegistry;
@@ -48,7 +48,6 @@ export class SmartCoordinator {
     this.modeManager = options.modeManager;
     this.standaloneEngine = options.standaloneEngine;
     this.dynamicEngine = options.dynamicEngine;
-    this.session = options.session;
     this.multiAgentEnabled = options.enableMultiAgent ?? true;
     
     if (this.multiAgentEnabled) {
@@ -479,7 +478,7 @@ export class SmartCoordinator {
   /**
    * Prompt user for mode switch
    */
-  private async promptModeSwitch(targetMode: Mode): Promise<boolean> {
+  private async promptModeSwitch(_targetMode: Mode): Promise<boolean> {
     // For now, return false to avoid blocking - interactive prompts will be added later
     // This will be implemented with the interactive shell
     return false;
@@ -615,7 +614,7 @@ export class SmartCoordinator {
   /**
    * Handle help commands
    */
-  private async handleHelpCommand(intent: CommandIntent): Promise<void> {
+  private async handleHelpCommand(_intent: CommandIntent): Promise<void> {
     const currentMode = this.modeManager.getCurrentMode();
     const modeStatus = this.modeManager.getModeStatus();
     const multiAgentStatus = this.getMultiAgentStatus();

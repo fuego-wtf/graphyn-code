@@ -10,10 +10,10 @@
  */
 
 import { EventEmitter } from 'events';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import { ClaudeCodeClient } from '../sdk/claude-code-client.js';
-import { join, resolve } from 'path';
+import { resolve } from 'path';
 import {
   AgentSession,
   AgentPersona,
@@ -25,10 +25,8 @@ import {
 import {
   SESSION_HEARTBEAT_INTERVAL_MS,
   SESSION_TIMEOUT_MS,
-  SESSION_INITIALIZATION_TIMEOUT_MS,
   MAX_SESSION_RETRIES,
   WORKTREE_BASE_PATH,
-  MAX_WORKTREES,
   WORKTREE_CLEANUP_TIMEOUT_MS,
   AGENT_PERSONAS
 } from './constants.js';

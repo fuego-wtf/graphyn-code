@@ -14,7 +14,6 @@ export interface DetectedAgent {
  * Service for detecting .claude/agents directories and agent files
  */
 export class AgentDetectorService {
-  private readonly agentsFolderName = '.claude/agents';
   private readonly agentFilePattern = '*.md';
   
   /**

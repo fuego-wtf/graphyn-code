@@ -13,16 +13,12 @@ import {
   hasRequiredEnvironment,
   getMissingEnvironmentVars,
   getCoreMCPServers,
-  getMCPServersByCategory,
-  type MCPServer, 
-  type MCPServerConfig 
+  type MCPServer 
 } from './server-registry.js';
 import { 
-  autoInstallMCPServer, 
-  validateMCPServerStartup,
   installAndValidateMCPServers 
 } from './server-installer.js';
-import type { ProjectAnalysis, TechnologyProfile } from '../engines/SpecializationEngine.js';
+import type { ProjectAnalysis } from '../engines/SpecializationEngine.js';
 
 interface MCPDiscoveryResult {
   recommendedServers: Record<string, MCPServer>;
@@ -476,7 +472,7 @@ export function getMCPServerStatus(servers: Record<string, MCPServer>): Array<{
     missingEnv?: string[];
   }> = [];
 
-  for (const [serverName, serverConfig] of Object.entries(servers)) {
+  for (const serverName of Object.keys(servers)) {
     const config = getMCPServerConfig(serverName);
     
     if (config) {

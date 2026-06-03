@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { exec, spawn, execSync } from 'child_process';
+import { exec, execSync } from 'child_process';
 import { promisify } from 'util';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
@@ -9,18 +9,11 @@ import chalk from 'chalk';
 import { GraphynAPIClient } from '../api/client.js';
 import { createThreadSSEClient } from '../utils/sse-client.js';
 import { RepositoryAnalyzer } from '../services/repository-analyzer.js';
-import open from 'open';
-import { createInterface } from 'readline';
 
 const execAsync = promisify(exec);
 
 
-function createProgressBar(current: number, total: number, length: number = 20): string {
-  const percentage = Math.min(current / total, 1);
-  const filled = Math.floor(percentage * length);
-  const empty = length - filled;
-  return '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
-}
+
 
 async function checkBackendHealth(): Promise<boolean> {
   try {
@@ -327,7 +320,7 @@ Create 3-5 specialized agents that can work together on this codebase. Respond w
   };
 }
 
-async function waitForTeamConfig(threadId: string, apiClient: GraphynAPIClient): Promise<{ agents: any[] }> {
+async function waitForTeamConfig(threadId: string, _apiClient: GraphynAPIClient): Promise<{ agents: any[] }> {
   return new Promise((resolve, reject) => {
     console.log(chalk.gray(`🔗 Connecting to SSE stream for thread: ${threadId}`));
     
@@ -843,7 +836,6 @@ Focus on implementing the task according to the agent specialization: ${task.age
     }, timeoutMs);
     
     let hasOutput = false;
-    let finalResult = '';
     
     // Set up real-time streaming handlers
     client.on('partial_content', (content: string) => {
@@ -880,7 +872,6 @@ Focus on implementing the task according to the agent specialization: ${task.age
       })) {
         if (message.type === "result") {
           if ('subtype' in message && message.subtype === "success") {
-            finalResult = (message as any).result || "Task completed";
             clearTimeout(timeoutId);
             
             if (!hasOutput) {
@@ -1049,7 +1040,7 @@ function getNextStepsForAgent(agentType: string): string[] {
   ];
 }
 
-async function getFeedbackForTask(task: Task, taskNumber: number, totalTasks: number, remainingTasks: Task[]): Promise<{
+async function getFeedbackForTask(_task: Task, taskNumber: number, totalTasks: number, remainingTasks: Task[]): Promise<{
   action: 'continue' | 'modify' | 'regenerate' | 'skip';
   modifiedTasks?: Task[];
   feedback?: string;
@@ -1268,7 +1259,7 @@ async function modifyRemainingTasks(tasks: Task[]): Promise<Task[]> {
   return modifiedTasks;
 }
 
-async function spawnClaudeSession(task: Task, worktreePath: string): Promise<void> {
+export async function spawnClaudeSession(task: Task, worktreePath: string): Promise<void> {
   console.log(chalk.yellow(`⚠️  Terminal spawning deprecated - using inline Claude Code SDK execution instead\n`));
   
   // Use the same execution logic as executeClaudeWithStreaming

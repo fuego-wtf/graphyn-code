@@ -8,7 +8,7 @@ import { promisify } from 'util';
 import ora from 'ora';
 import open from 'open';
 import { FigmaAPIClient, MultiAgentResult } from '../figma-api.js';
-import { ClaudeMultiAgentManager, AgentExecutionEvent } from '../claude-multi-agent-manager.js';
+import { ClaudeMultiAgentManager } from '../claude-multi-agent-manager.js';
 
 const execAsync = promisify(exec);
 

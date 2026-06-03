@@ -29,7 +29,7 @@ export class TmuxLayoutManager {
   }
   
   async executeAgentPlan(plan: ExecutionPlan) {
-    const { agents, tasks, workspace } = plan;
+    const { agents, tasks } = plan;
     
     // Convert AgentConfig to Agent format for display
     const displayAgents: Agent[] = agents.map(agent => ({
@@ -383,7 +383,7 @@ export class TmuxLayoutManager {
     return this.sessionName;
   }
   
-  private groupTasksByAgent(tasks: Task[]): Map<string, Task[]> {
+  public groupTasksByAgent(tasks: Task[]): Map<string, Task[]> {
     const grouped = new Map<string, Task[]>();
     
     for (const task of tasks) {

@@ -1,16 +1,14 @@
-import { spawn, ChildProcess, exec as execCallback } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
-import { promisify } from 'util';
 import type { AgentConfig } from '../types/agent.js';
 import type { Task } from './claude-task-generator.js';
 import { AgentPromptBuilder, AgentPromptContext } from './agent-prompt-builder.js';
 import type { RepositoryContext } from './claude-task-generator.js';
 import { GitWorktreeManager, type WorktreeInfo } from '../utils/git-worktree-manager.js';
 
-const exec = promisify(execCallback);
 
 export interface LaunchAgentParams {
   agent: AgentConfig;
@@ -120,7 +118,7 @@ export class ClaudeAgentLauncher {
     this.activeAgents.set(task.id, agentProcess);
     
     // Handle process events
-    claudeProcess.on('exit', async (code, signal) => {
+    claudeProcess.on('exit', async (code, _signal) => {
       console.log(`Agent ${agent.name} (Task ${task.id}) exited with code ${code}`);
       
       // Clean up worktree if it was created
@@ -153,7 +151,7 @@ export class ClaudeAgentLauncher {
     return agentProcess;
   }
 
-  async launchAgentInTmuxPane(params: LaunchAgentParams, tmuxSession: string, paneIndex: number): Promise<string> {
+  async launchAgentInTmuxPane(params: LaunchAgentParams, _tmuxSession: string, _paneIndex: number): Promise<string> {
     const { agent, task, workDir, repoContext, agentGroupName, allTasks, claudePath = 'claude', squadId } = params;
     
     // Create git worktree for this agent

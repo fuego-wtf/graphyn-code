@@ -1,7 +1,6 @@
 import { Arguments } from 'yargs';
 import { GlobalOptionsMiddleware, GlobalContext } from './middleware/global-options.js';
 import { ErrorHandler } from './errors/index.js';
-import { commandRegistry } from './commands/index.js';
 
 /**
  * Legacy GraphynInkApp - now routes to CLI orchestrator

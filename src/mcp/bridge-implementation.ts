@@ -25,7 +25,7 @@ export class GraphynMCPBridge {
   private apiClient: GraphynAPIClient;
   // Auth manager removed - offline mode
   
-  constructor(options: MCPBridgeOptions = {}) {
+  constructor(_options: MCPBridgeOptions = {}) {
     // Auth disabled for offline mode
     this.apiClient = new GraphynAPIClient();
     
@@ -78,7 +78,7 @@ export class GraphynMCPBridge {
    * Register this MCP server with the Graphyn backend
    * This is optional and only if the backend supports MCP registration
    */
-  private async registerWithBackend(): Promise<void> {
+  public async registerWithBackend(): Promise<void> {
     // This can be implemented when the backend adds MCP registration support
     // For now, the MCP bridge works locally without backend registration
     console.debug('MCP backend registration not yet implemented');

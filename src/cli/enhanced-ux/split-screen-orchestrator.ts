@@ -49,7 +49,7 @@ const DEFAULT_CONFIG: EnhancedUXConfig = {
 
 export class SplitScreenOrchestrator {
   private readonly handler = new ApprovalWorkflowHandler(DEFAULT_CONFIG);
-  private options: SplitScreenOrchestratorOptions = {
+  public options: SplitScreenOrchestratorOptions = {
     enableResize: false,
     persistState: false,
     debugMode: false

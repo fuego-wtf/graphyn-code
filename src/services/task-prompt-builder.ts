@@ -136,7 +136,7 @@ Now generate tasks for the given request. Return ONLY the JSON array wrapped in 
       return '- **backend** (Backend Developer)\n  - Emoji: 🔧\n  - Skills: General backend development\n  - Capabilities: API development, database, server-side logic';
     }
     
-    return agents.map((agent, index) => {
+    return agents.map((agent) => {
       const skills = 'Not specified';
       
       // Ensure capabilities is always an array

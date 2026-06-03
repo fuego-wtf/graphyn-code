@@ -5,7 +5,7 @@
  * Performance targets and agent definitions for the orchestration system.
  */
 
-import { AgentPersona, AgentPerformanceMetrics } from './types.js';
+import { AgentPersona } from './types.js';
 
 // Performance Targets - Core system limits
 export const MAX_PARALLEL_AGENTS = 8;
