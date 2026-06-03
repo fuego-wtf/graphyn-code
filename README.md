@@ -17,6 +17,12 @@ We believe AI assistants should understand your project deeply—not just respon
 
 **One command. Full context. Real development.**
 
+## Workspace Documentation
+
+Durable CLI documentation now lives under `../docs/code/` from this repo. Keep
+runtime tests under `tests/` or the command surface they verify, and keep run
+receipts under `../docs/receipts/`.
+
 ## Install
 
 ```bash

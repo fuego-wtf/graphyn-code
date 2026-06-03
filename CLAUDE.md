@@ -172,14 +172,18 @@ Graphyn Code is a radically simplified CLI that transforms Claude Code into an i
 ## Documentation Structure
 
 **Active Documentation**:
-- `/docs/sitemap.md` - Complete CLI command reference and UI architecture
-- `/docs/servicemap.md` - Technical service architecture and integration patterns
-- `/GRAPHYN.md` - Living project memory and v10 architecture vision
-- `/README.md` - User-facing installation and usage guide
+- `../docs/code/` - Durable CLI architecture and integration notes
+- `../docs/SITEMAP.md` - Workspace user-flow sitemap
+- `README.md` - User-facing installation and usage guide
+- `CLAUDE_CODE_INTERFACE.md` - Claude Code interface notes
 
 **Archived Documentation**:
-- Files in `/docs/temp/` - Historical migration guides, old roadmaps, and completed task tracking
-- These are preserved for reference but not actively maintained
+- Historical migration guides, old roadmaps, and completed task tracking live
+  in the workspace `../docs/archive/` tree when they are preserved.
+
+Do not recreate a local `docs/` folder. Put durable CLI docs under
+`../docs/code/`, keep tests under `tests/`, and put receipts under
+`../docs/receipts/`.
 
 ## Core Intelligence Strategy
 

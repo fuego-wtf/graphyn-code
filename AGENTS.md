@@ -46,6 +46,13 @@ does not own decisions that belong to its parent discipline.
 
 **This repo:** child of desktop/ (RUNTIME), at `desktop/ → code/`.
 
+## Filetree Awareness
+
+Code no longer owns a local docs tree. Put durable CLI documentation under
+`../docs/code/`, keep tests under `tests/` or the command surface they verify,
+and put durable receipts under `../docs/receipts/`. Do not recreate a local
+`docs/` folder for CLI docs.
+
 ## Core Principles
 
 | Principle | Description |
