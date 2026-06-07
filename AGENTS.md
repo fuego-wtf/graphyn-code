@@ -117,3 +117,31 @@ skipped the relevant env file.
 
 - **Source**: `docs/desktop/backbone-plan-v1.md`
 - **Status**: Frozen baseline — changes require explicit approval
+
+## Run Boundary Rule
+
+Long-running agent work is useful only when each run has a bounded active scope.
+When a plan, prompt, or PlanFile describes multiple packs, treat the full plan as
+map context and the current pack as the executable run.
+
+- Before execution, name `Active scope` and `Stop after`.
+- `implement <plan>` means execute the active scope only, then stop with a Claim
+  Receipt Bundle, approval token, or exact blocker.
+- Do not move into the next pack unless the current pack has evidence and the
+  next gate is explicitly approved or already authorized by the plan.
+- After at most three source-only alignment slices, run or request the required
+  verification. If verification is not authorized, report that blocker instead
+  of finding more adjacent source work.
+- If verification fails, patch only the first concrete failure and rerun the
+  smallest relevant check.
+- Long-running agents must run long by advancing gated scopes with receipts, not
+  by expanding scope.
+
+## Do Your Own Research (DYOR)
+
+Operator instructions define scope, but operator-provided facts and third-party
+agent output are reported state until verified. Before acting on case-specific
+claims, run targeted research against source files, runtime commands, governed
+docs, receipts, or production evidence. If fresh case-specific evidence is
+already present in current context or governed receipts, cite it and treat the
+research step as complete.
