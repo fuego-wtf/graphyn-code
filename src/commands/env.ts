@@ -171,9 +171,19 @@ async function setupCommand(serviceFilter?: string, dryRun = false): Promise<voi
 /**
  * graphyn env check — Audit .env files for validity and placeholders
  */
-async function checkCommand(): Promise<void> {
+async function checkCommand(serviceFilter?: string): Promise<void> {
   const root = findWorkspaceRoot();
   const services = loadServices();
+  const targets: Record<string, EnvTarget> = serviceFilter
+    ? { [serviceFilter]: services[serviceFilter] }
+    : services;
+
+  if (serviceFilter && !services[serviceFilter]) {
+    console.log(colors.error(`Unknown service: ${serviceFilter}`));
+    console.log(colors.info(`Available: ${Object.keys(services).join(', ')}`));
+    process.exitCode = 1;
+    return;
+  }
 
   console.log(colors.bold('\n  Fuego Labs — Environment Audit\n'));
 
@@ -182,7 +192,7 @@ async function checkCommand(): Promise<void> {
   let placeholders = 0;
   let invalid = 0;
 
-  for (const [_name, svc] of Object.entries(services)) {
+  for (const [_name, svc] of Object.entries(targets)) {
     const repoRoot = resolveRepoRoot(svc, root);
     if (!repoRoot) continue;
 
@@ -330,6 +340,8 @@ export async function runEnvCommand(rawQuery: string): Promise<void> {
       i++;
     } else if (tokens[i] === '--dry-run') {
       dryRun = true;
+    } else if (!tokens[i].startsWith('-') && !serviceFilter) {
+      serviceFilter = tokens[i];
     }
   }
 
@@ -347,7 +359,7 @@ export async function runEnvCommand(rawQuery: string): Promise<void> {
       break;
     case 'check':
     case 'audit':
-      await checkCommand();
+      await checkCommand(serviceFilter);
       break;
     case 'list':
     case 'ls':
