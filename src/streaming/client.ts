@@ -32,7 +32,7 @@ export class StreamingClient {
   private reconnectDelay = 1000;
 
   constructor() {
-    this.apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+    this.apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.ai';
   }
 
   /**

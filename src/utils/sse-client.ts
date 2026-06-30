@@ -275,7 +275,7 @@ export class SSEClient extends EventEmitter {
 
 // Factory function for creating thread-specific SSE clients
 export function createThreadSSEClient(threadId: string, baseUrl?: string): SSEClient {
-  const apiUrl = baseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+  const apiUrl = baseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.ai';
   const url = `${apiUrl}/internal/threads/${threadId}/stream`;
   
   return new SSEClient({
@@ -285,4 +285,3 @@ export function createThreadSSEClient(threadId: string, baseUrl?: string): SSECl
     backoffMultiplier: 2
   });
 }
-

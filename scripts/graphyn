@@ -26,7 +26,7 @@ readonly SESSIONS_DIR="${USER_HOME}/sessions"
 readonly CACHE_DIR="${USER_HOME}/cache"
 
 # Graphyn API Configuration
-readonly DEFAULT_API_URL="https://api.graphyn.xyz"
+readonly DEFAULT_API_URL="https://api.graphyn.ai"
 readonly TERMINAL_DEMO_URL="http://localhost:4000"
 readonly GRAPHYN_API_TIMEOUT="${GRAPHYN_API_TIMEOUT:-30}"
 

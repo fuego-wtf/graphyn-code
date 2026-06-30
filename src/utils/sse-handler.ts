@@ -20,7 +20,7 @@ export class ThreadStreamHandler {
   constructor(
     private threadId: string,
     private token: string,
-    private apiUrl: string = process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz'
+    private apiUrl: string = process.env.GRAPHYN_API_URL || 'https://api.graphyn.ai'
   ) {}
 
   // Helper: safely parse SSE event data, fall back to text/raw without throwing

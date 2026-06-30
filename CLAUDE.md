@@ -289,7 +289,7 @@ bun publish  # auto-runs tests
 ```typescript
 const graphyn = new GraphynClient({ 
   apiKey: process.env.GRAPHYN_API_KEY,
-  baseURL: 'https://api.graphyn.xyz'
+  baseURL: 'https://api.graphyn.ai'
 });
 
 // Standard API operations

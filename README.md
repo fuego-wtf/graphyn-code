@@ -120,13 +120,13 @@ graphyn auth gph_sk_your_api_key
 
 ```bash
 # Extract Figma design via API
-curl -X POST https://api.graphyn.xyz/v1/design/extract \
+curl -X POST https://api.graphyn.ai/v1/design/extract \
   -H "Authorization: Bearer gph_sk_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"figma_url": "https://figma.com/file/xyz/Component"}'
 
 # Create custom agent
-curl -X POST https://api.graphyn.xyz/v1/agents \
+curl -X POST https://api.graphyn.ai/v1/agents \
   -H "Authorization: Bearer gph_sk_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -138,7 +138,7 @@ curl -X POST https://api.graphyn.xyz/v1/agents \
   }'
 
 # Chat with agent
-curl -X POST https://api.graphyn.xyz/v1/agents/agent_123/chat \
+curl -X POST https://api.graphyn.ai/v1/agents/agent_123/chat \
   -H "Authorization: Bearer gph_sk_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"message": "Create a secure transaction form"}'
@@ -150,7 +150,7 @@ curl -X POST https://api.graphyn.xyz/v1/agents/agent_123/chat \
 # GitHub Action example
 - name: Extract Figma Design
   run: |
-    curl -X POST https://api.graphyn.xyz/v1/design/extract \
+    curl -X POST https://api.graphyn.ai/v1/design/extract \
       -H "Authorization: Bearer ${{ secrets.GRAPHYN_API_KEY }}" \
       -d '{"figma_url": "${{ github.event.inputs.figma_url }}"}'
 ```
@@ -181,11 +181,11 @@ const response = await graphyn.agents.chat('agent_123', {
 - **Ultra ($39/month)**: Unlimited API calls
 - Check `X-RateLimit-Remaining` header for current limits
 
-Full API documentation: [app.graphyn.xyz/docs](https://app.graphyn.xyz/docs)
+Full API documentation: [app.graphyn.ai/docs](https://app.graphyn.ai/docs)
 
 ### 🚀 New in v0.1.51: Production Ready
 
-Graphyn now connects to the production backend at api.graphyn.xyz:
+Graphyn now connects to the production backend at api.graphyn.ai:
 
 ```bash
 # OAuth authentication (port 8989)
@@ -202,7 +202,7 @@ graphyn thread
 
 # Deploy agents as APIs
 graphyn agent deploy abc123
-# → Get API endpoint: https://api.graphyn.xyz/api/v1/agents/abc123/invoke
+# → Get API endpoint: https://api.graphyn.ai/api/v1/agents/abc123/invoke
 # → Receive API key for external access
 # → Usage tracking and rate limiting included
 ```

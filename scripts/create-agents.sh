@@ -9,7 +9,7 @@ if [ -z "$1" ]; then
 fi
 
 BEARER_TOKEN="$1"
-API_URL="${GRAPHYN_API_URL:-https://api.graphyn.xyz}"
+API_URL="${GRAPHYN_API_URL:-https://api.graphyn.ai}"
 
 echo "🚀 Creating specialized agents for your organization..."
 echo ""

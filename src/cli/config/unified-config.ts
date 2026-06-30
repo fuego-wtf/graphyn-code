@@ -12,7 +12,7 @@ interface ConfigSource {
 class DefaultSource implements ConfigSource {
   name = 'defaults';
   private defaults = new Map<string, any>([
-    ['api.endpoint', 'https://api.graphyn.xyz'],
+    ['api.endpoint', 'https://api.graphyn.ai'],
     ['api.timeout', 30000],
     ['ui.theme', 'auto'],
     ['ui.animations', true],

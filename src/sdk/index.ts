@@ -22,7 +22,7 @@ export class GraphynSDK {
   private oauthManager?: any;
 
   constructor(options: GraphynSDKOptions = {}) {
-    // const apiBaseUrl = options.apiBaseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz';
+    // const apiBaseUrl = options.apiBaseUrl || process.env.GRAPHYN_API_URL || 'https://api.graphyn.ai';
     
     // TODO: Configure the generated client when SDK files are generated
     // const configuration = new Configuration({

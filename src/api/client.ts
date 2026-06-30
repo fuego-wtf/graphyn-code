@@ -79,7 +79,7 @@ export class GraphynAPIClient {
   };
 
   constructor() {
-    const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.xyz';
+    const apiUrl = process.env.GRAPHYN_API_URL || config.apiBaseUrl || 'https://api.graphyn.ai';
     const isDev = apiUrl.includes('localhost');
     
     this.client = axios.create({

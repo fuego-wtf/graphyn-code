@@ -152,7 +152,7 @@ export class ModeManager {
    */
   private async checkApiHealth(): Promise<boolean> {
     try {
-      const response = await fetch(`${process.env.GRAPHYN_API_URL || 'https://api.graphyn.xyz'}/health`);
+      const response = await fetch(`${process.env.GRAPHYN_API_URL || 'https://api.graphyn.ai'}/health`);
       return response.ok;
     } catch {
       return false;

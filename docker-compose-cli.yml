@@ -10,10 +10,10 @@ services:
     environment:
       NODE_ENV: production
       # API endpoint for CLI to connect to
-      API_BASE_URL: ${API_BASE_URL:-https://api.graphyn.xyz}
+      API_BASE_URL: ${API_BASE_URL:-https://api.graphyn.ai}
       # OAuth configuration for CLI authentication
       OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-graphyn-cli}
-      OAUTH_DEVICE_FLOW_URL: ${OAUTH_DEVICE_FLOW_URL:-https://api.graphyn.xyz/auth/device}
+      OAUTH_DEVICE_FLOW_URL: ${OAUTH_DEVICE_FLOW_URL:-https://api.graphyn.ai/auth/device}
       # Server configuration
       PORT: ${PORT:-8004}
       LOG_LEVEL: ${LOG_LEVEL:-info}
