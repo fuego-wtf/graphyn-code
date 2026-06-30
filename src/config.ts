@@ -3,7 +3,7 @@ import { graphynUserAgent } from './package-version.js';
 // Dynamic configuration getter that re-reads environment variables at runtime
 export function getConfig() {
   // Detect development mode and prefer localhost if available
-  const defaultApiUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'https://api.graphyn.xyz';
+  const defaultApiUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : 'https://api.graphyn.ai';
   const apiUrl = process.env.GRAPHYN_API_URL || defaultApiUrl;
   const isDev = apiUrl.includes('localhost') || process.env.NODE_ENV === 'development' || process.env.GRAPHYN_DEV_MODE === 'true';
 
@@ -12,10 +12,10 @@ export function getConfig() {
     apiBaseUrl: apiUrl,
     appUrl: isDev 
       ? (process.env.GRAPHYN_APP_URL || 'http://localhost:3000')
-      : (process.env.GRAPHYN_APP_URL || 'https://app.graphyn.xyz'),
+      : (process.env.GRAPHYN_APP_URL || 'https://app.graphyn.ai'),
     codeApiUrl: isDev 
       ? (process.env.GRAPHYN_CODE_API_URL || apiUrl) // Use main API in development
-      : (process.env.GRAPHYN_CODE_API_URL || 'https://code.graphyn.xyz'),
+      : (process.env.GRAPHYN_CODE_API_URL || 'https://code.graphyn.ai'),
     isDev
   };
 }
@@ -40,7 +40,9 @@ export const config = {
   // OAuth configuration
   oauth: {
     port: parseInt(process.env.GRAPHYN_OAUTH_PORT || '8989'),
-    redirectUri: process.env.GRAPHYN_OAUTH_REDIRECT_URI || 'https://cli.graphyn.xyz/callback',
+    get redirectUri() {
+      return process.env.GRAPHYN_OAUTH_REDIRECT_URI || 'https://cli.graphyn.ai/callback';
+    },
     localRedirectUri: 'http://localhost:8989/callback',
     clientId: process.env.GRAPHYN_OAUTH_CLIENT_ID || 'graphyn-cli-official',
     scopes: 'openid profile email agents:read agents:write threads:read threads:write organizations:read'
