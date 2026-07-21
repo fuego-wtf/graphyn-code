@@ -2,7 +2,6 @@
 
 **The open-source junction between local agent harnesses and Graphyn's Rust runtime.**
 
-[![Build](https://github.com/fuego-wtf/graphyn-code/actions/workflows/test-package.yml/badge.svg)](https://github.com/fuego-wtf/graphyn-code/actions/workflows/test-package.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-23251f.svg)](LICENSE)
 
 <a href="https://graphyn.ai/?utm_source=github&amp;utm_medium=sponsorship&amp;utm_campaign=graphyn_founding_alpha&amp;utm_content=awesome_datascience_banner">
