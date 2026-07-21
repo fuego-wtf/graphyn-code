@@ -1,49 +1,59 @@
 # Graphyn Code (@graphyn/code)
 
 ## TL;DR
-`@graphyn/code` is Graphyn's developer CLI for agent-assisted software delivery.
-It coordinates planning and execution across specialized agents so engineering work moves from request to shipped change faster.
 
-## Who Needs This
-- Developers who want execution support, not just chat output.
-- Teams standardizing AI-assisted delivery workflows.
-- Technical leads orchestrating architecture, backend, frontend, and review lanes.
-- Agents integrating with Graphyn's CLI execution contract.
+`@graphyn/code` is the open-source TypeScript CLI and capability junction between local agent harnesses and Graphyn's Rust runtime.
 
-## What This Surface Delivers
-- `graphyn` CLI entrypoints and interaction flows.
-- Mission-control style orchestration and streaming interaction.
-- Coordination modules for multi-agent execution across codebases.
+## Authority boundary
 
-## Why This Matters For Graphyn
-Graphyn is built around command-native execution.
-This repo is where that execution model becomes a daily engineering workflow.
+- Graphyn Code owns command parsing, capability routing, transport adapters, normalized errors, and receipts.
+- The Graphyn desktop Rust ACP runtime owns sessions, approvals, execution, and runtime state.
+- The Graphyn Rust base binary owns deterministic local knowledge and base capabilities.
+- Graphyn Code is a consult proxy and junction. It is not a second runtime authority.
 
-## Runtime Truth Boundaries
-- Reliability claims require build/test receipts.
-- Orchestration and streaming error paths are production-critical and must stay explicit.
+## Current capabilities
 
-## Quickstart
+- Read-only cross-harness consults for Claude, Codex, and Gemini.
+- Experimental opt-in ACP-over-stdio consult transport.
+- Rust base CLI routing through `graphyn base`.
+- ACL-gated filesystem inspection through `graphyn fs`.
+- Schedule, environment, configuration, and external MCP command surfaces.
+- Secret stripping, transform receipts, trace propagation, timing, and normalized failures.
+
+## Truth boundary
+
+- The repository builds from source with Bun.
+- End-to-end agent communication does not have a public millisecond latency guarantee.
+- Low-latency local routing is an engineering target that still requires reproducible benchmarks.
+- Workflow visualization and outcome-driven self-improvement are Graphyn product direction, not fully autonomous behavior shipped by this repository alone.
+
+## Quick start
+
 ```bash
 bun install
 bun run build
-bun run dev
-bun run test:package
+bun bin/graphyn.js --help
+bun run test
 ```
 
-## Public Links
-- Product: https://graphyn.xyz/code
-- Package: @graphyn/code
+## Agent rules
 
-## Technical References
-- Commander: https://github.com/tj/commander.js#readme
-- Inquirer: https://github.com/SBoudrias/Inquirer.js#readme
-- Chalk: https://github.com/chalk/chalk#readme
-- Ora: https://github.com/sindresorhus/ora#readme
-- Node.js APIs: https://nodejs.org/docs/latest-v22.x/api/
+1. Preserve the desktop ACP authority boundary.
+2. Keep failures explicit and actionable.
+3. Keep consults read-only unless a separate governed execution contract authorizes mutation.
+4. Never expose secrets or inherit a caller's unrestricted configuration.
+5. Add command or adapter tests and report exact verification receipts.
 
-## For Agents
-1. Preserve CLI contract and subcommand stability.
-2. Keep orchestration failures explicit and observable.
-3. Avoid regressions in automation-critical flows.
-4. Provide build/test command receipts before closure claims.
+## Public links
+
+- Product: https://graphyn.ai/
+- Source: https://github.com/fuego-wtf/graphyn-code
+- Issues: https://github.com/fuego-wtf/graphyn-code/issues
+- Package: `@graphyn/code`
+
+## Technical references
+
+- Agent Client Protocol: https://agentclientprotocol.com/
+- Model Context Protocol: https://modelcontextprotocol.io/
+- Bun: https://bun.sh/
+- TypeScript: https://www.typescriptlang.org/

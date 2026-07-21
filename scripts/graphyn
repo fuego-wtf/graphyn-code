@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Graphyn Code - Free AI Development Tool for Claude Code Users
+# Graphyn Code - local agent junction for Graphyn's Rust runtime
 # Version: 2.0.0
 # 
 # Accelerate development with specialized AI agents 🚀

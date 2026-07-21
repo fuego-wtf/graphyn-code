@@ -2,7 +2,7 @@
   "name": "@graphyn/code",
   "version": "0.1.32",
   "type": "module",
-  "description": "Free AI Development Tool for Claude Code Users",
+  "description": "Open-source junction between local agent harnesses and Graphyn's Rust runtime",
   "main": "dist/index.js",
   "bin": {
     "graphyn": "./bin/graphyn.js"
@@ -24,7 +24,11 @@
     "assistant",
     "backend",
     "frontend",
-    "architect"
+    "architect",
+    "agent-runtime",
+    "acp",
+    "local-first",
+    "multi-agent"
   ],
   "author": "Graphyn Team",
   "license": "MIT",
@@ -84,6 +88,7 @@
   "files": [
     "dist",
     "bin",
+    "assets",
     "scripts/postinstall.js",
     "README.md",
     "LICENSE"
