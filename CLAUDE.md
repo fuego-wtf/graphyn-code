@@ -175,7 +175,6 @@ Graphyn Code is a radically simplified CLI that transforms Claude Code into an i
 - `../docs/code/` - Durable CLI architecture and integration notes
 - `../docs/SITEMAP.md` - Workspace user-flow sitemap
 - `README.md` - User-facing installation and usage guide
-- `CLAUDE_CODE_INTERFACE.md` - Claude Code interface notes
 
 **Archived Documentation**:
 - Historical migration guides, old roadmaps, and completed task tracking live
