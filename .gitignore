@@ -180,3 +180,12 @@ blob-report/
 .wrangler/
 tmp/
 temp/
+# Tidy-workspace local-only artifacts
+.hermes/
+.codex/
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+.DS_Store
