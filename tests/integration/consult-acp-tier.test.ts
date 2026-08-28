@@ -1,85 +1,24 @@
 /**
- * Integration tests for Tier-2 ACP consult path.
- *
- * SKIP-BY-DEFAULT: These tests exercise the real `gemini --acp` binary over
- * the ACP-over-stdio JSON-RPC 2.0 transport.  They require:
- *   - `gemini` CLI on PATH and authenticated.
- *   - Network access to the Gemini API.
- *
- * Enable with:
- *   RUN_ACP_LIVE=1 bunx --bun vitest run tests/integration/consult-acp-tier.test.ts
- *
- * SHIP-GATE reminder (from acp-transport.ts): Tier-2 is still EXPERIMENTAL.
- * Two desktop ACP bugs must be fixed before this path ships as a default:
- *   1. transport.rs:166 filter swallows `initialize` responses.
- *   2. agent.rs misses prompt-response stopReason for single-shot models.
- * These tests validate the CLI transport layer only; desktop integration is
- * a separate gate.
+ * Consult tier parsing plus the RED-125 Gemini removal gate.
+ * The lower-level ACP transport remains covered with a mocked child process in
+ * tests/unit/consult/acp-transport.test.ts.
  */
 
 import { describe, it, expect } from 'vitest';
-import { runHarnessConsult, type HarnessConsultSuccess } from '../../src/consult/harness-adapter.js';
+import { runHarnessConsult, SUPPORTED_HARNESSES } from '../../src/consult/harness-adapter.js';
 import { parseHarnessConsultArgs } from '../../src/index.js';
 
-const RUN_ACP_LIVE = !!process.env.RUN_ACP_LIVE;
-
-describe.skipIf(!RUN_ACP_LIVE)('Tier-2 ACP consult — live integration (RUN_ACP_LIVE=1)', () => {
-  it('returns a structured answer from gemini --acp with readOnlyEnforced=true', async () => {
+describe('Gemini consult gate', () => {
+  it('keeps Gemini typed for compatibility but unreachable at runtime', async () => {
+    expect(SUPPORTED_HARNESSES).not.toContain('gemini');
     const result = await runHarnessConsult({
       toHarness: 'gemini',
-      question: 'What is 2 + 2? Answer in one sentence.',
-      tier: 'acp',
-      timeoutMs: 60_000,
+      question: 'This must never reach a Gemini subprocess.',
     });
 
-    // Basic shape check.
-    expect(result.ok).toBe(true);
-
-    if (!result.ok) {
-      throw new Error(`ACP consult failed [${result.errorCode}]: ${result.error}`);
-    }
-
-    const success = result as HarnessConsultSuccess;
-
-    // Must have a non-empty answer.
-    expect(typeof success.response).toBe('string');
-    expect(success.response.length).toBeGreaterThan(0);
-
-    // Duration must be recorded.
-    expect(typeof success.durationMs).toBe('number');
-    expect(success.durationMs).toBeGreaterThan(0);
-
-    // answeredByModel: gemini --acp is expected to populate session/new modelId.
-    // May be undefined if the harness does not report it — just type-check.
-    expect(
-      success.answeredByModel === undefined || typeof success.answeredByModel === 'string',
-    ).toBe(true);
-
-    // Receipt shape.
-    const { receipt } = success;
-    expect(receipt).toBeDefined();
-    expect(receipt.readOnlyEnforced).toBe(true);
-    expect(typeof receipt.junctionTraceId).toBe('string');
-    expect(receipt.junctionTraceId.length).toBeGreaterThan(0);
-    expect(typeof receipt.junctionDepth).toBe('number');
-    expect(typeof receipt.strippedEnvKeyCount).toBe('number');
-    // invocationArgv must include the binary and --acp flag.
-    expect(receipt.invocationArgv).toContain('gemini');
-    expect(receipt.invocationArgv).toContain('--acp');
-    // Transform receipt must be present.
-    expect(receipt.transform).toBeDefined();
-  }, 90_000); // generous wall-clock budget for a real network call
-
-  it('resolves --acp shorthand flag via parseHarnessConsultArgs', () => {
-    const parsed = parseHarnessConsultArgs(['consult', '--to', 'gemini', '--acp', 'what is 2+2']);
-    expect(parsed.tier).toBe('acp');
-    expect(parsed.toHarness).toBe('gemini');
-    expect(parsed.question).toBe('what is 2+2');
-  });
-
-  it('resolves --tier acp flag via parseHarnessConsultArgs', () => {
-    const parsed = parseHarnessConsultArgs(['consult', '--to', 'gemini', '--tier', 'acp', 'what is 2+2']);
-    expect(parsed.tier).toBe('acp');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('Gemini unexpectedly remained reachable');
+    expect(result.errorCode).toBe('HARNESS_NOT_WIRED');
   });
 });
 
