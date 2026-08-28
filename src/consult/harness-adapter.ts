@@ -3,8 +3,8 @@
  *
  * This is the "graphyn CLI as junction" path: a caller (Claude, or any agent /
  * human via `@code`) asks `graphyn consult --to <harness> "question"`, and the
- * junction routes the question to an external coding-agent harness (Gemini in
- * V1), enforces a read-only/advisory posture, normalizes the answer, and returns
+ * junction routes the question to an enabled external coding-agent harness,
+ * enforces a read-only/advisory posture, normalizes the answer, and returns
  * a receipt.
  *
  * Distinct from `commands/consult.ts`, which is the `.af`<->`.af` Desktop-ACP
@@ -14,7 +14,9 @@
  * Design ref: docs/desktop/research/w273-research-cli-a2a-harness-junction/
  *   99-synthesis-and-design.md (HarnessAdapter behind CapabilityRouter).
  *
- * V1 scope: Gemini + Codex + Claude leaves, read-only one-shot subprocess (Tier 1, proven live).
+ * V1 scope: Codex + Claude leaves, read-only one-shot subprocess (Tier 1, proven live).
+ * Gemini remains implemented but is hard-gated after Google ended individual
+ * account support for Gemini CLI; it can be re-evaluated for paid/Vertex use.
  * Fast-follow: Tier 2 ACP-over-stdio. See §8 of the synthesis doc.
  */
 
@@ -30,7 +32,11 @@ export { redactSecrets } from './transform-policy.js';
 export type HarnessId = 'gemini' | 'codex' | 'claude';
 
 /** Harnesses with a wired adapter in this build. */
-export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['gemini', 'codex', 'claude'];
+export const SUPPORTED_HARNESSES: readonly HarnessId[] = ['codex', 'claude'];
+
+// RED-125: retain the adapter implementation for a future paid/Vertex decision,
+// but make Gemini unreachable from every current consult entry point.
+const GEMINI_CONSULT_ENABLED = false;
 
 /**
  * Invoke tier selection for runHarnessConsult.
@@ -349,7 +355,7 @@ class ClaudeHarnessAdapter implements HarnessAdapter {
 }
 
 const ADAPTERS: Partial<Record<HarnessId, HarnessAdapter>> = {
-  gemini: new GeminiHarnessAdapter(),
+  ...(GEMINI_CONSULT_ENABLED ? { gemini: new GeminiHarnessAdapter() } : {}),
   codex: new CodexHarnessAdapter(),
   claude: new ClaudeHarnessAdapter(),
 };
@@ -390,7 +396,7 @@ export async function runHarnessConsult(req: HarnessConsultRequest): Promise<Har
 
   // ── Basic validation ───────────────────────────────────────────────────────
   if (!req.question || !req.question.trim()) {
-    return fail(req.toHarness, 'BAD_REQUEST', 'Empty question.', 'Provide a question: graphyn consult --to gemini "your question".');
+    return fail(req.toHarness, 'BAD_REQUEST', 'Empty question.', 'Provide a question: graphyn consult --to codex "your question".');
   }
 
   const adapter = ADAPTERS[req.toHarness];
@@ -399,7 +405,7 @@ export async function runHarnessConsult(req: HarnessConsultRequest): Promise<Har
       req.toHarness,
       'HARNESS_NOT_WIRED',
       `Harness "${req.toHarness}" is not wired in this build.`,
-      `Supported harnesses: ${SUPPORTED_HARNESSES.join(', ')}. (Codex/Claude leaves are the fast-follow — see W273 §8.)`,
+      `Supported harnesses: ${SUPPORTED_HARNESSES.join(', ')}. Gemini CLI is disabled because Google no longer accepts individual-account consults from that client.`,
     );
   }
 

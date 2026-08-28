@@ -14,7 +14,7 @@ Graphyn Code is the TypeScript command-line interface and capability-routing lay
 
 The long-term role is simple: local agents should be able to find one another, exchange work, and coordinate through a fast, observable junction. The Graphyn desktop Agent Client Protocol (ACP) runtime remains the authority for sessions, approvals, and execution. Graphyn Code routes requests into that runtime and other capability domains. It does not bypass their security boundaries.
 
-> **Project status:** active pre-alpha. The source builds today. Read-only cross-harness consults work through Claude, Codex, and Gemini subprocess adapters. ACP-over-stdio is present as an experimental opt-in tier and is not the default production path.
+> **Project status:** active pre-alpha. The source builds today. Read-only cross-harness consults work through Claude and Codex subprocess adapters. Gemini CLI consult is disabled because Google no longer accepts individual accounts from that client. ACP-over-stdio is present as an experimental opt-in tier and is not the default production path.
 
 <!-- prettier-ignore -->
 > [!NOTE]
@@ -48,7 +48,7 @@ human or local agent
   @graphyn/code
   command dispatcher + CapabilityRouter
         |
-        +-- harness/*  --> Claude, Codex, or Gemini consult
+        +-- harness/*  --> Claude or Codex consult
         |                 current: read-only subprocess
         |                 experimental: ACP over stdio
         |
@@ -79,7 +79,7 @@ surfaces require another local runtime or service:
 
 | Surface                            | Current state                                                       | Requirement                                |
 | ---------------------------------- | ------------------------------------------------------------------- | ------------------------------------------ |
-| `graphyn consult --to <harness>`   | Read-only one-shot consults for Claude, Codex, and Gemini           | Target harness installed and authenticated |
+| `graphyn consult --to <harness>`   | Read-only one-shot consults for Claude and Codex                   | Target harness installed and authenticated |
 | `graphyn consult --tier acp`       | Experimental ACP-over-stdio transport                               | Explicit opt-in and compatible harness     |
 | `graphyn base <task>`              | Routes deterministic requests to the Rust base CLI and returns JSON | Graphyn base binary available              |
 | `graphyn fs <subcommand>`          | ACL-gated local virtual filesystem inspection                       | Local filesystem permission                |
@@ -108,9 +108,6 @@ bun bin/graphyn.js --help
 ### Ask another local agent harness
 
 ```bash
-bun bin/graphyn.js consult --to gemini \
-  "Review this repository's public API boundary"
-
 bun bin/graphyn.js consult --to codex \
   "Find the smallest safe fix for the failing test"
 
@@ -171,7 +168,7 @@ Cross-harness consults are advisory by default.
 
 - Claude receives only `Read`, `Glob`, and `Grep` tools.
 - Codex runs in its read-only sandbox with user configuration ignored.
-- Gemini runs in plan mode and its output is rejected if file writes are reported.
+- Gemini CLI's dormant adapter remains hard-gated until its supported paid/Vertex contract is verified.
 - Secret-shaped environment variables are removed before a leaf process starts.
 - Each consult carries a trace ID, recursion depth, transformation hashes, timing, and a read-only receipt.
 - Experimental ACP transport must be selected explicitly.
@@ -197,7 +194,7 @@ Selected founding contributors receive access to the alpha surfaces needed to te
 The roadmap separates current implementation from experimental work and product
 direction:
 
-- **Shipped:** domain-based capability router and read-only Claude, Codex, and Gemini consult adapters.
+- **Shipped:** domain-based capability router and read-only Claude and Codex consult adapters.
 - **Shipped:** secret stripping, transform receipts, trace propagation, timeout handling, and normalized failure envelopes.
 - **Experimental:** ACP-over-stdio consult transport.
 - **Next:** make the Graphyn Code to desktop Rust junction a stable public contract.

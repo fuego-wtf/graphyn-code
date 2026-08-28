@@ -160,7 +160,7 @@ ${colors.highlight('Examples:')}
   
 ${colors.highlight('Commands:')}
   base <task>         Deterministic local KB retrieval (JSON output)
-  consult --to <h>    Ask another agent harness (A2A junction). e.g. consult --to gemini "Q"
+  consult --to <h>    Ask another agent harness (A2A junction). e.g. consult --to codex "Q"
                       Flags: --tier <subprocess|acp>  (default: subprocess/Tier-1; --acp is shorthand for --tier acp)
   fs <subcommand>      ACL-gated local VFS inspection (JSON output)
   env <subcommand>    Manage environment files (setup, check, list)

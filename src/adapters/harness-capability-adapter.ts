@@ -3,8 +3,8 @@
  * the cross-harness A2A consult junction.
  *
  * Domain convention:
- *   harness/gemini  → consult Gemini harness
  *   harness/codex   → consult Codex harness
+ *   harness/claude  → consult Claude harness
  *
  * Body contract (req.body):
  *   { question: string; model?: string; from?: string }
@@ -52,7 +52,7 @@ function makeFailure<T>(
 export class HarnessCapabilityAdapter implements CapabilityAdapter {
   async invoke<T>(req: BackyardCapabilityRequest): Promise<BackyardResult<T>> {
     // ── 1. Parse the target harness from the domain ────────────────────────
-    // e.g. "harness/gemini" → "gemini"
+    // e.g. "harness/codex" → "codex"
     const segments = req.domain.split('/');
     const harnessSegment = segments[1];
 
